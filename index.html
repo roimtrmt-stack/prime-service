@@ -91,7 +91,6 @@
 
       <label class="label">Mode de paiement souhaité</label>
       <select id="paiementClient" class="champ">
-        <option value="Espèces à la livraison">Espèces à la livraison</option>
         <option value="Orange Money">Orange Money</option>
         <option value="Wave">Wave</option>
       </select>
@@ -115,6 +114,21 @@
 
       <p id="statutEnvoi" class="statut-envoi"></p>
     </form>
+  </section>
+
+  <!-- ===================== PAGE DE REMERCIEMENT ===================== -->
+  <section id="vue-merci" class="vue" style="display:none;">
+    <div class="carte-merci">
+      <div class="icone-merci">📦</div>
+      <h2>Merci pour votre commande !</h2>
+      <p>Votre colis est en cours d'envoi et arrivera très bientôt chez vous.</p>
+      <div class="bloc-paiement">
+        <p class="label-paiement">💳 Paiement à effectuer au numéro</p>
+        <p class="numero-paiement" id="numeroPaiementAffiche">94 13 44 08</p>
+        <p class="sous-texte-paiement">Orange Money ou Wave</p>
+      </div>
+      <button class="btn-principal" onclick="afficherAccueil()">Retour à l'accueil</button>
+    </div>
   </section>
 
   <!-- ===================== ESPACE VENDEUR (reservé, connexion Supabase) ===================== -->
