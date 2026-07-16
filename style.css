@@ -305,6 +305,61 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   font-size:14px;
 }
 
+/* ===================== PAGE DE REMERCIEMENT ===================== */
+.carte-merci{
+  max-width:420px;
+  margin:40px auto;
+  text-align:center;
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:36px 24px;
+}
+.icone-merci{
+  font-size:56px;
+  margin-bottom:6px;
+  animation: rebondirColis 1.4s ease-in-out infinite;
+}
+@keyframes rebondirColis{
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.carte-merci h2{ margin:10px 0 6px; }
+.carte-merci p{ color:#555; }
+.bloc-paiement{
+  background:var(--gris-fond);
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:16px;
+  margin:22px 0;
+}
+.label-paiement{ margin:0 0 6px; font-size:14px; color:#555; }
+.numero-paiement{
+  margin:0;
+  font-size:28px;
+  font-weight:800;
+  color:var(--bleu);
+  letter-spacing:1px;
+}
+.sous-texte-paiement{ margin:6px 0 0; font-size:13px; color:var(--orange); font-weight:600; }
+
+/* ===================== ANIMATION AJOUT AU PANIER ===================== */
+@keyframes secousseBadge{
+  0%, 100% { transform: scale(1); }
+  30% { transform: scale(1.5); }
+  60% { transform: scale(0.9); }
+}
+.badge.anime{ animation: secousseBadge .5s ease; }
+
+@keyframes confirmationAjout{
+  0% { transform: scale(1); }
+  50% { transform: scale(0.94); }
+  100% { transform: scale(1); }
+}
+.btn-ajouter.confirme{
+  background:#16a34a !important;
+  animation: confirmationAjout .3s ease;
+}
+
 /* ===================== MODALE ===================== */
 .modale{
   position:fixed; inset:0;
