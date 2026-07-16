@@ -2,9 +2,10 @@
    CONFIGURATION
    ===================================================================== */
 const CONFIG = {
-  DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1527130570415407234/rUfmlOIYWRHh3sa_xekFAf4ZVp4NyeWQ7XTMrmJGa_tMEOV4wbbssKsFVAvIJoOikS9F",
+  DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1526939900941828216/dQi_B5P55-8Y5j2yxFo4AxYm1ittk2o5CaNq0JYA97FXU7X8tatWXqmYFP3SW5k8KCgb",
   SUPABASE_URL: "https://kfxalpvbtbvkncztjwzc.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
+  NUMERO_PAIEMENT: "94134408",
 };
 
 const supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
@@ -156,7 +157,7 @@ function afficherProduits(idCategorie, idSousCategorie, changerVue = true){
         : `<span class="icone-produit">📦</span>`}
       <h4>${p.nom}</h4>
       <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
-      <button class="btn-ajouter" onclick="ajouterAuPanier('${idCategorie}', '${idSousCategorie}', ${index})">
+      <button class="btn-ajouter" onclick="ajouterAuPanier('${idCategorie}', '${idSousCategorie}', ${index}, event)">
         Ajouter au panier
       </button>
     </div>
@@ -198,7 +199,7 @@ function construireCategories(){
 /* =====================================================================
    PANIER
    ===================================================================== */
-function ajouterAuPanier(idCategorie, idSousCategorie, index){
+function ajouterAuPanier(idCategorie, idSousCategorie, index, event){
   const produit = produitsParCle[cleSousCategorie(idCategorie, idSousCategorie)][index];
 
   const existant = panier.find(a => a.id === produit.id);
@@ -208,6 +209,29 @@ function ajouterAuPanier(idCategorie, idSousCategorie, index){
     panier.push({ ...produit, quantite: 1 });
   }
   mettreAJourCompteur();
+  animerAjoutPanier(event);
+}
+
+/* Petite animation visuelle : le badge du panier rebondit, et le bouton
+   cliqué affiche brièvement une confirmation verte. */
+function animerAjoutPanier(event){
+  const badge = document.getElementById("compteurPanier");
+  badge.classList.remove("anime");
+  void badge.offsetWidth; // force le redémarrage de l'animation CSS
+  badge.classList.add("anime");
+
+  if(event && event.target){
+    const bouton = event.target.closest(".btn-ajouter");
+    if(bouton){
+      const texteOriginal = bouton.textContent;
+      bouton.textContent = "✓ Ajouté !";
+      bouton.classList.add("confirme");
+      setTimeout(() => {
+        bouton.textContent = texteOriginal;
+        bouton.classList.remove("confirme");
+      }, 900);
+    }
+  }
 }
 
 function changerQuantite(index, delta){
@@ -358,11 +382,9 @@ async function envoyerCommande(event){
     });
 
     if(reponse.ok){
-      statutEnvoi.style.color = "#16a34a";
-      statutEnvoi.textContent = "✅ Commande envoyée ! Vous serez contacté(e) très bientôt.";
       panier = [];
       mettreAJourCompteur();
-      setTimeout(afficherAccueil, 2500);
+      afficherPageMerci();
     } else {
       throw new Error("Réponse serveur incorrecte");
     }
@@ -374,6 +396,15 @@ async function envoyerCommande(event){
   }
 
   return false;
+}
+
+function afficherPageMerci(){
+  cacherToutesLesVues();
+  document.getElementById("vue-merci").style.display = "block";
+  document.getElementById("btnRetour").style.display = "none";
+
+  const numero = CONFIG.NUMERO_PAIEMENT.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
+  document.getElementById("numeroPaiementAffiche").textContent = numero;
 }
 
 /* =====================================================================
