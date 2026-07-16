@@ -1,0 +1,343 @@
+/* ===================== VARIABLES DE COULEUR ===================== */
+:root{
+  --blanc:#ffffff;
+  --noir:#1a1a1a;
+  --gris-bordure:#d9d9d9;
+  --gris-fond:#f6f6f7;
+  --bleu:#2563eb;
+  --bleu-hover:#1d4ed8;
+  --orange:#f97316;
+  --rayon:10px;
+}
+
+*{ box-sizing:border-box; }
+
+body{
+  margin:0;
+  font-family:-apple-system, "Segoe UI", Roboto, Arial, sans-serif; /* polices système = 0 Ko à télécharger */
+  background:var(--blanc);
+  color:var(--noir);
+}
+
+/* ===================== ENTETE ===================== */
+.header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 18px;
+  background:var(--noir);
+  position:sticky;
+  top:0;
+  z-index:10;
+}
+.logo{
+  color:var(--blanc);
+  font-size:22px;
+  font-weight:700;
+  cursor:pointer;
+}
+.logo-accent{ color:var(--orange); }
+
+.header-right{ display:flex; gap:10px; align-items:center; }
+
+.btn-retour{
+  background:transparent;
+  border:1px solid var(--blanc);
+  color:var(--blanc);
+  padding:8px 14px;
+  border-radius:var(--rayon);
+  cursor:pointer;
+}
+
+.btn-panier{
+  background:var(--bleu);
+  color:var(--blanc);
+  border:none;
+  padding:10px 16px;
+  border-radius:var(--rayon);
+  cursor:pointer;
+  font-weight:600;
+}
+.btn-panier:hover{ background:var(--bleu-hover); }
+
+.btn-options{
+  background:transparent;
+  border:1px solid var(--blanc);
+  color:var(--blanc);
+  width:38px; height:38px;
+  border-radius:var(--rayon);
+  cursor:pointer;
+  font-size:16px;
+}
+.btn-options:hover{ background:rgba(255,255,255,.1); }
+
+.badge{
+  background:var(--orange);
+  color:var(--blanc);
+  border-radius:999px;
+  padding:2px 8px;
+  font-size:12px;
+  margin-left:4px;
+}
+
+/* ===================== CONTENU GENERAL ===================== */
+main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
+
+.hero{ text-align:center; padding:36px 10px 14px; }
+.hero h1{ font-size:36px; margin-bottom:10px; letter-spacing:-0.5px; }
+.hero-baseline{
+  display:inline-block;
+  color:var(--noir);
+  font-size:17px;
+  font-weight:600;
+  margin:0;
+  padding:8px 18px;
+  border-radius:999px;
+  background:var(--gris-fond);
+  border:1px solid var(--gris-bordure);
+}
+.hero-baseline::before{ content:"🚚 "; }
+
+.titre-section{
+  font-size:22px;
+  margin:10px 0 20px;
+  border-left:5px solid var(--orange);
+  padding-left:10px;
+}
+
+/* ===================== GRILLE CATEGORIES (ACCUEIL) ===================== */
+.grille-categories{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:20px;
+  margin-top:24px;
+}
+.carte-categorie{
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:24px 14px;
+  text-align:center;
+  cursor:pointer;
+  background:var(--gris-fond);
+  transition:transform .15s ease, border-color .15s ease;
+}
+.carte-categorie:hover{
+  transform:translateY(-3px);
+  border-color:var(--bleu);
+}
+.carte-categorie .icone{ font-size:40px; display:block; margin-bottom:10px; }
+.carte-categorie h3{ margin:6px 0 4px; }
+.carte-categorie p{ color:#666; font-size:13px; margin:0; }
+
+/* ===================== GRILLE PRODUITS (CATALOGUE) ===================== */
+.grille-produits{
+  display:grid;
+  grid-template-columns:repeat(5, 1fr);
+  gap:22px; /* espacement demandé entre les articles */
+}
+
+.carte-produit{
+  border:1px solid var(--gris-bordure); /* contour grisâtre demandé */
+  border-radius:var(--rayon);
+  padding:14px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  text-align:center;
+  background:var(--blanc);
+}
+
+.carte-produit .icone-produit{
+  font-size:44px;
+  margin-bottom:10px;
+}
+.carte-produit h4{
+  margin:4px 0;
+  font-size:14px;
+  min-height:36px;
+}
+.carte-produit .prix{
+  font-weight:700;
+  color:var(--noir);
+  margin:4px 0 10px;
+}
+
+.btn-ajouter{
+  background:var(--bleu);
+  color:var(--blanc);
+  border:none;
+  padding:9px 14px;
+  border-radius:var(--rayon); /* rectangle à bords arrondis, comme demandé */
+  cursor:pointer;
+  font-weight:600;
+  width:100%;
+}
+.btn-ajouter:hover{ background:var(--bleu-hover); }
+
+/* ===================== PANIER ===================== */
+.liste-panier{ display:flex; flex-direction:column; gap:12px; }
+
+.ligne-panier{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:12px 14px;
+}
+.ligne-panier .info-produit{ display:flex; align-items:center; gap:12px; }
+.ligne-panier .icone-produit{ font-size:28px; }
+.ligne-panier .quantite{ display:flex; align-items:center; gap:8px; }
+.ligne-panier button{
+  border:1px solid var(--gris-bordure);
+  background:var(--gris-fond);
+  border-radius:6px;
+  width:26px; height:26px;
+  cursor:pointer;
+}
+.btn-supprimer{
+  color:#c0392b;
+  background:transparent;
+  border:none;
+  cursor:pointer;
+  font-size:13px;
+}
+
+.panier-vide{ text-align:center; color:#666; padding:30px 0; }
+
+.recap-panier{
+  display:flex;
+  justify-content:space-between;
+  font-size:18px;
+  font-weight:700;
+  border-top:2px solid var(--noir);
+  padding-top:14px;
+  margin-top:16px;
+}
+
+.btn-principal{
+  display:block;
+  width:100%;
+  background:var(--bleu);
+  color:var(--blanc);
+  border:none;
+  padding:14px;
+  border-radius:var(--rayon);
+  font-size:16px;
+  font-weight:700;
+  cursor:pointer;
+  margin-top:18px;
+}
+.btn-principal:hover{ background:var(--bleu-hover); }
+
+.btn-secondaire{
+  background:var(--orange);
+  color:var(--blanc);
+  border:none;
+  padding:10px 14px;
+  border-radius:var(--rayon);
+  cursor:pointer;
+  font-weight:600;
+  margin:6px 0;
+}
+
+/* ===================== FORMULAIRE ===================== */
+.label{ display:block; margin:14px 0 6px; font-weight:600; font-size:14px; }
+.champ{
+  width:100%;
+  padding:11px 12px;
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  font-size:15px;
+}
+.statut-position{ font-size:13px; color:#666; margin:4px 0 0; }
+.statut-envoi{ font-size:14px; margin-top:10px; font-weight:600; }
+
+/* ===================== ESPACE VENDEUR ===================== */
+.cadre-photo{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:160px;
+  height:160px;
+  margin:0 auto 18px;
+  border:2px dashed var(--gris-bordure);
+  border-radius:var(--rayon);
+  cursor:pointer;
+  background:var(--gris-fond);
+  overflow:hidden;
+  position:relative;
+}
+.cadre-photo:hover{ border-color:var(--bleu); }
+#signePlus{ font-size:48px; color:#999; font-weight:300; }
+.cadre-photo img{ width:100%; height:100%; object-fit:cover; }
+
+.ligne-position{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.ligne-position .champ{ flex:1; min-width:180px; }
+
+.cases-a-cocher{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:12px 14px;
+  max-height:220px;
+  overflow-y:auto;
+}
+.cases-a-cocher label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:14px;
+  font-weight:400;
+  cursor:pointer;
+}
+
+.btn-retour-lien{
+  display:block;
+  margin:12px auto 0;
+  background:none;
+  border:none;
+  color:#666;
+  text-decoration:underline;
+  cursor:pointer;
+  font-size:14px;
+}
+
+/* ===================== MODALE ===================== */
+.modale{
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.5);
+  display:flex; align-items:center; justify-content:center;
+  padding:20px;
+  z-index:100;
+}
+.modale-contenu{
+  background:var(--blanc);
+  border-radius:var(--rayon);
+  padding:24px;
+  max-width:360px;
+  text-align:center;
+}
+.modale-boutons{ display:flex; gap:10px; margin-top:18px; }
+.btn-vert{
+  flex:1; background:#16a34a; color:var(--blanc); border:none;
+  padding:12px; border-radius:var(--rayon); cursor:pointer; font-weight:600;
+}
+.btn-rouge{
+  flex:1; background:#dc2626; color:var(--blanc); border:none;
+  padding:12px; border-radius:var(--rayon); cursor:pointer; font-weight:600;
+}
+
+/* ===================== RESPONSIVE MOBILE ===================== */
+@media (max-width: 900px){
+  .grille-produits{ grid-template-columns:repeat(3, 1fr); }
+}
+@media (max-width: 600px){
+  .grille-categories{ grid-template-columns:1fr; }
+  .grille-produits{ grid-template-columns:repeat(2, 1fr); gap:14px; }
+  .header-right{ gap:6px; }
+  .btn-retour{ padding:8px 10px; font-size:13px; }
+  .hero h1{ font-size:26px; }
+}

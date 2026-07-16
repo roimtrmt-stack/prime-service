@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prime Service Bamako — Livraison à domicile Mali</title>
+<meta name="description" content="Prime Service livre votre quotidien à domicile à Bamako, Mali : vêtements, électronique, alimentation. Commandez en ligne, payez à la livraison, Orange Money ou Wave.">
+<meta name="keywords" content="Prime Service, Prime Service Bamako, livraison Bamako, livraison Mali, commande en ligne Mali">
+<link rel="canonical" href="https://primeservice.netlify.app/">
+<meta property="og:title" content="Prime Service — Livraison à domicile à Bamako">
+<meta property="og:description" content="Vêtements, électronique et alimentation livrés chez vous à Bamako.">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<!-- ===================== ENTETE ===================== -->
+<header class="header">
+  <div class="header-left" onclick="afficherAccueil()">
+    <span class="logo">Prime<span class="logo-accent">Service</span></span>
+  </div>
+  <div class="header-right">
+    <button id="btnRetour" class="btn-retour" style="display:none;">← Retour</button>
+    <button class="btn-panier" onclick="afficherPanier()">
+      🛒 Panier <span id="compteurPanier" class="badge">0</span>
+    </button>
+    <button class="btn-options" onclick="ouvrirEspaceAdmin()" title="Options vendeur">⚙️</button>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ===================== ACCUEIL ===================== -->
+  <section id="vue-accueil" class="vue">
+    <div class="hero">
+      <h1>Prime<span class="logo-accent">Service</span></h1>
+      <p class="hero-baseline">Prime Service livre votre quotidien à domicile</p>
+    </div>
+
+    <div class="grille-categories" id="grilleCategories">
+      <!-- injecté par JS -->
+    </div>
+  </section>
+
+  <!-- ===================== SOUS-CATEGORIES (types d'articles) ===================== -->
+  <section id="vue-souscategories" class="vue" style="display:none;">
+    <h2 id="titreSousCategories" class="titre-section"></h2>
+    <div class="grille-categories" id="grilleSousCategories">
+      <!-- injecté par JS -->
+    </div>
+  </section>
+
+  <!-- ===================== PRODUITS D'UNE SOUS-CATEGORIE ===================== -->
+  <section id="vue-produits" class="vue" style="display:none;">
+    <h2 id="titreProduits" class="titre-section"></h2>
+    <div class="grille-produits" id="grilleProduits">
+      <!-- injecté par JS -->
+    </div>
+  </section>
+
+  <!-- ===================== PANIER ===================== -->
+  <section id="vue-panier" class="vue" style="display:none;">
+    <h2 class="titre-section">Votre panier</h2>
+    <div id="listePanier" class="liste-panier">
+      <!-- injecté par JS -->
+    </div>
+    <div id="panierVide" class="panier-vide" style="display:none;">
+      <p>Votre panier est vide.</p>
+    </div>
+    <div class="recap-panier">
+      <span>Total :</span>
+      <span id="totalPanier">0 FCFA</span>
+    </div>
+    <button id="btnValiderPanier" class="btn-principal" onclick="afficherCheckout()">
+      Valider la commande
+    </button>
+  </section>
+
+  <!-- ===================== FORMULAIRE DE COMMANDE ===================== -->
+  <section id="vue-checkout" class="vue" style="display:none;">
+    <h2 class="titre-section">Finaliser la commande</h2>
+
+    <form id="formCommande" onsubmit="return envoyerCommande(event)">
+
+      <label class="label">Votre nom complet</label>
+      <input type="text" id="nomClient" class="champ" placeholder="Ex : Awa Traoré" required>
+
+      <label class="label">Votre numéro (Orange / Wave / autre)</label>
+      <input type="tel" id="telClient" class="champ" placeholder="Ex : 76 12 34 56" required>
+
+      <label class="label">Mode de paiement souhaité</label>
+      <select id="paiementClient" class="champ">
+        <option value="Espèces à la livraison">Espèces à la livraison</option>
+        <option value="Orange Money">Orange Money</option>
+        <option value="Wave">Wave</option>
+      </select>
+
+      <label class="label">Votre position (obligatoire)</label>
+      <button type="button" class="btn-secondaire" onclick="recupererPosition()">
+        📍 Utiliser ma position actuelle
+      </button>
+      <p id="statutPosition" class="statut-position">Position non récupérée</p>
+      <input type="hidden" id="latClient">
+      <input type="hidden" id="lngClient">
+
+      <div class="recap-panier" style="margin-top:20px;">
+        <span>Total à payer :</span>
+        <span id="totalCheckout">0 FCFA</span>
+      </div>
+
+      <button type="submit" id="btnEnvoyer" class="btn-principal">
+        Confirmer ma commande
+      </button>
+
+      <p id="statutEnvoi" class="statut-envoi"></p>
+    </form>
+  </section>
+
+  <!-- ===================== ESPACE VENDEUR (reservé, connexion Supabase) ===================== -->
+  <section id="vue-admin" class="vue" style="display:none;">
+    <h2 class="titre-section">Espace vendeur</h2>
+
+    <form id="formLoginAdmin" onsubmit="return connexionAdmin(event)">
+      <label class="label">Email</label>
+      <input type="email" id="emailAdmin" class="champ" placeholder="ton.email@exemple.com" required>
+      <label class="label">Mot de passe</label>
+      <input type="password" id="motDePasseAdmin" class="champ" required>
+      <button type="submit" class="btn-principal">Se connecter</button>
+      <p id="statutConnexion" class="statut-envoi"></p>
+    </form>
+
+    <div id="admin-accueil" style="display:none;">
+      <button class="btn-retour-lien" style="margin:0 0 14px;" onclick="deconnexionAdmin()">🚪 Se déconnecter</button>
+      <button class="btn-principal" onclick="ouvrirFormulaireArticle()">➕ Ajouter un article</button>
+    </div>
+
+    <form id="formArticle" style="display:none;" onsubmit="return publierArticle(event)">
+
+      <label class="cadre-photo" id="cadrePhoto">
+        <span id="signePlus">+</span>
+        <img id="apercuPhoto" style="display:none;">
+        <input type="file" accept="image/*" id="photoArticle" style="display:none;" onchange="previsualiserPhoto(event)">
+      </label>
+
+      <label class="label">Nom complet de l'article</label>
+      <input type="text" id="nomArticleAdmin" class="champ" placeholder="Ex : Téléphone Samsung Galaxy A15" required>
+
+      <label class="label">Prix (FCFA)</label>
+      <input type="number" id="prixArticleAdmin" class="champ" placeholder="Ex : 65000" required>
+
+      <label class="label">Adresse Google Maps de la boutique (visible par vous seul)</label>
+      <div class="ligne-position">
+        <button type="button" class="btn-secondaire" onclick="enregistrerPositionBoutique()">📍 Enregistrer ma position</button>
+        <input type="text" id="adresseBoutiqueAdmin" class="champ" placeholder="Adresse ou repère de la boutique" required>
+      </div>
+      <input type="hidden" id="latBoutiqueAdmin">
+      <input type="hidden" id="lngBoutiqueAdmin">
+      <p id="statutPositionAdmin" class="statut-position">Position boutique non enregistrée</p>
+
+      <label class="label">Où doit apparaître cet article ?</label>
+      <div id="caseACocherSousCategories" class="cases-a-cocher">
+        <!-- injecté par JS -->
+      </div>
+
+      <button type="submit" class="btn-principal">Publier l'article</button>
+      <button type="button" class="btn-retour-lien" onclick="fermerFormulaireArticle()">Annuler</button>
+      <p id="statutPublication" class="statut-envoi"></p>
+    </form>
+  </section>
+
+</main>
+
+<!-- ===================== MODALE ARTICLE INDISPONIBLE ===================== -->
+<div id="modaleIndisponible" class="modale" style="display:none;">
+  <div class="modale-contenu">
+    <p id="modaleTexte">Désolé, l'article est fini. Voulez-vous choisir un autre article à la place ?</p>
+    <div class="modale-boutons">
+      <button class="btn-vert" onclick="fermerModale(true)">Choisir un autre article</button>
+      <button class="btn-rouge" onclick="fermerModale(false)">Commander comme ça</button>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
