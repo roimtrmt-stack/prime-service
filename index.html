@@ -136,8 +136,46 @@
       <div class="bloc-paiement">
         <p class="label-paiement">💳 Paiement à effectuer au numéro</p>
         <p class="numero-paiement" id="numeroPaiementAffiche">94 13 44 08</p>
-        <p class="sous-texte-paiement">Orange Money ou Wave</p>
+        <p class="sous-texte-paiement" id="modePaiementAffiche">Orange Money ou Wave</p>
       </div>
+
+      <div class="bloc-instructions" id="instructionsOrange" style="display:none;">
+        <h3>📲 Comment payer avec Orange Money</h3>
+
+        <p class="sous-titre-instruction">✅ Le plus simple : chez un kiosque Orange Money</p>
+        <ol>
+          <li>Cherchez un vendeur/kiosque avec le logo <strong>Orange Money</strong> (il y en a partout à Bamako, souvent à côté des boutiques).</li>
+          <li>Donnez-lui ce numéro : <strong id="numeroOrangeInstructionKiosque">94134408</strong> et ce montant : <strong id="montantOrangeInstructionKiosque">0 FCFA</strong>.</li>
+          <li>Remettez-lui l'argent en espèces, il fait le transfert pour vous (petits frais possibles, quelques dizaines de FCFA).</li>
+          <li>Gardez le message ou le reçu qu'il vous montre, c'est votre preuve de paiement.</li>
+        </ol>
+
+        <p class="sous-titre-instruction">📱 Si vous avez déjà un compte Orange Money sur votre téléphone</p>
+        <ol>
+          <li>Composez <strong>#144#</strong> sur votre téléphone, puis suivez le menu <strong>Transfert d'argent</strong>.</li>
+          <li>Entrez le numéro <strong id="numeroOrangeInstruction">94134408</strong>, puis le montant <strong id="montantOrangeInstruction">0 FCFA</strong>.</li>
+          <li>Entrez votre code secret Orange Money, puis validez.</li>
+        </ol>
+      </div>
+
+      <div class="bloc-instructions" id="instructionsWave" style="display:none;">
+        <h3>📲 Comment payer avec Wave</h3>
+
+        <p class="sous-titre-instruction">✅ Le plus simple : chez un kiosque Wave</p>
+        <ol>
+          <li>Cherchez un vendeur/kiosque avec le logo bleu <strong>Wave</strong> (très courant à Bamako).</li>
+          <li>Donnez-lui ce numéro : <strong id="numeroWaveInstructionKiosque">94134408</strong> et ce montant : <strong id="montantWaveInstructionKiosque">0 FCFA</strong>.</li>
+          <li>Remettez-lui l'argent en espèces, il fait le transfert pour vous.</li>
+          <li>Gardez le reçu ou le SMS de confirmation qu'il vous montre.</li>
+        </ol>
+
+        <p class="sous-titre-instruction">📱 Si vous avez déjà l'application Wave sur votre téléphone</p>
+        <ol>
+          <li>Ouvrez l'application <strong>Wave</strong>, appuyez sur <strong>Envoyer de l'argent</strong>.</li>
+          <li>Entrez le numéro <strong id="numeroWaveInstruction">94134408</strong> et le montant <strong id="montantWaveInstruction">0 FCFA</strong>, puis confirmez.</li>
+        </ol>
+      </div>
+
       <button class="btn-principal" onclick="afficherAccueil()">Retour à l'accueil</button>
     </div>
   </section>
