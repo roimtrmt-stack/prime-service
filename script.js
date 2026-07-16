@@ -2,7 +2,7 @@
    CONFIGURATION
    ===================================================================== */
 const CONFIG = {
-  DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1527130570415407234/rUfmlOIYWRHh3sa_xekFAf4ZVp4NyeWQ7XTMrmJGa_tMEOV4wbbssKsFVAvIJoOikS9F",
+  DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1526939900941828216/dQi_B5P55-8Y5j2yxFo4AxYm1ittk2o5CaNq0JYA97FXU7X8tatWXqmYFP3SW5k8KCgb",
   SUPABASE_URL: "https://kfxalpvbtbvkncztjwzc.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
   NUMERO_PAIEMENT: "94134408",
@@ -445,9 +445,10 @@ async function envoyerCommande(event){
         }
       }
 
+      const totalCommande = calculerTotal();
       panier = [];
       mettreAJourCompteur();
-      afficherPageMerci();
+      afficherPageMerci(paiement, totalCommande);
     } else {
       throw new Error("Réponse serveur incorrecte");
     }
@@ -461,13 +462,33 @@ async function envoyerCommande(event){
   return false;
 }
 
-function afficherPageMerci(){
+function afficherPageMerci(paiement, montant){
   cacherToutesLesVues();
   document.getElementById("vue-merci").style.display = "block";
   document.getElementById("btnRetour").style.display = "none";
 
   const numero = CONFIG.NUMERO_PAIEMENT.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
   document.getElementById("numeroPaiementAffiche").textContent = numero;
+  document.getElementById("modePaiementAffiche").textContent = paiement;
+
+  const montantAffiche = Number(montant).toLocaleString("fr-FR") + " FCFA";
+
+  document.getElementById("instructionsOrange").style.display = "none";
+  document.getElementById("instructionsWave").style.display = "none";
+
+  if(paiement === "Orange Money"){
+    document.getElementById("numeroOrangeInstruction").textContent = CONFIG.NUMERO_PAIEMENT;
+    document.getElementById("montantOrangeInstruction").textContent = montantAffiche;
+    document.getElementById("numeroOrangeInstructionKiosque").textContent = CONFIG.NUMERO_PAIEMENT;
+    document.getElementById("montantOrangeInstructionKiosque").textContent = montantAffiche;
+    document.getElementById("instructionsOrange").style.display = "block";
+  } else if(paiement === "Wave"){
+    document.getElementById("numeroWaveInstruction").textContent = CONFIG.NUMERO_PAIEMENT;
+    document.getElementById("montantWaveInstruction").textContent = montantAffiche;
+    document.getElementById("numeroWaveInstructionKiosque").textContent = CONFIG.NUMERO_PAIEMENT;
+    document.getElementById("montantWaveInstructionKiosque").textContent = montantAffiche;
+    document.getElementById("instructionsWave").style.display = "block";
+  }
 }
 
 /* =====================================================================
@@ -767,19 +788,39 @@ async function mettreSiteEnPause(){
   const select = document.getElementById("raisonPause");
   const personnalisee = document.getElementById("raisonPausePersonnalisee").value.trim();
   const raison = select.value === "Autre raison" && personnalisee ? personnalisee : select.value;
+  const bouton = document.querySelector("#controlePauseInactif .btn-pause");
+
+  bouton.disabled = true;
+  bouton.textContent = "⏳ Mise en pause...";
 
   const { error } = await supabaseClient.from("parametres").update({ en_pause: true, raison_pause: raison }).eq("id", 1);
+
+  bouton.disabled = false;
+  bouton.textContent = "⏸️ Mettre en pause";
+
   if(error){
-    alert("Erreur lors de la mise en pause. Réessayez.");
+    alert("Erreur lors de la mise en pause : " + error.message);
     console.error(error);
+  } else {
+    alert("✅ Le site est maintenant en pause pour tous vos clients.");
   }
 }
 
 async function reprendreSite(){
+  const bouton = document.querySelector("#controlePauseActif .btn-reprendre");
+  bouton.disabled = true;
+  bouton.textContent = "⏳ Réactivation...";
+
   const { error } = await supabaseClient.from("parametres").update({ en_pause: false, raison_pause: "" }).eq("id", 1);
+
+  bouton.disabled = false;
+  bouton.textContent = "▶️ Réactiver le site";
+
   if(error){
-    alert("Erreur lors de la réactivation. Réessayez.");
+    alert("Erreur lors de la réactivation : " + error.message);
     console.error(error);
+  } else {
+    alert("✅ Le site est de nouveau actif pour tous vos clients.");
   }
 }
 
