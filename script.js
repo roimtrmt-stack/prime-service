@@ -2,7 +2,7 @@
    CONFIGURATION
    ===================================================================== */
 const CONFIG = {
-  DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1526939900941828216/dQi_B5P55-8Y5j2yxFo4AxYm1ittk2o5CaNq0JYA97FXU7X8tatWXqmYFP3SW5k8KCgb",
+  DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1527130570415407234/rUfmlOIYWRHh3sa_xekFAf4ZVp4NyeWQ7XTMrmJGa_tMEOV4wbbssKsFVAvIJoOikS9F",
   SUPABASE_URL: "https://kfxalpvbtbvkncztjwzc.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
   NUMERO_PAIEMENT: "94134408",
