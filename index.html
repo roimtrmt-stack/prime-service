@@ -10,7 +10,656 @@
 <meta property="og:title" content="Prime Service — Livraison à domicile à Bamako">
 <meta property="og:description" content="Vêtements, électronique et alimentation livrés chez vous à Bamako.">
 <meta property="og:type" content="website">
-<link rel="stylesheet" href="style.css">
+<style>
+/* ===================== VARIABLES DE COULEUR ===================== */
+:root{
+  --blanc:#ffffff;
+  --noir:#1a1a1a;
+  --gris-bordure:#d9d9d9;
+  --gris-fond:#f6f6f7;
+  --bleu:#2563eb;
+  --bleu-hover:#1d4ed8;
+  --orange:#f97316;
+  --rayon:10px;
+}
+
+*{ box-sizing:border-box; }
+
+body{
+  margin:0;
+  font-family:-apple-system, "Segoe UI", Roboto, Arial, sans-serif; /* polices système = 0 Ko à télécharger */
+  background:var(--blanc);
+  color:var(--noir);
+}
+
+/* ===================== ENTETE ===================== */
+.header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 18px;
+  background:var(--noir);
+  position:sticky;
+  top:0;
+  z-index:10;
+}
+.logo{
+  color:var(--blanc);
+  font-size:22px;
+  font-weight:700;
+  cursor:pointer;
+}
+.logo-accent{ color:var(--orange); }
+
+.header-right{ display:flex; gap:10px; align-items:center; }
+
+.btn-retour{
+  background:transparent;
+  border:1px solid var(--blanc);
+  color:var(--blanc);
+  padding:8px 14px;
+  border-radius:var(--rayon);
+  cursor:pointer;
+}
+
+.btn-panier{
+  background:var(--bleu);
+  color:var(--blanc);
+  border:none;
+  padding:10px 16px;
+  border-radius:var(--rayon);
+  cursor:pointer;
+  font-weight:600;
+}
+.btn-panier:hover{ background:var(--bleu-hover); }
+
+.btn-options{
+  background:transparent;
+  border:1px solid var(--blanc);
+  color:var(--blanc);
+  width:38px; height:38px;
+  border-radius:var(--rayon);
+  cursor:pointer;
+  font-size:16px;
+}
+.btn-options:hover{ background:rgba(255,255,255,.1); }
+
+.badge{
+  background:var(--orange);
+  color:var(--blanc);
+  border-radius:999px;
+  padding:2px 8px;
+  font-size:12px;
+  margin-left:4px;
+}
+
+/* ===================== CONTENU GENERAL ===================== */
+main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
+
+.hero{ text-align:center; padding:36px 10px 14px; }
+.hero h1{ font-size:36px; margin-bottom:10px; letter-spacing:-0.5px; }
+.hero-baseline{
+  display:inline-block;
+  color:var(--noir);
+  font-size:17px;
+  font-weight:600;
+  margin:0;
+  padding:8px 18px;
+  border-radius:999px;
+  background:var(--gris-fond);
+  border:1px solid var(--gris-bordure);
+}
+.hero-baseline::before{ content:"🚚 "; }
+
+.titre-section{
+  font-size:22px;
+  margin:10px 0 20px;
+  border-left:5px solid var(--orange);
+  padding-left:10px;
+}
+
+/* ===================== GRILLE CATEGORIES (ACCUEIL) ===================== */
+.grille-categories{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:20px;
+  margin-top:24px;
+}
+.carte-categorie{
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:24px 14px;
+  text-align:center;
+  cursor:pointer;
+  background:var(--gris-fond);
+  transition:transform .15s ease, border-color .15s ease;
+}
+.carte-categorie:hover{
+  transform:translateY(-3px);
+  border-color:var(--bleu);
+}
+.carte-categorie .icone{ font-size:40px; display:block; margin-bottom:10px; }
+.carte-categorie h3{ margin:6px 0 4px; }
+.carte-categorie p{ color:#666; font-size:13px; margin:0; }
+
+/* ===================== GRILLE PRODUITS (CATALOGUE) ===================== */
+.grille-produits{
+  display:grid;
+  grid-template-columns:repeat(5, 1fr);
+  gap:22px; /* espacement demandé entre les articles */
+}
+
+.carte-produit{
+  border:1px solid var(--gris-bordure); /* contour grisâtre demandé */
+  border-radius:var(--rayon);
+  padding:14px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  text-align:center;
+  background:var(--blanc);
+}
+
+.carte-produit .icone-produit{
+  font-size:44px;
+  margin-bottom:10px;
+}
+.carte-produit h4{
+  margin:4px 0;
+  font-size:14px;
+  min-height:36px;
+}
+.carte-produit .prix{
+  font-weight:700;
+  color:var(--noir);
+  margin:4px 0 10px;
+}
+
+.btn-ajouter{
+  background:var(--bleu);
+  color:var(--blanc);
+  border:none;
+  padding:9px 14px;
+  border-radius:var(--rayon); /* rectangle à bords arrondis, comme demandé */
+  cursor:pointer;
+  font-weight:600;
+  width:100%;
+}
+.btn-ajouter:hover{ background:var(--bleu-hover); }
+
+/* ===================== PANIER ===================== */
+.liste-panier{ display:flex; flex-direction:column; gap:12px; }
+
+.ligne-panier{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:12px 14px;
+}
+.ligne-panier .info-produit{ display:flex; align-items:center; gap:12px; }
+.ligne-panier .icone-produit{ font-size:28px; }
+.ligne-panier .quantite{ display:flex; align-items:center; gap:8px; }
+.ligne-panier button{
+  border:1px solid var(--gris-bordure);
+  background:var(--gris-fond);
+  border-radius:6px;
+  width:26px; height:26px;
+  cursor:pointer;
+}
+.btn-supprimer{
+  color:#c0392b;
+  background:transparent;
+  border:none;
+  cursor:pointer;
+  font-size:13px;
+}
+
+.panier-vide{ text-align:center; color:#666; padding:30px 0; }
+
+.recap-panier{
+  display:flex;
+  justify-content:space-between;
+  font-size:18px;
+  font-weight:700;
+  border-top:2px solid var(--noir);
+  padding-top:14px;
+  margin-top:16px;
+}
+
+.btn-principal{
+  display:block;
+  width:100%;
+  background:var(--bleu);
+  color:var(--blanc);
+  border:none;
+  padding:14px;
+  border-radius:var(--rayon);
+  font-size:16px;
+  font-weight:700;
+  cursor:pointer;
+  margin-top:18px;
+}
+.btn-principal:hover{ background:var(--bleu-hover); }
+
+.btn-secondaire{
+  background:var(--orange);
+  color:var(--blanc);
+  border:none;
+  padding:10px 14px;
+  border-radius:var(--rayon);
+  cursor:pointer;
+  font-weight:600;
+  margin:6px 0;
+}
+
+/* ===================== FORMULAIRE ===================== */
+.label{ display:block; margin:14px 0 6px; font-weight:600; font-size:14px; }
+.champ{
+  width:100%;
+  padding:11px 12px;
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  font-size:15px;
+}
+.statut-position{ font-size:13px; color:#666; margin:4px 0 0; }
+.statut-envoi{ font-size:14px; margin-top:10px; font-weight:600; }
+
+/* ===================== ESPACE VENDEUR ===================== */
+.cadre-photo{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:160px;
+  height:160px;
+  margin:0 auto 18px;
+  border:2px dashed var(--gris-bordure);
+  border-radius:var(--rayon);
+  cursor:pointer;
+  background:var(--gris-fond);
+  overflow:hidden;
+  position:relative;
+}
+.cadre-photo:hover{ border-color:var(--bleu); }
+#signePlus{ font-size:48px; color:#999; font-weight:300; }
+.cadre-photo img{ width:100%; height:100%; object-fit:cover; }
+
+.ligne-position{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.ligne-position .champ{ flex:1; min-width:180px; }
+
+.cases-a-cocher{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:12px 14px;
+  max-height:220px;
+  overflow-y:auto;
+}
+.cases-a-cocher label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:14px;
+  font-weight:400;
+  cursor:pointer;
+}
+
+.btn-retour-lien{
+  display:block;
+  margin:12px auto 0;
+  background:none;
+  border:none;
+  color:#666;
+  text-decoration:underline;
+  cursor:pointer;
+  font-size:14px;
+}
+
+/* ===================== PAGE DE REMERCIEMENT ===================== */
+.carte-merci{
+  max-width:420px;
+  margin:40px auto;
+  text-align:center;
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:36px 24px;
+}
+.icone-merci{
+  font-size:56px;
+  margin-bottom:6px;
+  animation: rebondirColis 1.4s ease-in-out infinite;
+}
+@keyframes rebondirColis{
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.carte-merci h2{ margin:10px 0 6px; }
+.carte-merci p{ color:#555; }
+.bloc-paiement{
+  background:var(--gris-fond);
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:16px;
+  margin:22px 0;
+}
+.label-paiement{ margin:0 0 6px; font-size:14px; color:#555; }
+.numero-paiement{
+  margin:0;
+  font-size:28px;
+  font-weight:800;
+  color:var(--bleu);
+  letter-spacing:1px;
+}
+.sous-texte-paiement{ margin:6px 0 0; font-size:13px; color:var(--orange); font-weight:600; }
+
+.bloc-instructions{
+  text-align:left;
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:16px 18px;
+  margin:0 0 20px;
+}
+.bloc-instructions h3{ margin:0 0 10px; font-size:15px; }
+.sous-titre-instruction{
+  font-size:13.5px;
+  font-weight:700;
+  margin:14px 0 6px;
+  color:var(--noir);
+}
+.bloc-instructions ol{ margin:0; padding-left:20px; }
+.bloc-instructions li{ margin-bottom:6px; font-size:14px; color:#333; }
+.astuce-instruction{ margin:10px 0 0; font-size:12.5px; color:#666; }
+
+/* ===================== ANIMATION AJOUT AU PANIER ===================== */
+.clone-vol{
+  transition: all .6s cubic-bezier(.4,0,.2,1);
+  pointer-events:none;
+  border-radius:8px;
+  object-fit:cover;
+}
+
+@keyframes secousseBadge{
+  0%, 100% { transform: scale(1); }
+  30% { transform: scale(1.5); }
+  60% { transform: scale(0.9); }
+}
+.badge.anime{ animation: secousseBadge .5s ease; }
+
+@keyframes confirmationAjout{
+  0% { transform: scale(1); }
+  50% { transform: scale(0.94); }
+  100% { transform: scale(1); }
+}
+.btn-ajouter.confirme{
+  background:#16a34a !important;
+  animation: confirmationAjout .3s ease;
+}
+
+/* ===================== MODALE ===================== */
+.modale{
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.5);
+  display:flex; align-items:center; justify-content:center;
+  padding:20px;
+  z-index:100;
+}
+.modale-contenu{
+  background:var(--blanc);
+  border-radius:var(--rayon);
+  padding:24px;
+  max-width:360px;
+  text-align:center;
+}
+.modale-boutons{ display:flex; gap:10px; margin-top:18px; }
+.btn-vert{
+  flex:1; background:#16a34a; color:var(--blanc); border:none;
+  padding:12px; border-radius:var(--rayon); cursor:pointer; font-weight:600;
+}
+.btn-rouge{
+  flex:1; background:#dc2626; color:var(--blanc); border:none;
+  padding:12px; border-radius:var(--rayon); cursor:pointer; font-weight:600;
+}
+
+/* ===================== ECRAN "SITE EN PAUSE" ===================== */
+.ecran-pause{
+  position:fixed; inset:0;
+  background:var(--blanc);
+  z-index:200;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+}
+.carte-pause{
+  max-width:420px;
+  text-align:center;
+}
+.carte-pause .icone-pause{ font-size:56px; margin-bottom:10px; }
+.carte-pause h2{ margin:0 0 10px; }
+.carte-pause p{ color:#555; }
+.raison-pause{
+  background:var(--gris-fond);
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:12px 16px;
+  margin:16px 0;
+  font-weight:600;
+}
+.lien-admin-pause{
+  display:inline-block;
+  margin-top:14px;
+  font-size:13px;
+  color:#888;
+  text-decoration:underline;
+  cursor:pointer;
+  background:none;
+  border:none;
+}
+
+/* ===================== BOUTON INSTALLER L'APPLICATION ===================== */
+.bloc-installer{
+  text-align:center;
+  margin-top:28px;
+}
+.btn-installer{
+  background:var(--noir);
+  color:var(--blanc);
+  border:none;
+  padding:13px 22px;
+  border-radius:var(--rayon);
+  font-weight:700;
+  cursor:pointer;
+  font-size:15px;
+}
+.btn-installer:hover{ opacity:.88; }
+.texte-installer{
+  font-size:12.5px;
+  color:#777;
+  margin-top:8px;
+}
+
+/* ===================== ADMIN : PAUSE DU SITE ===================== */
+.bloc-pause-admin{
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:16px;
+  margin-top:22px;
+}
+.btn-pause{
+  background:#dc2626;
+  color:var(--blanc);
+  border:none;
+  padding:11px 16px;
+  border-radius:var(--rayon);
+  cursor:pointer;
+  font-weight:700;
+  width:100%;
+}
+.btn-reprendre{
+  background:#16a34a;
+  color:var(--blanc);
+  border:none;
+  padding:11px 16px;
+  border-radius:var(--rayon);
+  cursor:pointer;
+  font-weight:700;
+  width:100%;
+}
+/* ===================== MUR "RESERVE AUX ADMINISTRATEURS" ===================== */
+.connecte-en-tant-que{
+  font-size:12.5px;
+  color:#16a34a;
+  background:#f0fdf4;
+  border:1px solid #bbf7d0;
+  border-radius:8px;
+  padding:8px 10px;
+  margin:0 0 12px;
+}
+
+.carte-restriction{
+  text-align:center;
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:40px 20px;
+  background:var(--gris-fond);
+}
+.icone-restriction{ font-size:44px; margin-bottom:10px; }
+.carte-restriction p{ color:#555; margin:0 0 16px; }
+.lien-discret{
+  background:none;
+  border:none;
+  color:#999;
+  text-decoration:underline;
+  font-size:12.5px;
+  cursor:pointer;
+}
+.btn-google{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  background:var(--blanc);
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:12px 20px;
+  font-size:15px;
+  font-weight:600;
+  color:var(--noir);
+  cursor:pointer;
+}
+.btn-google:hover{ border-color:var(--bleu); background:var(--gris-fond); }
+
+/* ===================== GESTION DES ARTICLES / DEMANDES ===================== */
+.liste-gestion{ display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+.ligne-gestion{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:10px 12px;
+}
+.miniature-gestion{
+  width:44px; height:44px;
+  object-fit:cover;
+  border-radius:8px;
+  flex-shrink:0;
+}
+.info-gestion{ flex:1; min-width:0; }
+.info-gestion strong{ display:block; font-size:14px; }
+.details-gestion{ font-size:12px; color:#666; margin-top:2px; }
+.boutons-gestion{ display:flex; gap:6px; flex-shrink:0; }
+.btn-modifier, .btn-supprimer-gestion{
+  border:1px solid var(--gris-bordure);
+  background:var(--blanc);
+  border-radius:8px;
+  width:34px; height:34px;
+  cursor:pointer;
+  font-size:15px;
+}
+.btn-modifier:hover{ border-color:var(--bleu); }
+.btn-supprimer-gestion:hover{ border-color:#dc2626; }
+
+/* ===================== NOM BOUTIQUE / STOCK SUR LES CARTES PRODUIT ===================== */
+.nom-boutique-produit{
+  font-size:11.5px;
+  color:#777;
+  margin:0 0 2px;
+}
+.stock-produit{
+  font-size:11px;
+  color:var(--orange);
+  font-weight:600;
+  margin:0 0 8px;
+}
+   quel que soit l'appareil. Sur petit écran, on réduit les tailles
+/* ===================== PAGE INSCRIPTION (soumission boutiquiers) ===================== */
+.grille-photos-inscription{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));
+  gap:14px;
+  margin-bottom:6px;
+}
+.cadre-photo-inscription{ width:100%; height:130px; margin:0; }
+.carte-photo-inscription{
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:8px;
+  position:relative;
+}
+.apercu-photo-inscription{
+  width:100%;
+  height:100px;
+  object-fit:cover;
+  border-radius:8px;
+}
+.btn-retirer-photo{
+  position:absolute;
+  top:4px; right:4px;
+  width:22px; height:22px;
+  border-radius:50%;
+  border:none;
+  background:rgba(0,0,0,.6);
+  color:var(--blanc);
+  cursor:pointer;
+  font-size:12px;
+  line-height:1;
+}
+.carte-photo-inscription .prix-photo{ margin-top:4px; }
+
+/* Demande explicite : le catalogue reste TOUJOURS en 5 colonnes,
+   (padding, police, icônes) plutôt que le nombre de colonnes. */
+@media (max-width: 900px){
+  .grille-produits{ gap:12px; }
+  .carte-produit{ padding:8px; }
+  .carte-produit .icone-produit{ font-size:26px; }
+  .carte-produit h4{ font-size:11px; min-height:28px; }
+  .carte-produit .prix{ font-size:12px; }
+  .btn-ajouter{ padding:6px 4px; font-size:11px; }
+}
+@media (max-width: 600px){
+  .grille-categories{ grid-template-columns:1fr; }
+  .grille-produits{ gap:8px; }
+  .carte-produit{ padding:6px; }
+  .carte-produit .icone-produit{ font-size:20px; margin-bottom:4px; }
+  .carte-produit h4{ font-size:9.5px; min-height:24px; margin:2px 0; }
+  .carte-produit .prix{ font-size:10.5px; margin:2px 0 6px; }
+  .btn-ajouter{ padding:5px 2px; font-size:9.5px; border-radius:6px; }
+  .header-right{ gap:6px; }
+  .btn-retour{ padding:8px 10px; font-size:13px; }
+  .hero h1{ font-size:26px; }
+}
+@media (max-width: 380px){
+  .carte-produit h4{ font-size:8.5px; }
+  .carte-produit .prix{ font-size:9.5px; }
+  .btn-ajouter{ font-size:8.5px; padding:4px 2px; }
+}
+
+
+</style>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -184,18 +833,31 @@
   <section id="vue-admin" class="vue" style="display:none;">
     <h2 class="titre-section">Espace vendeur</h2>
 
-    <form id="formLoginAdmin" onsubmit="return connexionAdmin(event)">
-      <label class="label">Email</label>
-      <input type="email" id="emailAdmin" class="champ" placeholder="ton.email@exemple.com" required>
-      <label class="label">Mot de passe</label>
-      <input type="password" id="motDePasseAdmin" class="champ" required>
-      <button type="submit" class="btn-principal">Se connecter</button>
+    <div id="messageRestriction" class="carte-restriction">
+      <div class="icone-restriction">🔒</div>
+      <p>Cet espace est réservé aux administrateurs.</p>
+      <button class="lien-discret" onclick="afficherFormulaireLogin()">Se connecter</button>
+    </div>
+
+    <div id="formLoginAdmin" style="display:none;text-align:center;">
+      <button type="button" class="btn-google" onclick="connexionGoogle()">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" style="width:18px;height:18px;">
+        Se connecter avec Google
+      </button>
       <p id="statutConnexion" class="statut-envoi"></p>
-    </form>
+    </div>
 
     <div id="admin-accueil" style="display:none;">
+      <p id="connecteEnTantQue" class="connecte-en-tant-que"></p>
       <button class="btn-retour-lien" style="margin:0 0 14px;" onclick="deconnexionAdmin()">🚪 Se déconnecter</button>
       <button class="btn-principal" onclick="ouvrirFormulaireArticle()">➕ Ajouter un article</button>
+      <button class="btn-secondaire" style="width:100%;margin-top:10px;" onclick="ouvrirGestionArticles()">📋 Gérer / Supprimer mes articles</button>
+      <button class="btn-secondaire" style="width:100%;margin-top:10px;" onclick="afficherLienInscription()">🔗 Lien d'inscription boutiquiers</button>
+
+      <div id="blocLienInscription" style="display:none;margin-top:10px;">
+        <input type="text" id="champLienInscription" class="champ" readonly>
+        <button type="button" class="btn-retour-lien" onclick="copierLienInscription()">📋 Copier le lien</button>
+      </div>
 
       <div class="bloc-pause-admin">
         <h3 style="margin-top:0;">⏸️ Mettre le site en pause</h3>
@@ -219,7 +881,16 @@
       </div>
     </div>
 
+    <!-- ========== GESTION / SUPPRESSION DES ARTICLES PUBLIÉS ========== -->
+    <div id="gestionArticles" style="display:none;">
+      <h3 style="margin-top:0;">📋 Vos articles publiés</h3>
+      <div id="listeGestionArticles" class="liste-gestion"><!-- injecté par JS --></div>
+      <button type="button" class="btn-retour-lien" onclick="fermerGestionArticles()">Fermer</button>
+    </div>
+
     <form id="formArticle" style="display:none;" onsubmit="return publierArticle(event)">
+
+      <h3 id="titreFormArticle" style="margin-top:0;">➕ Ajouter un article</h3>
 
       <label class="cadre-photo" id="cadrePhoto">
         <span id="signePlus">+</span>
@@ -229,6 +900,9 @@
 
       <label class="label">Nom complet de l'article</label>
       <input type="text" id="nomArticleAdmin" class="champ" placeholder="Ex : Téléphone Samsung Galaxy A15" required>
+
+      <label class="label">Nom de la boutique</label>
+      <input type="text" id="nomBoutiqueAdmin" class="champ" placeholder="Ex : Boutique Kadi Mode" required>
 
       <label class="label">Numéro de contact pour cet article</label>
       <input type="tel" id="telephoneArticleAdmin" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" required>
@@ -284,6 +958,1060 @@
   </div>
 </div>
 
-<script src="script.js"></script>
+<script>
+/* =====================================================================
+   CONFIGURATION
+   ===================================================================== */
+const CONFIG = {
+  DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1526939900941828216/dQi_B5P55-8Y5j2yxFo4AxYm1ittk2o5CaNq0JYA97FXU7X8tatWXqmYFP3SW5k8KCgb",
+  SUPABASE_URL: "https://kfxalpvbtbvkncztjwzc.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
+  NUMERO_PAIEMENT: "94134408",
+  EMAIL_ADMIN_AUTORISE: "roimtrmt@gmail.com",
+};
+
+const supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+
+// Nécessaire pour que le site soit "installable" comme une application.
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+
+/* =====================================================================
+   TAXONOMIE : CATEGORIES > SOUS-CATEGORIES (fixe, structure du site)
+   Les PRODUITS eux-mêmes viennent maintenant de Supabase (permanents,
+   visibles par tous les clients, ajoutables depuis l'espace vendeur).
+   ===================================================================== */
+const CATEGORIES = [
+  {
+    id: "mode", nom: "Vêtements, bijoux & accessoires", icone: "👗",
+    sousCategories: [
+      { id: "vetements", nom: "Vêtements", icone: "👕" },
+      { id: "bijoux", nom: "Bijoux & montres", icone: "📿" },
+      { id: "accessoires-mode", nom: "Accessoires", icone: "👜" },
+    ]
+  },
+  {
+    id: "electronique", nom: "Appareils électroniques", icone: "📱",
+    sousCategories: [
+      { id: "telephones", nom: "Téléphones", icone: "📱" },
+      { id: "ordinateurs", nom: "Ordinateurs & tablettes", icone: "💻" },
+      { id: "montres-connectees", nom: "Montres connectées", icone: "⌚" },
+      { id: "accessoires-electroniques", nom: "Accessoires électroniques", icone: "🔌" },
+    ]
+  },
+  {
+    id: "alimentation", nom: "Alimentation", icone: "🍎",
+    sousCategories: [
+      { id: "legumes", nom: "Légumes", icone: "🍅" },
+      { id: "fruits", nom: "Fruits", icone: "🍎" },
+      { id: "epicerie", nom: "Divers / Épicerie", icone: "🛒" },
+    ]
+  }
+];
+
+/* =====================================================================
+   ETAT DE L'APPLICATION
+   ===================================================================== */
+let panier = [];
+let produitsParCle = {}; // ex: "electronique|telephones" -> [ {id, nom, prix, adresse, lat, lng, image_url}, ... ]
+let vueEnCours = { nom: "accueil", idCategorie: null, idSousCategorie: null };
+
+function cleSousCategorie(idCategorie, idSousCategorie){
+  return `${idCategorie}|${idSousCategorie}`;
+}
+
+/* =====================================================================
+   CHARGEMENT DES PRODUITS DEPUIS SUPABASE (permanent, pour tout le monde)
+   ===================================================================== */
+async function chargerProduits(){
+  const { data, error } = await supabaseClient.from("produits").select("*").order("created_at");
+  if(error){
+    console.error("Erreur de chargement des produits :", error);
+    return;
+  }
+
+  produitsParCle = {};
+  data.forEach(p => {
+    const cle = cleSousCategorie(p.categorie_id, p.sous_categorie_id);
+    if(!produitsParCle[cle]) produitsParCle[cle] = [];
+    produitsParCle[cle].push(p);
+  });
+
+  construireCategories();
+
+  // Si le client est en train de regarder une sous-catégorie, on rafraîchit sa vue
+  if(vueEnCours.nom === "produits"){
+    afficherProduits(vueEnCours.idCategorie, vueEnCours.idSousCategorie, false);
+  }
+  if(vueEnCours.nom === "souscategories"){
+    afficherSousCategories(vueEnCours.idCategorie, false);
+  }
+}
+
+// Mise à jour automatique en direct : si toi ou un autre appareil ajoute un
+// article, tous les visiteurs le voient apparaître sans recharger la page.
+supabaseClient
+  .channel("produits-en-direct")
+  .on("postgres_changes", { event: "*", schema: "public", table: "produits" }, chargerProduits)
+  .subscribe();
+
+/* =====================================================================
+   NAVIGATION
+   ===================================================================== */
+function cacherToutesLesVues(){
+  document.querySelectorAll(".vue").forEach(v => v.style.display = "none");
+}
+
+function afficherAccueil(){
+  vueEnCours = { nom: "accueil", idCategorie: null, idSousCategorie: null };
+  cacherToutesLesVues();
+  document.getElementById("vue-accueil").style.display = "block";
+  document.getElementById("btnRetour").style.display = "none";
+}
+
+function afficherSousCategories(idCategorie, changerVue = true){
+  const categorie = CATEGORIES.find(c => c.id === idCategorie);
+  if(!categorie) return;
+  if(changerVue) vueEnCours = { nom: "souscategories", idCategorie, idSousCategorie: null };
+
+  cacherToutesLesVues();
+  document.getElementById("vue-souscategories").style.display = "block";
+  document.getElementById("titreSousCategories").textContent = categorie.nom;
+
+  const btnRetour = document.getElementById("btnRetour");
+  btnRetour.style.display = "inline-block";
+  btnRetour.onclick = afficherAccueil;
+
+  const grille = document.getElementById("grilleSousCategories");
+  grille.innerHTML = categorie.sousCategories.map(sc => {
+    const nbProduits = (produitsParCle[cleSousCategorie(categorie.id, sc.id)] || []).length;
+    return `
+    <div class="carte-categorie" onclick="afficherProduits('${categorie.id}', '${sc.id}')">
+      <span class="icone">${sc.icone}</span>
+      <h3>${sc.nom}</h3>
+      <p>${nbProduits} article(s)</p>
+    </div>`;
+  }).join("");
+}
+
+function afficherProduits(idCategorie, idSousCategorie, changerVue = true){
+  const categorie = CATEGORIES.find(c => c.id === idCategorie);
+  const sousCategorie = categorie.sousCategories.find(sc => sc.id === idSousCategorie);
+  if(!sousCategorie) return;
+  if(changerVue) vueEnCours = { nom: "produits", idCategorie, idSousCategorie };
+
+  cacherToutesLesVues();
+  document.getElementById("vue-produits").style.display = "block";
+  document.getElementById("titreProduits").textContent = sousCategorie.nom;
+
+  const btnRetour = document.getElementById("btnRetour");
+  btnRetour.style.display = "inline-block";
+  btnRetour.onclick = () => afficherSousCategories(idCategorie);
+
+  const produits = produitsParCle[cleSousCategorie(idCategorie, idSousCategorie)] || [];
+  const grille = document.getElementById("grilleProduits");
+
+  if(produits.length === 0){
+    grille.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:#666;">Aucun article ici pour le moment.</p>`;
+    return;
+  }
+
+  grille.innerHTML = produits.map((p, index) => `
+    <div class="carte-produit">
+      ${p.image_url
+        ? `<img src="${p.image_url}" alt="${p.nom}" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;margin-bottom:10px;">`
+        : `<span class="icone-produit">📦</span>`}
+      <h4>${p.nom}</h4>
+      ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${p.nom_boutique}</p>` : ""}
+      <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
+      <p class="stock-produit">📦 ${p.stock} en stock</p>
+      <button class="btn-ajouter" onclick="ajouterAuPanier('${idCategorie}', '${idSousCategorie}', ${index}, event)">
+        Ajouter au panier
+      </button>
+    </div>
+  `).join("");
+}
+
+function afficherPanier(){
+  cacherToutesLesVues();
+  document.getElementById("vue-panier").style.display = "block";
+  const btnRetour = document.getElementById("btnRetour");
+  btnRetour.style.display = "inline-block";
+  btnRetour.onclick = afficherAccueil;
+  dessinerPanier();
+}
+
+function afficherCheckout(){
+  if(panier.length === 0) return;
+  cacherToutesLesVues();
+  document.getElementById("vue-checkout").style.display = "block";
+  const btnRetour = document.getElementById("btnRetour");
+  btnRetour.style.display = "inline-block";
+  btnRetour.onclick = afficherPanier;
+  document.getElementById("totalCheckout").textContent = calculerTotal().toLocaleString("fr-FR") + " FCFA";
+}
+
+function construireCategories(){
+  const grille = document.getElementById("grilleCategories");
+  grille.innerHTML = CATEGORIES.map(cat => {
+    const nbArticles = cat.sousCategories.reduce((n, sc) => n + (produitsParCle[cleSousCategorie(cat.id, sc.id)] || []).length, 0);
+    return `
+    <div class="carte-categorie" onclick="afficherSousCategories('${cat.id}')">
+      <span class="icone">${cat.icone}</span>
+      <h3>${cat.nom}</h3>
+      <p>${nbArticles} article(s)</p>
+    </div>`;
+  }).join("");
+}
+
+/* =====================================================================
+   PANIER
+   ===================================================================== */
+function ajouterAuPanier(idCategorie, idSousCategorie, index, event){
+  const produit = produitsParCle[cleSousCategorie(idCategorie, idSousCategorie)][index];
+
+  const existant = panier.find(a => a.id === produit.id);
+  if(existant){
+    if(existant.quantite >= produit.stock){
+      alert(`Stock maximum atteint pour "${produit.nom}" (${produit.stock} disponible(s)).`);
+      return;
+    }
+    existant.quantite += 1;
+  } else {
+    if(!produit.stock || produit.stock < 1){
+      alert("Cet article n'est plus disponible.");
+      return;
+    }
+    panier.push({ ...produit, quantite: 1 });
+  }
+  mettreAJourCompteur();
+  animerAjoutPanier(event);
+}
+
+/* Petite animation visuelle : le badge du panier rebondit, le bouton
+   cliqué confirme brièvement, ET une copie de la photo/icône de l'article
+   s'envole visuellement jusqu'au panier. */
+function animerAjoutPanier(event){
+  const badge = document.getElementById("compteurPanier");
+  badge.classList.remove("anime");
+  void badge.offsetWidth; // force le redémarrage de l'animation CSS
+  badge.classList.add("anime");
+
+  if(!event || !event.target) return;
+
+  const bouton = event.target.closest(".btn-ajouter");
+  if(bouton){
+    const texteOriginal = bouton.textContent;
+    bouton.textContent = "✓ Ajouté !";
+    bouton.classList.add("confirme");
+    setTimeout(() => {
+      bouton.textContent = texteOriginal;
+      bouton.classList.remove("confirme");
+    }, 900);
+  }
+
+  const carte = event.target.closest(".carte-produit");
+  const cibleCartouche = document.querySelector(".btn-panier");
+  if(!carte || !cibleCartouche) return;
+
+  const source = carte.querySelector("img, .icone-produit");
+  if(!source) return;
+
+  const rectSource = source.getBoundingClientRect();
+  const rectCible = cibleCartouche.getBoundingClientRect();
+  const styleSource = getComputedStyle(source);
+
+  const clone = source.cloneNode(true);
+  clone.classList.add("clone-vol");
+  Object.assign(clone.style, {
+    position: "fixed",
+    left: rectSource.left + "px",
+    top: rectSource.top + "px",
+    width: rectSource.width + "px",
+    height: rectSource.height + "px",
+    fontSize: styleSource.fontSize,
+    margin: "0",
+    zIndex: "999",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  });
+  document.body.appendChild(clone);
+
+  requestAnimationFrame(() => {
+    Object.assign(clone.style, {
+      left: (rectCible.left + rectCible.width / 2 - 10) + "px",
+      top: (rectCible.top + rectCible.height / 2 - 10) + "px",
+      width: "20px",
+      height: "20px",
+      fontSize: "12px",
+      opacity: "0.2",
+    });
+  });
+
+  setTimeout(() => clone.remove(), 700);
+}
+
+function changerQuantite(index, delta){
+  const article = panier[index];
+  if(delta > 0 && article.quantite >= article.stock){
+    alert(`Stock maximum atteint pour "${article.nom}" (${article.stock} disponible(s)).`);
+    return;
+  }
+  article.quantite += delta;
+  if(article.quantite <= 0){
+    panier.splice(index, 1);
+  }
+  dessinerPanier();
+  mettreAJourCompteur();
+}
+
+function supprimerArticle(index){
+  panier.splice(index, 1);
+  dessinerPanier();
+  mettreAJourCompteur();
+}
+
+function calculerTotal(){
+  return panier.reduce((total, a) => total + Number(a.prix) * a.quantite, 0);
+}
+
+function mettreAJourCompteur(){
+  const total = panier.reduce((n, a) => n + a.quantite, 0);
+  document.getElementById("compteurPanier").textContent = total;
+}
+
+function dessinerPanier(){
+  const liste = document.getElementById("listePanier");
+  const videMessage = document.getElementById("panierVide");
+  const btnValider = document.getElementById("btnValiderPanier");
+
+  if(panier.length === 0){
+    liste.innerHTML = "";
+    videMessage.style.display = "block";
+    btnValider.style.display = "none";
+  } else {
+    videMessage.style.display = "none";
+    btnValider.style.display = "block";
+    liste.innerHTML = panier.map((a, index) => `
+      <div class="ligne-panier">
+        <div class="info-produit">
+          ${a.image_url ? `<img src="${a.image_url}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;">` : `<span class="icone-produit">📦</span>`}
+          <div>
+            <div><strong>${a.nom}</strong></div>
+            <div style="font-size:13px;color:#666;">${Number(a.prix).toLocaleString("fr-FR")} FCFA</div>
+          </div>
+        </div>
+        <div class="quantite">
+          <button onclick="changerQuantite(${index}, -1)">−</button>
+          <span>${a.quantite}</span>
+          <button onclick="changerQuantite(${index}, 1)">+</button>
+          <button class="btn-supprimer" onclick="supprimerArticle(${index})">Retirer</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  document.getElementById("totalPanier").textContent = calculerTotal().toLocaleString("fr-FR") + " FCFA";
+}
+
+/* =====================================================================
+   GEOLOCALISATION DU CLIENT (obligatoire avant l'envoi)
+   ===================================================================== */
+function recupererPosition(){
+  const statut = document.getElementById("statutPosition");
+
+  if(!navigator.geolocation){
+    statut.textContent = "❌ Votre navigateur ne supporte pas la géolocalisation.";
+    return;
+  }
+
+  statut.textContent = "📡 Recherche de votre position...";
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      document.getElementById("latClient").value = position.coords.latitude;
+      document.getElementById("lngClient").value = position.coords.longitude;
+      statut.textContent = "✅ Position récupérée avec succès.";
+      statut.style.color = "#16a34a";
+    },
+    () => {
+      statut.textContent = "❌ Impossible de récupérer votre position. Activez votre GPS et réessayez.";
+      statut.style.color = "#dc2626";
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+/* =====================================================================
+   ENVOI DE LA COMMANDE VERS DISCORD
+   ===================================================================== */
+async function envoyerCommande(event){
+  event.preventDefault();
+
+  const nom = document.getElementById("nomClient").value.trim();
+  const tel = document.getElementById("telClient").value.trim();
+  const paiement = document.getElementById("paiementClient").value;
+  const lat = document.getElementById("latClient").value;
+  const lng = document.getElementById("lngClient").value;
+  const statutEnvoi = document.getElementById("statutEnvoi");
+  const btnEnvoyer = document.getElementById("btnEnvoyer");
+
+  if(!/^[0-9+ ]{8,15}$/.test(tel)){
+    statutEnvoi.style.color = "#dc2626";
+    statutEnvoi.textContent = "⚠️ Entrez un vrai numéro de téléphone (chiffres uniquement, 8 à 15 caractères).";
+    return false;
+  }
+
+  if(!lat || !lng){
+    statutEnvoi.style.color = "#dc2626";
+    statutEnvoi.textContent = "⚠️ Merci de récupérer votre position avant de valider.";
+    return false;
+  }
+
+  if(panier.length === 0){
+    statutEnvoi.style.color = "#dc2626";
+    statutEnvoi.textContent = "⚠️ Votre panier est vide.";
+    return false;
+  }
+
+  const lienPositionClient = `https://www.google.com/maps?q=${lat},${lng}`;
+
+  let texte = `🛒 **NOUVELLE COMMANDE — Prime Service**\n\n`;
+  texte += `👤 Client : ${nom}\n`;
+  texte += `📞 Téléphone : ${tel}\n`;
+  texte += `💳 Paiement souhaité : ${paiement}\n`;
+  texte += `📍 Position du client : ${lienPositionClient}\n\n`;
+  texte += `**Articles commandés :**\n`;
+
+  panier.forEach(a => {
+    const lienBoutique = `https://www.google.com/maps?q=${a.lat},${a.lng}`;
+    texte += `\n▪️ **${a.nom}** x${a.quantite} — ${(Number(a.prix) * a.quantite).toLocaleString("fr-FR")} FCFA\n`;
+    texte += `   🏪 Adresse boutique : ${a.adresse}\n`;
+    texte += `   🗺️ Localisation boutique : ${lienBoutique}\n`;
+  });
+
+  texte += `\n💰 **Total : ${calculerTotal().toLocaleString("fr-FR")} FCFA**`;
+
+  const premierAvecImage = panier.find(a => a.image_url);
+  const corpsRequete = {
+    content: texte,
+    embeds: premierAvecImage ? [{ image: { url: premierAvecImage.image_url } }] : []
+  };
+
+  btnEnvoyer.disabled = true;
+  statutEnvoi.style.color = "#555";
+  statutEnvoi.textContent = "⏳ Envoi de la commande en cours...";
+
+  try{
+    const reponse = await fetch(CONFIG.DISCORD_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpsRequete)
+    });
+
+    if(reponse.ok){
+      // Diminue le stock de chaque article commandé (l'article disparaît
+      // automatiquement pour tout le monde s'il tombe à 0 — obligatoire).
+      for(const article of panier){
+        try{
+          await supabaseClient.rpc("diminuer_stock", { p_id: article.id, p_quantite: article.quantite });
+        } catch(erreurStock){
+          console.error("Erreur de mise à jour du stock :", erreurStock);
+        }
+      }
+
+      const totalCommande = calculerTotal();
+      panier = [];
+      mettreAJourCompteur();
+      afficherPageMerci(paiement, totalCommande);
+    } else {
+      throw new Error("Réponse serveur incorrecte");
+    }
+  } catch(erreur){
+    statutEnvoi.style.color = "#dc2626";
+    statutEnvoi.textContent = "❌ Échec de l'envoi. Vérifiez votre connexion et réessayez.";
+  } finally {
+    btnEnvoyer.disabled = false;
+  }
+
+  return false;
+}
+
+function afficherPageMerci(paiement, montant){
+  cacherToutesLesVues();
+  document.getElementById("vue-merci").style.display = "block";
+  document.getElementById("btnRetour").style.display = "none";
+
+  const numero = CONFIG.NUMERO_PAIEMENT.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
+  document.getElementById("numeroPaiementAffiche").textContent = numero;
+  document.getElementById("modePaiementAffiche").textContent = paiement;
+
+  const montantAffiche = Number(montant).toLocaleString("fr-FR") + " FCFA";
+
+  document.getElementById("instructionsOrange").style.display = "none";
+  document.getElementById("instructionsWave").style.display = "none";
+
+  if(paiement === "Orange Money"){
+    document.getElementById("numeroOrangeInstruction").textContent = CONFIG.NUMERO_PAIEMENT;
+    document.getElementById("montantOrangeInstruction").textContent = montantAffiche;
+    document.getElementById("numeroOrangeInstructionKiosque").textContent = CONFIG.NUMERO_PAIEMENT;
+    document.getElementById("montantOrangeInstructionKiosque").textContent = montantAffiche;
+    document.getElementById("instructionsOrange").style.display = "block";
+  } else if(paiement === "Wave"){
+    document.getElementById("numeroWaveInstruction").textContent = CONFIG.NUMERO_PAIEMENT;
+    document.getElementById("montantWaveInstruction").textContent = montantAffiche;
+    document.getElementById("numeroWaveInstructionKiosque").textContent = CONFIG.NUMERO_PAIEMENT;
+    document.getElementById("montantWaveInstructionKiosque").textContent = montantAffiche;
+    document.getElementById("instructionsWave").style.display = "block";
+  }
+}
+
+/* =====================================================================
+   ESPACE VENDEUR — vraie connexion Supabase (email + mot de passe)
+   ===================================================================== */
+async function ouvrirEspaceAdmin(){
+  cacherToutesLesVues();
+  document.getElementById("vue-admin").style.display = "block";
+  const btnRetour = document.getElementById("btnRetour");
+  btnRetour.style.display = "inline-block";
+  btnRetour.onclick = afficherAccueil;
+
+  await verifierSessionAdmin();
+}
+
+/* Vérifie non seulement qu'une session existe, mais que c'est EXACTEMENT
+   le compte Google autorisé. Toute autre personne connectée est
+   automatiquement déconnectée : impossible d'entrer avec un autre compte. */
+async function verifierSessionAdmin(){
+  const { data: { session } } = await supabaseClient.auth.getSession();
+
+  if(session){
+    const email = (session.user.email || "").toLowerCase();
+    if(email === CONFIG.EMAIL_ADMIN_AUTORISE.toLowerCase()){
+      afficherEtatConnexion(true, session.user.email);
+      return;
+    }
+    // Connecté, mais avec le mauvais compte Google : on éjecte immédiatement.
+    await supabaseClient.auth.signOut();
+  }
+
+  afficherEtatConnexion(false);
+}
+
+function afficherFormulaireLogin(){
+  document.getElementById("messageRestriction").style.display = "none";
+  document.getElementById("formLoginAdmin").style.display = "block";
+}
+
+function afficherEtatConnexion(estConnecte, email){
+  document.getElementById("messageRestriction").style.display = estConnecte ? "none" : "block";
+  document.getElementById("formLoginAdmin").style.display = "none";
+  document.getElementById("admin-accueil").style.display = estConnecte ? "block" : "none";
+  if(estConnecte){
+    document.getElementById("connecteEnTantQue").textContent = `✅ Connecté en tant que ${email}`;
+  }
+  if(!estConnecte){
+    fermerFormulaireArticle();
+    document.getElementById("gestionArticles").style.display = "none";
+  }
+}
+
+async function connexionGoogle(){
+  const statut = document.getElementById("statutConnexion");
+  statut.style.color = "#555";
+  statut.textContent = "⏳ Redirection vers Google...";
+
+  const { error } = await supabaseClient.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: window.location.origin + window.location.pathname },
+  });
+
+  if(error){
+    statut.style.color = "#dc2626";
+    statut.textContent = "❌ Erreur de connexion : " + error.message;
+  }
+}
+
+// Après la redirection Google, Supabase récupère la session automatiquement :
+// on revérifie alors si c'est bien le bon compte.
+supabaseClient.auth.onAuthStateChange((_evenement, session) => {
+  if(document.getElementById("vue-admin").style.display === "block"){
+    verifierSessionAdmin();
+  } else if(session){
+    // Session détectée juste après le retour de Google, avant même d'ouvrir l'espace vendeur.
+    const email = (session.user.email || "").toLowerCase();
+    if(email !== CONFIG.EMAIL_ADMIN_AUTORISE.toLowerCase()){
+      supabaseClient.auth.signOut();
+    }
+  }
+});
+
+async function deconnexionAdmin(){
+  await supabaseClient.auth.signOut();
+  afficherEtatConnexion(false);
+}
+
+let articleEnEdition = null; // id de l'article en cours de modification, ou null si ajout
+
+function ouvrirFormulaireArticle(articleAModifier){
+  document.getElementById("admin-accueil").style.display = "none";
+  document.getElementById("gestionArticles").style.display = "none";
+  document.getElementById("formArticle").style.display = "block";
+  construireCasesACocher();
+
+  const titreFormulaire = document.getElementById("titreFormArticle");
+  const boutonSubmit = document.querySelector("#formArticle button[type=submit]");
+
+  if(articleAModifier && articleAModifier.id){
+    // ===== Vraie modification d'un article déjà publié =====
+    articleEnEdition = articleAModifier.id;
+    if(titreFormulaire) titreFormulaire.textContent = "✏️ Modifier l'article";
+    if(boutonSubmit) boutonSubmit.textContent = "Enregistrer les modifications";
+
+    document.getElementById("nomArticleAdmin").value = articleAModifier.nom || "";
+    document.getElementById("nomBoutiqueAdmin").value = articleAModifier.nom_boutique || "";
+    document.getElementById("telephoneArticleAdmin").value = articleAModifier.telephone || "";
+    document.getElementById("prixArticleAdmin").value = articleAModifier.prix || "";
+    document.getElementById("stockArticleAdmin").value = articleAModifier.stock || 1;
+    document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || "";
+    document.getElementById("latBoutiqueAdmin").value = articleAModifier.lat || "";
+    document.getElementById("lngBoutiqueAdmin").value = articleAModifier.lng || "";
+
+    if(articleAModifier.image_url){
+      document.getElementById("apercuPhoto").src = articleAModifier.image_url;
+      document.getElementById("apercuPhoto").style.display = "block";
+      document.getElementById("signePlus").style.display = "none";
+    }
+
+    // Coche le rayon d'origine (l'article ne changera que ce rayon-là s'il est déplacé)
+    const caseOrigine = document.querySelector(
+      `#caseACocherSousCategories input[value="${articleAModifier.categorie_id}|${articleAModifier.sous_categorie_id}"]`
+    );
+    if(caseOrigine) caseOrigine.checked = true;
+
+  } else if(articleAModifier){
+    // ===== Pré-remplissage depuis une demande de boutiquier (nouvel article) =====
+    articleEnEdition = null;
+    if(titreFormulaire) titreFormulaire.textContent = "📥 Publier la demande du boutiquier";
+    if(boutonSubmit) boutonSubmit.textContent = "Publier l'article";
+
+    document.getElementById("nomBoutiqueAdmin").value = articleAModifier.nom_boutique || "";
+    document.getElementById("telephoneArticleAdmin").value = articleAModifier.telephone || "";
+    document.getElementById("prixArticleAdmin").value = articleAModifier.prix || "";
+    document.getElementById("stockArticleAdmin").value = articleAModifier.stock || 1;
+    document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || "";
+    document.getElementById("latBoutiqueAdmin").value = articleAModifier.lat || "";
+    document.getElementById("lngBoutiqueAdmin").value = articleAModifier.lng || "";
+
+    if(articleAModifier.image_url){
+      document.getElementById("apercuPhoto").src = articleAModifier.image_url;
+      document.getElementById("apercuPhoto").style.display = "block";
+      document.getElementById("signePlus").style.display = "none";
+    }
+
+  } else {
+    // ===== Ajout d'un article tout neuf =====
+    articleEnEdition = null;
+    if(titreFormulaire) titreFormulaire.textContent = "➕ Ajouter un article";
+    if(boutonSubmit) boutonSubmit.textContent = "Publier l'article";
+  }
+}
+
+function fermerFormulaireArticle(){
+  const formArticle = document.getElementById("formArticle");
+  formArticle.style.display = "none";
+  formArticle.reset();
+  document.getElementById("apercuPhoto").style.display = "none";
+  document.getElementById("signePlus").style.display = "block";
+  document.getElementById("statutPositionAdmin").textContent = "Position boutique non enregistrée";
+  document.getElementById("statutPublication").textContent = "";
+  articleEnEdition = null;
+  fichierPhotoSelectionne = null;
+  document.getElementById("admin-accueil").style.display = "block";
+}
+
+document.addEventListener("click", function(e){
+  if(e.target.id === "cadrePhoto" || e.target.id === "signePlus" || e.target.closest("#cadrePhoto")){
+    document.getElementById("photoArticle").click();
+  }
+});
+
+let fichierPhotoSelectionne = null;
+
+function previsualiserPhoto(event){
+  const fichier = event.target.files[0];
+  if(!fichier) return;
+  fichierPhotoSelectionne = fichier;
+  const lecteur = new FileReader();
+  lecteur.onload = function(e){
+    const apercu = document.getElementById("apercuPhoto");
+    apercu.src = e.target.result;
+    apercu.style.display = "block";
+    document.getElementById("signePlus").style.display = "none";
+  };
+  lecteur.readAsDataURL(fichier);
+}
+
+function enregistrerPositionBoutique(){
+  const statut = document.getElementById("statutPositionAdmin");
+  if(!navigator.geolocation){
+    statut.textContent = "❌ Géolocalisation non supportée sur cet appareil.";
+    return;
+  }
+  statut.textContent = "📡 Recherche de la position...";
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      document.getElementById("latBoutiqueAdmin").value = position.coords.latitude;
+      document.getElementById("lngBoutiqueAdmin").value = position.coords.longitude;
+      document.getElementById("adresseBoutiqueAdmin").value =
+        `Position GPS : ${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`;
+      statut.textContent = "✅ Position de la boutique enregistrée.";
+      statut.style.color = "#16a34a";
+    },
+    () => {
+      statut.textContent = "❌ Impossible de récupérer la position. Réessayez devant la boutique.";
+      statut.style.color = "#dc2626";
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function construireCasesACocher(){
+  const conteneur = document.getElementById("caseACocherSousCategories");
+  let html = "";
+  CATEGORIES.forEach(cat => {
+    cat.sousCategories.forEach(sc => {
+      html += `
+        <label>
+          <input type="checkbox" value="${cat.id}|${sc.id}">
+          ${cat.icone} ${cat.nom} → ${sc.icone} ${sc.nom}
+        </label>`;
+    });
+  });
+  conteneur.innerHTML = html;
+}
+
+async function publierArticle(event){
+  event.preventDefault();
+
+  const nom = document.getElementById("nomArticleAdmin").value.trim();
+  const nomBoutique = document.getElementById("nomBoutiqueAdmin").value.trim();
+  const telephone = document.getElementById("telephoneArticleAdmin").value.trim();
+  const prix = parseInt(document.getElementById("prixArticleAdmin").value, 10);
+  const stock = parseInt(document.getElementById("stockArticleAdmin").value, 10);
+  const adresse = document.getElementById("adresseBoutiqueAdmin").value.trim();
+  const lat = parseFloat(document.getElementById("latBoutiqueAdmin").value) || null;
+  const lng = parseFloat(document.getElementById("lngBoutiqueAdmin").value) || null;
+  const statutPublication = document.getElementById("statutPublication");
+  const boutonPublier = event.target.querySelector("button[type=submit]");
+
+  const casesCochees = Array.from(document.querySelectorAll("#caseACocherSousCategories input:checked"));
+  if(casesCochees.length === 0){
+    statutPublication.style.color = "#dc2626";
+    statutPublication.textContent = "⚠️ Choisissez au moins un rayon pour cet article.";
+    return false;
+  }
+
+  if(!/^[0-9+ ]{8,15}$/.test(telephone)){
+    statutPublication.style.color = "#dc2626";
+    statutPublication.textContent = "⚠️ Entrez un vrai numéro de téléphone (chiffres uniquement).";
+    return false;
+  }
+
+  if(!stock || stock < 1){
+    statutPublication.style.color = "#dc2626";
+    statutPublication.textContent = "⚠️ Indiquez un stock d'au moins 1.";
+    return false;
+  }
+
+  boutonPublier.disabled = true;
+  statutPublication.style.color = "#555";
+  statutPublication.textContent = articleEnEdition ? "⏳ Enregistrement..." : "⏳ Publication en cours...";
+
+  try{
+    // 1. Upload d'une nouvelle photo si le vendeur en a choisi une
+    let imageUrl = document.getElementById("apercuPhoto").getAttribute("src") || "";
+    if(fichierPhotoSelectionne){
+      const cheminFichier = `${Date.now()}-${fichierPhotoSelectionne.name}`;
+      const { error: erreurUpload } = await supabaseClient
+        .storage
+        .from("photos-articles")
+        .upload(cheminFichier, fichierPhotoSelectionne);
+
+      if(erreurUpload) throw erreurUpload;
+
+      const { data: donneesPublic } = supabaseClient
+        .storage
+        .from("photos-articles")
+        .getPublicUrl(cheminFichier);
+
+      imageUrl = donneesPublic.publicUrl;
+    }
+    if(imageUrl && imageUrl.startsWith("data:")) imageUrl = ""; // sécurité : jamais de dataURL en base
+
+    if(articleEnEdition){
+      // ===== MODE MODIFICATION : on met à jour la ligne existante =====
+      const [categorie_id, sous_categorie_id] = casesCochees[0].value.split("|");
+      const { error: erreurMaj } = await supabaseClient
+        .from("produits")
+        .update({ nom, nom_boutique: nomBoutique, prix, telephone, stock, categorie_id, sous_categorie_id, adresse, lat, lng, image_url: imageUrl })
+        .eq("id", articleEnEdition);
+
+      if(erreurMaj) throw erreurMaj;
+
+      statutPublication.style.color = "#16a34a";
+      statutPublication.textContent = "✅ Article modifié !";
+
+    } else {
+      // ===== MODE AJOUT : une ligne par rayon coché =====
+      const lignesAInserer = casesCochees.map(caseCochee => {
+        const [categorie_id, sous_categorie_id] = caseCochee.value.split("|");
+        return { nom, nom_boutique: nomBoutique, prix, telephone, stock, categorie_id, sous_categorie_id, adresse, lat, lng, image_url: imageUrl };
+      });
+
+      const { error: erreurInsertion } = await supabaseClient.from("produits").insert(lignesAInserer);
+      if(erreurInsertion) throw erreurInsertion;
+
+      statutPublication.style.color = "#16a34a";
+      statutPublication.textContent = "✅ Article publié ! Visible immédiatement par tous vos clients.";
+    }
+
+    fichierPhotoSelectionne = null;
+    setTimeout(fermerFormulaireArticle, 1800);
+
+  } catch(erreur){
+    console.error(erreur);
+    statutPublication.style.color = "#dc2626";
+    statutPublication.textContent = "❌ Erreur lors de l'enregistrement. Réessayez.";
+  } finally {
+    boutonPublier.disabled = false;
+  }
+
+  return false;
+}
+
+/* =====================================================================
+   GESTION DES ARTICLES PUBLIÉS (modifier / supprimer)
+   ===================================================================== */
+function ouvrirGestionArticles(){
+  document.getElementById("admin-accueil").style.display = "none";
+  document.getElementById("gestionArticles").style.display = "block";
+  dessinerGestionArticles();
+}
+
+function fermerGestionArticles(){
+  document.getElementById("gestionArticles").style.display = "none";
+  document.getElementById("admin-accueil").style.display = "block";
+}
+
+function articlesUniques(){
+  const tous = Object.values(produitsParCle).flat();
+  return Array.from(new Map(tous.map(a => [a.id, a])).values());
+}
+
+function dessinerGestionArticles(){
+  const conteneur = document.getElementById("listeGestionArticles");
+  const articles = articlesUniques();
+
+  if(articles.length === 0){
+    conteneur.innerHTML = `<p style="color:#666;text-align:center;">Aucun article publié pour le moment.</p>`;
+    return;
+  }
+
+  conteneur.innerHTML = articles.map(a => `
+    <div class="ligne-gestion">
+      ${a.image_url ? `<img src="${a.image_url}" class="miniature-gestion">` : `<span class="icone-produit">📦</span>`}
+      <div class="info-gestion">
+        <strong>${a.nom}</strong>
+        <div class="details-gestion">🏪 ${a.nom_boutique || "—"} · 📦 Stock : ${a.stock} · ${Number(a.prix).toLocaleString("fr-FR")} FCFA</div>
+      </div>
+      <div class="boutons-gestion">
+        <button class="btn-modifier" onclick='modifierArticleDepuisGestion(${a.id})'>✏️</button>
+        <button class="btn-supprimer-gestion" onclick="supprimerArticleAdmin(${a.id}, '${(a.nom || "").replace(/'/g, "\\'")}')">🗑️</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function modifierArticleDepuisGestion(id){
+  const article = articlesUniques().find(a => a.id === id);
+  if(!article) return;
+  ouvrirFormulaireArticle(article);
+}
+
+async function supprimerArticleAdmin(id, nom){
+  if(!confirm(`Supprimer définitivement "${nom}" ? Cette action est irréversible.`)) return;
+
+  const { error } = await supabaseClient.from("produits").delete().eq("id", id);
+  if(error){
+    alert("Erreur lors de la suppression : " + error.message);
+    console.error(error);
+    return;
+  }
+  dessinerGestionArticles();
+}
+
+/* =====================================================================
+   MODALE "ARTICLE INDISPONIBLE"
+   ===================================================================== */
+function afficherLienInscription(){
+  const bloc = document.getElementById("blocLienInscription");
+  const champ = document.getElementById("champLienInscription");
+  const lien = new URL("inscription.html", window.location.href).href;
+  champ.value = lien;
+  bloc.style.display = bloc.style.display === "none" ? "block" : "none";
+}
+
+function copierLienInscription(){
+  const champ = document.getElementById("champLienInscription");
+  champ.select();
+  navigator.clipboard.writeText(champ.value).then(() => {
+    alert("✅ Lien copié ! Vous pouvez le coller dans votre bio TikTok ou vos messages.");
+  }).catch(() => {
+    alert("Sélectionnez et copiez le lien manuellement (Ctrl+C).");
+  });
+}
+
+function testerModaleIndisponible(nomArticle){
+  document.getElementById("modaleTexte").textContent =
+    `Désolé, l'article "${nomArticle}" est fini. Voulez-vous choisir un autre article à la place ?`;
+  document.getElementById("modaleIndisponible").style.display = "flex";
+}
+
+function fermerModale(choisirAutre){
+  document.getElementById("modaleIndisponible").style.display = "none";
+  if(choisirAutre){
+    afficherAccueil();
+  }
+}
+
+/* =====================================================================
+   INSTALLATION DE L'APPLICATION (PWA — sans extraction ni fichier à ouvrir)
+   ===================================================================== */
+let evenementInstallation = null;
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  evenementInstallation = e;
+});
+
+async function installerApplication(){
+  if(evenementInstallation){
+    evenementInstallation.prompt();
+    await evenementInstallation.userChoice;
+    evenementInstallation = null;
+    return;
+  }
+
+  // Sur iPhone/iPad (Safari), l'installation ne se déclenche pas par bouton :
+  // on guide le client vers le geste manuel natif d'Apple.
+  const estIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if(estIOS){
+    alert("Sur iPhone/iPad : appuyez sur le bouton Partager 📤 en bas de Safari, puis choisissez \"Sur l'écran d'accueil\".");
+  } else {
+    alert("Votre navigateur ne propose pas encore l'installation automatique. Vous pouvez quand même utiliser le site normalement, ou l'ajouter à l'écran d'accueil depuis le menu de votre navigateur.");
+  }
+}
+
+/* =====================================================================
+   PAUSE DU SITE (table Supabase "parametres", visible par tout le monde)
+   ===================================================================== */
+async function verifierEtatPause(){
+  const { data, error } = await supabaseClient.from("parametres").select("*").eq("id", 1).single();
+  if(error){
+    console.error("Erreur de lecture de l'état du site :", error);
+    return;
+  }
+  appliquerEtatPause(data.en_pause, data.raison_pause);
+}
+
+function appliquerEtatPause(enPause, raison){
+  const ecran = document.getElementById("ecranPause");
+  if(enPause){
+    ecran.style.display = "flex";
+    document.getElementById("raisonPauseAffichee").textContent = raison || "Raison non précisée";
+  } else {
+    ecran.style.display = "none";
+  }
+
+  // Met à jour l'affichage dans l'espace vendeur si celui-ci est ouvert
+  const inactif = document.getElementById("controlePauseInactif");
+  const actif = document.getElementById("controlePauseActif");
+  if(inactif && actif){
+    inactif.style.display = enPause ? "none" : "block";
+    actif.style.display = enPause ? "block" : "none";
+  }
+}
+
+supabaseClient
+  .channel("etat-site-en-direct")
+  .on("postgres_changes", { event: "*", schema: "public", table: "parametres" }, (payload) => {
+    appliquerEtatPause(payload.new.en_pause, payload.new.raison_pause);
+  })
+  .subscribe();
+
+document.addEventListener("change", (e) => {
+  if(e.target.id === "raisonPause"){
+    document.getElementById("raisonPausePersonnalisee").style.display =
+      e.target.value === "Autre raison" ? "block" : "none";
+  }
+});
+
+async function mettreSiteEnPause(){
+  const select = document.getElementById("raisonPause");
+  const personnalisee = document.getElementById("raisonPausePersonnalisee").value.trim();
+  const raison = select.value === "Autre raison" && personnalisee ? personnalisee : select.value;
+  const bouton = document.querySelector("#controlePauseInactif .btn-pause");
+
+  bouton.disabled = true;
+  bouton.textContent = "⏳ Mise en pause...";
+
+  const { error } = await supabaseClient.from("parametres").update({ en_pause: true, raison_pause: raison }).eq("id", 1);
+
+  bouton.disabled = false;
+  bouton.textContent = "⏸️ Mettre en pause";
+
+  if(error){
+    alert("Erreur lors de la mise en pause : " + error.message);
+    console.error(error);
+  } else {
+    alert("✅ Le site est maintenant en pause pour tous vos clients.");
+  }
+}
+
+async function reprendreSite(){
+  const bouton = document.querySelector("#controlePauseActif .btn-reprendre");
+  bouton.disabled = true;
+  bouton.textContent = "⏳ Réactivation...";
+
+  const { error } = await supabaseClient.from("parametres").update({ en_pause: false, raison_pause: "" }).eq("id", 1);
+
+  bouton.disabled = false;
+  bouton.textContent = "▶️ Réactiver le site";
+
+  if(error){
+    alert("Erreur lors de la réactivation : " + error.message);
+    console.error(error);
+  } else {
+    alert("✅ Le site est de nouveau actif pour tous vos clients.");
+  }
+}
+
+function ouvrirEspaceAdminDepuisPause(){
+  document.getElementById("ecranPause").style.display = "none";
+  ouvrirEspaceAdmin();
+}
+
+verifierEtatPause();
+
+/* =====================================================================
+   DEMARRAGE
+   ===================================================================== */
+construireCategories();
+chargerProduits();
+
+</script>
 </body>
 </html>
