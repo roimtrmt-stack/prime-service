@@ -483,6 +483,33 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 }
 .btn-devenir-boutiquier:hover{ opacity:.9; }
 
+/* ===================== BANDEAU "MISE A JOUR DISPONIBLE" ===================== */
+.bandeau-maj{
+  position:fixed;
+  left:0; right:0; bottom:0;
+  z-index:300;
+  background:var(--noir);
+  color:var(--blanc);
+  padding:12px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+  flex-wrap:wrap;
+  font-size:13.5px;
+  box-shadow:0 -2px 10px rgba(0,0,0,.2);
+}
+.bandeau-maj button{
+  background:var(--orange);
+  color:var(--blanc);
+  border:none;
+  padding:8px 16px;
+  border-radius:var(--rayon);
+  font-weight:700;
+  cursor:pointer;
+  font-size:13px;
+}
+
 .bloc-installer{
   text-align:center;
   margin-top:28px;
@@ -1003,7 +1030,53 @@ const supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.
 
 // Nécessaire pour que le site soit "installable" comme une application.
 if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js").catch(() => {});
+  navigator.serviceWorker.register("sw.js").then((enregistrement) => {
+    // Vérifie tout de suite s'il existe une version plus récente du site.
+    enregistrement.update();
+
+    // Si une nouvelle version est prête, on propose un bandeau "Mettre à
+    // jour" plutôt que de recharger tout seul (pour ne pas couper un
+    // client en pleine commande ou un vendeur en train de remplir un
+    // article).
+    enregistrement.addEventListener("updatefound", () => {
+      const nouveauServiceWorker = enregistrement.installing;
+      if(!nouveauServiceWorker) return;
+      nouveauServiceWorker.addEventListener("statechange", () => {
+        if(nouveauServiceWorker.state === "installed" && navigator.serviceWorker.controller){
+          afficherBandeauMiseAJour(enregistrement);
+        }
+      });
+    });
+  }).catch(() => {});
+
+  // Une fois que la nouvelle version prend le contrôle (après avoir cliqué
+  // "Mettre à jour"), on recharge la page pour l'afficher.
+  let rechargementDejaLance = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if(rechargementDejaLance) return;
+    rechargementDejaLance = true;
+    window.location.reload();
+  });
+}
+
+function afficherBandeauMiseAJour(enregistrement){
+  if(document.getElementById("bandeauMiseAJour")) return; // déjà affiché
+
+  const bandeau = document.createElement("div");
+  bandeau.id = "bandeauMiseAJour";
+  bandeau.className = "bandeau-maj";
+  bandeau.innerHTML = `
+    <span>🔄 Une nouvelle version de Prime Service est disponible.</span>
+    <button id="btnMettreAJour">Mettre à jour</button>
+  `;
+  document.body.appendChild(bandeau);
+
+  document.getElementById("btnMettreAJour").onclick = () => {
+    if(enregistrement.waiting){
+      enregistrement.waiting.postMessage({ type: "SKIP_WAITING" });
+    }
+    bandeau.remove();
+  };
 }
 
 /* =====================================================================
@@ -1883,7 +1956,15 @@ async function supprimerArticleAdmin(id, nom){
     console.error(error);
     return;
   }
+
+  // Retire l'article de la mémoire locale tout de suite, sans attendre
+  // le temps réel — évite que la liste semble ne pas avoir bougé.
+  Object.keys(produitsParCle).forEach(cle => {
+    produitsParCle[cle] = produitsParCle[cle].filter(a => a.id !== id);
+  });
+
   dessinerGestionArticles();
+  construireCategories();
 }
 
 /* =====================================================================
