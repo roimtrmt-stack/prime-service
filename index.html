@@ -2019,6 +2019,27 @@ function fermerModale(choisirAutre){
    ===================================================================== */
 let evenementInstallation = null;
 
+function cacherBlocInstaller(){
+  const bloc = document.querySelector(".bloc-installer");
+  if(bloc) bloc.style.display = "none";
+}
+
+// Cas 1 : l'appli est déjà installée et ouverte en mode "application"
+// (plein écran, sans barre d'adresse) → inutile de proposer d'installer.
+const dejaInstallee =
+  window.matchMedia("(display-mode: standalone)").matches ||
+  window.navigator.standalone === true; // ancien Safari iOS
+
+if(dejaInstallee){
+  cacherBlocInstaller();
+}
+
+// Cas 2 : le client clique "Installer" et confirme l'installation.
+window.addEventListener("appinstalled", () => {
+  cacherBlocInstaller();
+  evenementInstallation = null;
+});
+
 window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
   evenementInstallation = e;
@@ -2027,8 +2048,9 @@ window.addEventListener("beforeinstallprompt", (e) => {
 async function installerApplication(){
   if(evenementInstallation){
     evenementInstallation.prompt();
-    await evenementInstallation.userChoice;
+    const choix = await evenementInstallation.userChoice;
     evenementInstallation = null;
+    if(choix.outcome === "accepted") cacherBlocInstaller();
     return;
   }
 
