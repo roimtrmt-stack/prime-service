@@ -460,6 +460,29 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 }
 
 /* ===================== BOUTON INSTALLER L'APPLICATION ===================== */
+/* ===================== BLOC "DEVENIR BOUTIQUIER" (ACCUEIL) ===================== */
+.bloc-devenir-boutiquier{
+  text-align:center;
+  margin-top:32px;
+  padding:24px 20px;
+  border:1px dashed var(--orange);
+  border-radius:var(--rayon);
+  background:#fff7ed;
+}
+.bloc-devenir-boutiquier h3{ margin:0 0 8px; }
+.bloc-devenir-boutiquier p{ color:#555; font-size:14px; margin:0 0 16px; }
+.btn-devenir-boutiquier{
+  display:inline-block;
+  background:var(--orange);
+  color:var(--blanc);
+  text-decoration:none;
+  padding:12px 22px;
+  border-radius:var(--rayon);
+  font-weight:700;
+  font-size:15px;
+}
+.btn-devenir-boutiquier:hover{ opacity:.9; }
+
 .bloc-installer{
   text-align:center;
   margin-top:28px;
@@ -693,6 +716,12 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 
     <div class="grille-categories" id="grilleCategories">
       <!-- injecté par JS -->
+    </div>
+
+    <div class="bloc-devenir-boutiquier">
+      <h3>🏪 Vous vendez quelque chose ?</h3>
+      <p>Proposez vos articles gratuitement sur Prime Service et touchez de nouveaux clients.</p>
+      <a href="inscription.html" class="btn-devenir-boutiquier">📸 Publier mes articles</a>
     </div>
 
     <div class="bloc-installer">
