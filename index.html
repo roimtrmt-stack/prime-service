@@ -1165,14 +1165,15 @@ function cacherToutesLesVues(){
   document.querySelectorAll(".vue").forEach(v => v.style.display = "none");
 }
 
-function afficherAccueil(){
+function afficherAccueil(pousserHistorique = true){
   vueEnCours = { nom: "accueil", idCategorie: null, idSousCategorie: null };
   cacherToutesLesVues();
   document.getElementById("vue-accueil").style.display = "block";
   document.getElementById("btnRetour").style.display = "none";
+  if(pousserHistorique) history.pushState({ vue: "accueil" }, "");
 }
 
-function afficherSousCategories(idCategorie, changerVue = true){
+function afficherSousCategories(idCategorie, changerVue = true, pousserHistorique = true){
   const categorie = CATEGORIES.find(c => c.id === idCategorie);
   if(!categorie) return;
   if(changerVue) vueEnCours = { nom: "souscategories", idCategorie, idSousCategorie: null };
@@ -1183,7 +1184,7 @@ function afficherSousCategories(idCategorie, changerVue = true){
 
   const btnRetour = document.getElementById("btnRetour");
   btnRetour.style.display = "inline-block";
-  btnRetour.onclick = afficherAccueil;
+  btnRetour.onclick = () => afficherAccueil();
 
   const grille = document.getElementById("grilleSousCategories");
   grille.innerHTML = categorie.sousCategories.map(sc => {
@@ -1195,9 +1196,11 @@ function afficherSousCategories(idCategorie, changerVue = true){
       <p>${nbProduits} article(s)</p>
     </div>`;
   }).join("");
+
+  if(pousserHistorique) history.pushState({ vue: "souscategories", idCategorie }, "");
 }
 
-function afficherProduits(idCategorie, idSousCategorie, changerVue = true){
+function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pousserHistorique = true){
   const categorie = CATEGORIES.find(c => c.id === idCategorie);
   const sousCategorie = categorie.sousCategories.find(sc => sc.id === idSousCategorie);
   if(!sousCategorie) return;
@@ -1216,42 +1219,45 @@ function afficherProduits(idCategorie, idSousCategorie, changerVue = true){
 
   if(produits.length === 0){
     grille.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:#666;">Aucun article ici pour le moment.</p>`;
-    return;
+  } else {
+    grille.innerHTML = produits.map((p, index) => `
+      <div class="carte-produit">
+        ${p.image_url
+          ? `<img src="${p.image_url}" alt="${p.nom}" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;margin-bottom:10px;">`
+          : `<span class="icone-produit">📦</span>`}
+        <h4>${p.nom}</h4>
+        ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${p.nom_boutique}</p>` : ""}
+        <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
+        <p class="stock-produit">📦 ${p.stock} en stock</p>
+        <button class="btn-ajouter" onclick="ajouterAuPanier('${idCategorie}', '${idSousCategorie}', ${index}, event)">
+          Ajouter au panier
+        </button>
+      </div>
+    `).join("");
   }
 
-  grille.innerHTML = produits.map((p, index) => `
-    <div class="carte-produit">
-      ${p.image_url
-        ? `<img src="${p.image_url}" alt="${p.nom}" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;margin-bottom:10px;">`
-        : `<span class="icone-produit">📦</span>`}
-      <h4>${p.nom}</h4>
-      ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${p.nom_boutique}</p>` : ""}
-      <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
-      <p class="stock-produit">📦 ${p.stock} en stock</p>
-      <button class="btn-ajouter" onclick="ajouterAuPanier('${idCategorie}', '${idSousCategorie}', ${index}, event)">
-        Ajouter au panier
-      </button>
-    </div>
-  `).join("");
+  if(pousserHistorique) history.pushState({ vue: "produits", idCategorie, idSousCategorie }, "");
 }
 
-function afficherPanier(){
+function afficherPanier(pousserHistorique = true){
   cacherToutesLesVues();
   document.getElementById("vue-panier").style.display = "block";
   const btnRetour = document.getElementById("btnRetour");
   btnRetour.style.display = "inline-block";
-  btnRetour.onclick = afficherAccueil;
+  btnRetour.onclick = () => afficherAccueil();
   dessinerPanier();
+  if(pousserHistorique) history.pushState({ vue: "panier" }, "");
 }
 
-function afficherCheckout(){
+function afficherCheckout(pousserHistorique = true){
   if(panier.length === 0) return;
   cacherToutesLesVues();
   document.getElementById("vue-checkout").style.display = "block";
   const btnRetour = document.getElementById("btnRetour");
   btnRetour.style.display = "inline-block";
-  btnRetour.onclick = afficherPanier;
+  btnRetour.onclick = () => afficherPanier();
   document.getElementById("totalCheckout").textContent = calculerTotal().toLocaleString("fr-FR") + " FCFA";
+  if(pousserHistorique) history.pushState({ vue: "checkout" }, "");
 }
 
 function construireCategories(){
@@ -1568,17 +1574,24 @@ function afficherPageMerci(paiement, montant){
     document.getElementById("montantWaveInstructionKiosque").textContent = montantAffiche;
     document.getElementById("instructionsWave").style.display = "block";
   }
+
+  // On remplace l'entrée d'historique plutôt que d'en ajouter une : revenir
+  // en arrière depuis cette page ne doit pas re-proposer une commande déjà
+  // envoyée (le panier est déjà vidé à ce stade).
+  history.replaceState({ vue: "merci" }, "");
 }
 
 /* =====================================================================
    ESPACE VENDEUR — vraie connexion Supabase (email + mot de passe)
    ===================================================================== */
-async function ouvrirEspaceAdmin(){
+async function ouvrirEspaceAdmin(pousserHistorique = true){
   cacherToutesLesVues();
   document.getElementById("vue-admin").style.display = "block";
   const btnRetour = document.getElementById("btnRetour");
   btnRetour.style.display = "inline-block";
-  btnRetour.onclick = afficherAccueil;
+  btnRetour.onclick = () => afficherAccueil();
+
+  if(pousserHistorique) history.pushState({ vue: "admin" }, "");
 
   await verifierSessionAdmin();
 }
@@ -2119,6 +2132,38 @@ function ouvrirEspaceAdminDepuisPause(){
 }
 
 verifierEtatPause();
+
+/* =====================================================================
+   BOUTON "PRÉCÉDENT" DU NAVIGATEUR / TÉLÉPHONE / ORDINATEUR
+   Sans ceci, "précédent" quitte directement le site (ex: vers Google) au
+   lieu de revenir à l'écran précédent à l'intérieur de Prime Service.
+   ===================================================================== */
+window.addEventListener("popstate", (event) => {
+  const etat = event.state || { vue: "accueil" };
+  switch(etat.vue){
+    case "souscategories":
+      afficherSousCategories(etat.idCategorie, true, false);
+      break;
+    case "produits":
+      afficherProduits(etat.idCategorie, etat.idSousCategorie, true, false);
+      break;
+    case "panier":
+      afficherPanier(false);
+      break;
+    case "checkout":
+      afficherCheckout(false);
+      break;
+    case "admin":
+      ouvrirEspaceAdmin(false);
+      break;
+    case "accueil":
+    default:
+      afficherAccueil(false);
+  }
+});
+
+// Etat de départ : permet au tout premier clic sur "précédent" de fonctionner correctement.
+history.replaceState({ vue: "accueil" }, "");
 
 /* =====================================================================
    DEMARRAGE
