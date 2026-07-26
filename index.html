@@ -423,6 +423,22 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   padding:12px; border-radius:var(--rayon); cursor:pointer; font-weight:600;
 }
 
+.qr-code-partage{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:192px;
+  height:192px;
+  margin:10px auto;
+  padding:8px;
+  background:var(--blanc);
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  font-size:12px;
+  color:#888;
+  text-align:center;
+}
+
 /* ===================== ECRAN "SITE EN PAUSE" ===================== */
 .ecran-pause{
   position:fixed; inset:0;
@@ -753,6 +769,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#1a1a1a">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 
@@ -2256,12 +2273,48 @@ function cacherBlocInstaller(){
 }
 
 /* =====================================================================
-   PARTAGER LE SITE (ouvre le menu de partage natif du téléphone :
-   WhatsApp, SMS, etc. — utile pour la prospection auprès des boutiquiers
-   et des clients).
+   PARTAGER LE SITE : QR code (scannable sans données mobiles, juste la
+   caméra) + lien copiable + partage via applications (WhatsApp, SMS...),
+   tous affichés ensemble dans la même fenêtre.
    ===================================================================== */
-async function partagerApplication(){
+function partagerApplication(){
   const lien = window.location.origin + window.location.pathname;
+  if(document.getElementById("modalePartage")) return;
+
+  const modale = document.createElement("div");
+  modale.id = "modalePartage";
+  modale.className = "modale";
+  modale.style.display = "flex";
+  modale.innerHTML = `
+    <div class="modale-contenu">
+      <h3 style="margin-top:0;">📤 Partager Prime Service</h3>
+      <p style="font-size:13px;color:#666;">Faites scanner ce code (marche même sans forfait, juste la caméra) :</p>
+      <div id="qrCodePartage" class="qr-code-partage"></div>
+      <p style="font-size:12.5px;color:#666;margin:14px 0 4px;">Ou partagez ce lien directement :</p>
+      <input type="text" class="champ" id="champLienPartageModale" value="${lien}" readonly>
+      <button class="btn-principal" style="margin-top:14px;" onclick="partagerViaApplications('${lien}')">
+        📲 Partager via une application
+      </button>
+      <button class="btn-retour-lien" onclick="document.getElementById('modalePartage').remove()">Fermer</button>
+    </div>
+  `;
+  document.body.appendChild(modale);
+
+  if(window.QRCode){
+    new QRCode(document.getElementById("qrCodePartage"), {
+      text: lien,
+      width: 176,
+      height: 176,
+    });
+  } else {
+    document.getElementById("qrCodePartage").textContent = "QR code indisponible pour le moment (nécessite une connexion la première fois).";
+  }
+
+  const champ = document.getElementById("champLienPartageModale");
+  champ.addEventListener("click", () => champ.select());
+}
+
+async function partagerViaApplications(lien){
   const donnees = {
     title: "Prime Service",
     text: "Prime Service livre votre quotidien à domicile à Bamako 🚚 Découvrez le site :",
@@ -2273,43 +2326,17 @@ async function partagerApplication(){
       await navigator.share(donnees);
       return;
     } catch(erreur){
-      // L'utilisateur a peut-être juste annulé — mais certains navigateurs
-      // intégrés (TikTok, WhatsApp...) font aussi échouer le partage sans
-      // raison claire. Dans le doute, on propose quand même le repli
-      // ci-dessous plutôt que de ne rien faire.
+      // Annulé, ou bloqué par un navigateur intégré (TikTok, WhatsApp...) :
+      // on propose quand même le repli ci-dessous.
     }
   }
 
-  // Repli qui marche PARTOUT, même quand le partage natif et le
-  // presse-papier sont bloqués par un navigateur intégré (TikTok, WhatsApp...).
   try{
     await navigator.clipboard.writeText(lien);
     alert("✅ Lien copié ! Vous pouvez maintenant le coller dans WhatsApp, SMS ou ailleurs.");
-    return;
   } catch(erreur){
-    afficherModaleLienAPartager(lien);
+    alert("Copiez le lien affiché à l'écran (appui long → Copier).");
   }
-}
-
-function afficherModaleLienAPartager(lien){
-  if(document.getElementById("modaleLienPartage")) return;
-
-  const modale = document.createElement("div");
-  modale.id = "modaleLienPartage";
-  modale.className = "modale";
-  modale.style.display = "flex";
-  modale.innerHTML = `
-    <div class="modale-contenu">
-      <p>Copiez ce lien à la main (appui long → Copier) :</p>
-      <input type="text" class="champ" id="champLienPartageModale" value="${lien}" readonly>
-      <button class="btn-principal" style="margin-top:14px;" onclick="document.getElementById('modaleLienPartage').remove()">Fermer</button>
-    </div>
-  `;
-  document.body.appendChild(modale);
-
-  const champ = document.getElementById("champLienPartageModale");
-  champ.focus();
-  champ.select();
 }
 
 // Cas 1 : l'appli est déjà installée et ouverte en mode "application"
