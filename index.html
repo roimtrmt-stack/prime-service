@@ -1927,10 +1927,55 @@ document.addEventListener("click", function(e){
 
 let fichierPhotoSelectionne = null;
 
-function previsualiserPhoto(event){
+/* Réduit la taille d'une photo (max 1000px de large, qualité 70%) avant
+   l'envoi : uploads plus rapides et plus fiables sur une connexion lente,
+   et beaucoup moins de données consommées. */
+function compresserImage(fichier, tailleMax = 1000, qualite = 0.7){
+  return new Promise((resolve, reject) => {
+    const lecteur = new FileReader();
+    lecteur.onload = (e) => {
+      const image = new Image();
+      image.onload = () => {
+        let { width, height } = image;
+        if(width > tailleMax || height > tailleMax){
+          if(width > height){
+            height = Math.round(height * (tailleMax / width));
+            width = tailleMax;
+          } else {
+            width = Math.round(width * (tailleMax / height));
+            height = tailleMax;
+          }
+        }
+        const canevas = document.createElement("canvas");
+        canevas.width = width;
+        canevas.height = height;
+        canevas.getContext("2d").drawImage(image, 0, 0, width, height);
+        canevas.toBlob(
+          (blob) => blob ? resolve(blob) : reject(new Error("Compression impossible")),
+          "image/jpeg",
+          qualite
+        );
+      };
+      image.onerror = reject;
+      image.src = e.target.result;
+    };
+    lecteur.onerror = reject;
+    lecteur.readAsDataURL(fichier);
+  });
+}
+
+async function previsualiserPhoto(event){
   const fichier = event.target.files[0];
   if(!fichier) return;
-  fichierPhotoSelectionne = fichier;
+
+  try{
+    const blobCompresse = await compresserImage(fichier);
+    fichierPhotoSelectionne = new File([blobCompresse], "photo.jpg", { type: "image/jpeg" });
+  } catch(erreur){
+    console.error("Compression impossible, envoi du fichier original :", erreur);
+    fichierPhotoSelectionne = fichier;
+  }
+
   const lecteur = new FileReader();
   lecteur.onload = function(e){
     const apercu = document.getElementById("apercuPhoto");
@@ -1938,7 +1983,7 @@ function previsualiserPhoto(event){
     apercu.style.display = "block";
     document.getElementById("signePlus").style.display = "none";
   };
-  lecteur.readAsDataURL(fichier);
+  lecteur.readAsDataURL(fichierPhotoSelectionne);
 }
 
 function enregistrerPositionBoutique(){
@@ -2071,7 +2116,7 @@ async function publierArticle(event){
   } catch(erreur){
     console.error(erreur);
     statutPublication.style.color = "#dc2626";
-    statutPublication.textContent = "❌ Erreur lors de l'enregistrement. Réessayez.";
+    statutPublication.textContent = "❌ Échec de l'enregistrement. Vérifiez votre connexion internet (surtout pour l'envoi de la photo) et réessayez.";
   } finally {
     boutonPublier.disabled = false;
   }
