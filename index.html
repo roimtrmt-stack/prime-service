@@ -1078,10 +1078,13 @@ if("serviceWorker" in navigator){
     // Vérifie tout de suite s'il existe une version plus récente du site.
     enregistrement.update();
 
-    // Si une nouvelle version est prête, on propose un bandeau "Mettre à
-    // jour" plutôt que de recharger tout seul (pour ne pas couper un
-    // client en pleine commande ou un vendeur en train de remplir un
-    // article).
+    // Revérifie régulièrement (toutes les 5 minutes) pour les sessions
+    // laissées ouvertes longtemps, afin que la mise à jour reste
+    // automatique même sans fermer/rouvrir l'appli.
+    setInterval(() => enregistrement.update(), 5 * 60 * 1000);
+
+    // Si une nouvelle version est prête, elle s'applique automatiquement
+    // après un court délai (voir afficherBandeauMiseAJour).
     enregistrement.addEventListener("updatefound", () => {
       const nouveauServiceWorker = enregistrement.installing;
       if(!nouveauServiceWorker) return;
@@ -1106,21 +1109,36 @@ if("serviceWorker" in navigator){
 function afficherBandeauMiseAJour(enregistrement){
   if(document.getElementById("bandeauMiseAJour")) return; // déjà affiché
 
+  const appliquerMaintenant = () => {
+    if(enregistrement.waiting){
+      enregistrement.waiting.postMessage({ type: "SKIP_WAITING" });
+    }
+  };
+
   const bandeau = document.createElement("div");
   bandeau.id = "bandeauMiseAJour";
   bandeau.className = "bandeau-maj";
   bandeau.innerHTML = `
-    <span>🔄 Une nouvelle version de Prime Service est disponible.</span>
-    <button id="btnMettreAJour">Mettre à jour</button>
+    <span>🔄 Nouvelle version disponible — mise à jour automatique dans <strong id="compteurMaj">8</strong>s</span>
+    <button id="btnMettreAJour">Mettre à jour maintenant</button>
   `;
   document.body.appendChild(bandeau);
 
-  document.getElementById("btnMettreAJour").onclick = () => {
-    if(enregistrement.waiting){
-      enregistrement.waiting.postMessage({ type: "SKIP_WAITING" });
+  document.getElementById("btnMettreAJour").onclick = appliquerMaintenant;
+
+  // Mise à jour obligatoire : elle s'applique toute seule après un court
+  // délai, pour laisser le temps de terminer une saisie en cours sans
+  // pour autant laisser la bannière ignorée indéfiniment.
+  let secondesRestantes = 8;
+  const compteur = document.getElementById("compteurMaj");
+  const intervalle = setInterval(() => {
+    secondesRestantes -= 1;
+    if(compteur) compteur.textContent = secondesRestantes;
+    if(secondesRestantes <= 0){
+      clearInterval(intervalle);
+      appliquerMaintenant();
     }
-    bandeau.remove();
-  };
+  }, 1000);
 }
 
 /* =====================================================================
