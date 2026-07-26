@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://primeservice.netlify.app/sitemap.xml
