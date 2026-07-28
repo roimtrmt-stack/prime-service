@@ -418,6 +418,22 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   padding:12px; border-radius:var(--rayon); cursor:pointer; font-weight:600;
 }
 
+.qr-code-partage{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:192px;
+  height:192px;
+  margin:10px auto;
+  padding:8px;
+  background:var(--blanc);
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  font-size:12px;
+  color:#888;
+  text-align:center;
+}
+
 /* ===================== ECRAN "SITE EN PAUSE" ===================== */
 .ecran-pause{
   position:fixed; inset:0;
@@ -455,6 +471,82 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 }
 
 /* ===================== BOUTON INSTALLER L'APPLICATION ===================== */
+/* ===================== BLOC "DEVENIR BOUTIQUIER" (ACCUEIL) ===================== */
+.bloc-devenir-boutiquier{
+  text-align:center;
+  margin-top:32px;
+  padding:24px 20px;
+  border:1px dashed var(--orange);
+  border-radius:var(--rayon);
+  background:#fff7ed;
+}
+.bloc-devenir-boutiquier h3{ margin:0 0 8px; }
+.bloc-devenir-boutiquier p{ color:#555; font-size:14px; margin:0 0 16px; }
+.btn-devenir-boutiquier{
+  display:inline-block;
+  background:var(--orange);
+  color:var(--blanc);
+  text-decoration:none;
+  padding:12px 22px;
+  border-radius:var(--rayon);
+  font-weight:700;
+  font-size:15px;
+}
+.btn-devenir-boutiquier:hover{ opacity:.9; }
+
+/* ===================== BANDEAU "MISE A JOUR DISPONIBLE" ===================== */
+.bandeau-maj{
+  position:fixed;
+  left:0; right:0; bottom:0;
+  z-index:300;
+  background:var(--noir);
+  color:var(--blanc);
+  padding:12px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+  flex-wrap:wrap;
+  font-size:13.5px;
+  box-shadow:0 -2px 10px rgba(0,0,0,.2);
+}
+.bandeau-maj button{
+  background:var(--orange);
+  color:var(--blanc);
+  border:none;
+  padding:8px 16px;
+  border-radius:var(--rayon);
+  font-weight:700;
+  cursor:pointer;
+  font-size:13px;
+}
+
+/* ===================== BANDEAU "HORS LIGNE" ===================== */
+.bandeau-hors-ligne{
+  position:fixed;
+  left:0; right:0; top:0;
+  z-index:300;
+  background:var(--orange);
+  color:var(--blanc);
+  text-align:center;
+  padding:8px 14px;
+  font-size:13px;
+  font-weight:600;
+}
+
+/* ===================== BANDEAU "NAVIGATEUR INTEGRE" ===================== */
+.bandeau-navigateur-integre{
+  position:sticky;
+  top:0;
+  z-index:250;
+  background:#fef3c7;
+  color:#78350f;
+  text-align:center;
+  padding:10px 14px;
+  font-size:13px;
+  line-height:1.5;
+}
+
 .bloc-installer{
   text-align:center;
   margin-top:28px;
@@ -474,6 +566,23 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   font-size:12.5px;
   color:#777;
   margin-top:8px;
+}
+.btn-partager{
+  display:block;
+  margin:0 auto;
+  background:var(--bleu);
+  color:var(--blanc);
+  border:none;
+  padding:12px 22px;
+  border-radius:var(--rayon);
+  font-weight:700;
+  cursor:pointer;
+  font-size:14px;
+}
+.btn-partager:hover{ background:var(--bleu-hover); }
+.bloc-partager{
+  text-align:center;
+  margin-top:16px;
 }
 
 /* ===================== ADMIN : PAUSE DU SITE ===================== */
@@ -592,6 +701,29 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 }
    quel que soit l'appareil. Sur petit écran, on réduit les tailles
 /* ===================== PAGE INSCRIPTION (soumission boutiquiers) ===================== */
+/* ===================== AUDIO + CASE A COCHER OBLIGATOIRE (INSCRIPTION) ===================== */
+.bloc-audio-conditions{
+  border:1px solid var(--gris-bordure);
+  border-radius:var(--rayon);
+  padding:16px;
+  margin:18px 0;
+  background:var(--gris-fond);
+}
+.case-audio-conditions{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  margin-top:14px;
+  font-size:14px;
+  cursor:pointer;
+}
+.case-audio-conditions input{ margin-top:3px; }
+.texte-question-audio{
+  font-size:12.5px;
+  color:#666;
+  margin:12px 0 0;
+}
+
 .grille-photos-inscription{
   display:grid;
   grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));
@@ -625,32 +757,27 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 }
 .carte-photo-inscription .prix-photo{ margin-top:4px; }
 
-/* Demande explicite : le catalogue reste TOUJOURS en 5 colonnes,
-   (padding, police, icônes) plutôt que le nombre de colonnes. */
+/* Le catalogue s'adapte maintenant au type d'appareil : 5 articles par
+   ligne sur ordinateur, 3 sur téléphone (plus lisible, surtout pour les
+   personnes âgées). Les tailles de texte reviennent à une taille normale
+   au lieu d'être réduites pour "faire rentrer" 5 colonnes partout. */
 @media (max-width: 900px){
-  .grille-produits{ gap:12px; }
-  .carte-produit{ padding:8px; }
-  .carte-produit .icone-produit{ font-size:26px; }
-  .carte-produit h4{ font-size:11px; min-height:28px; }
-  .carte-produit .prix{ font-size:12px; }
-  .btn-ajouter{ padding:6px 4px; font-size:11px; }
+  .grille-produits{ grid-template-columns:repeat(3, 1fr); gap:16px; }
 }
 @media (max-width: 600px){
   .grille-categories{ grid-template-columns:1fr; }
-  .grille-produits{ gap:8px; }
-  .carte-produit{ padding:6px; }
-  .carte-produit .icone-produit{ font-size:20px; margin-bottom:4px; }
-  .carte-produit h4{ font-size:9.5px; min-height:24px; margin:2px 0; }
-  .carte-produit .prix{ font-size:10.5px; margin:2px 0 6px; }
-  .btn-ajouter{ padding:5px 2px; font-size:9.5px; border-radius:6px; }
+  .grille-produits{ grid-template-columns:repeat(3, 1fr); gap:12px; }
+  .carte-produit{ padding:10px; }
+  .carte-produit .icone-produit{ font-size:34px; margin-bottom:8px; }
+  .carte-produit h4{ font-size:13px; min-height:32px; margin:4px 0; }
+  .carte-produit .prix{ font-size:13px; margin:4px 0 8px; }
+  .btn-ajouter{ padding:8px 6px; font-size:12.5px; }
   .header-right{ gap:6px; }
   .btn-retour{ padding:8px 10px; font-size:13px; }
   .hero h1{ font-size:26px; }
 }
-@media (max-width: 380px){
-  .carte-produit h4{ font-size:8.5px; }
-  .carte-produit .prix{ font-size:9.5px; }
-  .btn-ajouter{ font-size:8.5px; padding:4px 2px; }
+@media (max-width: 360px){
+  .grille-produits{ grid-template-columns:repeat(2, 1fr); gap:10px; }
 }
 
 
@@ -697,6 +824,18 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       <p id="statutPositionInscription" class="statut-position">Position non récupérée</p>
       <input type="hidden" id="latInscription">
       <input type="hidden" id="lngInscription">
+
+      <div class="bloc-audio-conditions">
+        <label class="label">📢 Écoutez ce message avant de continuer</label>
+        <audio controls src="conditions-audio.mp3" style="width:100%;"></audio>
+
+        <label class="case-audio-conditions">
+          <input type="checkbox" id="conditionsEcoutees" required>
+          J'ai écouté le message ci-dessus et j'accepte les conditions.
+        </label>
+
+        <p class="texte-question-audio">Une question ? Appelez le <strong>94 13 44 08</strong>.</p>
+      </div>
 
       <button type="submit" id="btnEnvoyerInscription" class="btn-principal" style="margin-top:20px;">
         Envoyer ma demande
@@ -825,6 +964,12 @@ async function envoyerSoumission(event){
   if(photosAjoutees.length === 0){
     statut.style.color = "#dc2626";
     statut.textContent = "⚠️ Ajoutez au moins une photo avant d'envoyer.";
+    return false;
+  }
+
+  if(!document.getElementById("conditionsEcoutees").checked){
+    statut.style.color = "#dc2626";
+    statut.textContent = "⚠️ Écoutez le message audio et cochez la case avant d'envoyer.";
     return false;
   }
 
