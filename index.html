@@ -1087,7 +1087,48 @@ const CONFIG = {
   EMAIL_ADMIN_AUTORISE: "roimtrmt@gmail.com",
 };
 
-const supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+/* =====================================================================
+   INSTALLATION DE L'APPLICATION (PWA) — VOLONTAIREMENT TOUT EN HAUT DU
+   SCRIPT, AVANT SUPABASE. Si Supabase ou le CDN échoue à charger (réseau
+   faible, vieux téléphone...), le reste du script s'arrête net plus bas —
+   mais le bouton "Installer" doit continuer à fonctionner quoi qu'il
+   arrive, donc son code ne doit jamais dépendre de ce qui vient après.
+   ===================================================================== */
+let evenementInstallation = null;
+
+// Cas 1 : l'appli est déjà installée et ouverte en mode "application"
+// (plein écran, sans barre d'adresse) → inutile de proposer d'installer.
+const dejaInstallee =
+  window.matchMedia("(display-mode: standalone)").matches ||
+  window.navigator.standalone === true; // ancien Safari iOS
+
+if(dejaInstallee){
+  const bloc = document.querySelector(".bloc-installer");
+  if(bloc) bloc.style.display = "none";
+}
+
+// Cas 2 : le client clique "Installer" et confirme l'installation.
+window.addEventListener("appinstalled", () => {
+  const bloc = document.querySelector(".bloc-installer");
+  if(bloc) bloc.style.display = "none";
+  evenementInstallation = null;
+});
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  evenementInstallation = e;
+});
+
+// Supabase : si le CDN ne charge pas (réseau faible/instable), on ne
+// plante plus tout le reste du site derrière — chaque fonctionnalité qui
+// en dépend (panier, catalogue en direct...) échouera individuellement,
+// mais l'installation, le partage et l'affichage de base continueront.
+let supabaseClient = null;
+try{
+  supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+} catch(erreur){
+  console.error("Supabase indisponible (réseau ou CDN) :", erreur);
+}
 
 // Nécessaire pour que le site soit "installable" comme une application.
 if("serviceWorker" in navigator){
@@ -1280,10 +1321,12 @@ window.addEventListener("offline", afficherBandeauHorsLigne);
 
 // Mise à jour automatique en direct : si toi ou un autre appareil ajoute un
 // article, tous les visiteurs le voient apparaître sans recharger la page.
-supabaseClient
-  .channel("produits-en-direct")
-  .on("postgres_changes", { event: "*", schema: "public", table: "produits" }, chargerProduits)
-  .subscribe();
+if(supabaseClient){
+  supabaseClient
+    .channel("produits-en-direct")
+    .on("postgres_changes", { event: "*", schema: "public", table: "produits" }, chargerProduits)
+    .subscribe();
+}
 
 /* =====================================================================
    NAVIGATION
@@ -1854,17 +1897,19 @@ async function connexionGoogle(){
 
 // Après la redirection Google, Supabase récupère la session automatiquement :
 // on revérifie alors si c'est bien le bon compte.
-supabaseClient.auth.onAuthStateChange((_evenement, session) => {
-  if(document.getElementById("vue-admin").style.display === "block"){
-    verifierSessionAdmin();
-  } else if(session){
-    // Session détectée juste après le retour de Google, avant même d'ouvrir l'espace vendeur.
-    const email = (session.user.email || "").toLowerCase();
-    if(email !== CONFIG.EMAIL_ADMIN_AUTORISE.toLowerCase()){
-      supabaseClient.auth.signOut();
+if(supabaseClient){
+  supabaseClient.auth.onAuthStateChange((_evenement, session) => {
+    if(document.getElementById("vue-admin").style.display === "block"){
+      verifierSessionAdmin();
+    } else if(session){
+      // Session détectée juste après le retour de Google, avant même d'ouvrir l'espace vendeur.
+      const email = (session.user.email || "").toLowerCase();
+      if(email !== CONFIG.EMAIL_ADMIN_AUTORISE.toLowerCase()){
+        supabaseClient.auth.signOut();
+      }
     }
-  }
-});
+  });
+}
 
 async function deconnexionAdmin(){
   await supabaseClient.auth.signOut();
@@ -2265,8 +2310,6 @@ function fermerModale(choisirAutre){
 /* =====================================================================
    INSTALLATION DE L'APPLICATION (PWA — sans extraction ni fichier à ouvrir)
    ===================================================================== */
-let evenementInstallation = null;
-
 function cacherBlocInstaller(){
   const bloc = document.querySelector(".bloc-installer");
   if(bloc) bloc.style.display = "none";
@@ -2339,27 +2382,6 @@ async function partagerViaApplications(lien){
   }
 }
 
-// Cas 1 : l'appli est déjà installée et ouverte en mode "application"
-// (plein écran, sans barre d'adresse) → inutile de proposer d'installer.
-const dejaInstallee =
-  window.matchMedia("(display-mode: standalone)").matches ||
-  window.navigator.standalone === true; // ancien Safari iOS
-
-if(dejaInstallee){
-  cacherBlocInstaller();
-}
-
-// Cas 2 : le client clique "Installer" et confirme l'installation.
-window.addEventListener("appinstalled", () => {
-  cacherBlocInstaller();
-  evenementInstallation = null;
-});
-
-window.addEventListener("beforeinstallprompt", (e) => {
-  e.preventDefault();
-  evenementInstallation = e;
-});
-
 async function installerApplication(){
   if(evenementInstallation){
     evenementInstallation.prompt();
@@ -2372,10 +2394,24 @@ async function installerApplication(){
   // Sur iPhone/iPad (Safari), l'installation ne se déclenche pas par bouton :
   // on guide le client vers le geste manuel natif d'Apple.
   const estIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const estAndroid = /android/i.test(navigator.userAgent);
+
   if(estIOS){
     alert("Sur iPhone/iPad : appuyez sur le bouton Partager 📤 en bas de Safari, puis choisissez \"Sur l'écran d'accueil\".");
+  } else if(estAndroid){
+    // Pas de bannière automatique (souvent le cas sur les téléphones anciens
+    // ou les copies de marque dont Chrome est trop ancien ou dépourvu des
+    // services Google nécessaires à l'installation auto). On guide vers
+    // l'ajout manuel, qui fonctionne sur bien plus d'appareils.
+    alert(
+      "Installation automatique indisponible sur ce téléphone, mais vous pouvez l'ajouter manuellement :\n\n" +
+      "1) Appuyez sur les 3 points ⋮ en haut à droite de votre navigateur\n" +
+      "2) Choisissez \"Ajouter à l'écran d'accueil\" (ou \"Installer l'application\")\n" +
+      "3) Confirmez\n\n" +
+      "L'icône Prime Service apparaîtra sur votre écran d'accueil, comme une vraie application."
+    );
   } else {
-    alert("Votre navigateur ne propose pas encore l'installation automatique. Vous pouvez quand même utiliser le site normalement, ou l'ajouter à l'écran d'accueil depuis le menu de votre navigateur.");
+    alert("Votre navigateur ne propose pas l'installation automatique. Vous pouvez quand même utiliser le site normalement, ou chercher \"Ajouter à l'écran d'accueil\" dans le menu de votre navigateur.");
   }
 }
 
@@ -2383,6 +2419,7 @@ async function installerApplication(){
    PAUSE DU SITE (table Supabase "parametres", visible par tout le monde)
    ===================================================================== */
 async function verifierEtatPause(){
+  if(!supabaseClient) return;
   const { data, error } = await supabaseClient.from("parametres").select("*").eq("id", 1).single();
   if(error){
     console.error("Erreur de lecture de l'état du site :", error);
@@ -2409,12 +2446,14 @@ function appliquerEtatPause(enPause, raison){
   }
 }
 
-supabaseClient
-  .channel("etat-site-en-direct")
-  .on("postgres_changes", { event: "*", schema: "public", table: "parametres" }, (payload) => {
-    appliquerEtatPause(payload.new.en_pause, payload.new.raison_pause);
-  })
-  .subscribe();
+if(supabaseClient){
+  supabaseClient
+    .channel("etat-site-en-direct")
+    .on("postgres_changes", { event: "*", schema: "public", table: "parametres" }, (payload) => {
+      appliquerEtatPause(payload.new.en_pause, payload.new.raison_pause);
+    })
+    .subscribe();
+}
 
 document.addEventListener("change", (e) => {
   if(e.target.id === "raisonPause"){
