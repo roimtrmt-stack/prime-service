@@ -15,7 +15,7 @@
   --bleu:#2563eb;
   --bleu-hover:#1d4ed8;
   --orange:#f97316;
-  --rayon:10px;
+  --rayon:12px;
 }
 
 *{ box-sizing:border-box; }
@@ -111,6 +111,15 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   margin:10px 0 20px;
   border-left:5px solid var(--orange);
   padding-left:10px;
+}
+
+.carte-formulaire{
+  background:var(--blanc);
+  border:1px solid var(--gris-bordure);
+  border-radius:18px;
+  padding:26px 22px 22px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.05);
+  margin-top:6px;
 }
 
 /* ===================== GRILLE CATEGORIES (ACCUEIL) ===================== */
@@ -823,7 +832,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       <p class="hero-baseline">Ajoutez vos photos, on s'occupe du reste 🚀</p>
     </div>
 
-    <form id="formInscription" onsubmit="return envoyerSoumission(event)">
+    <form id="formInscription" class="carte-formulaire" onsubmit="return envoyerSoumission(event)">
 
       <label class="label">Vos photos d'articles (une photo = un article)</label>
       <div id="grillePhotos" class="grille-photos-inscription">
@@ -860,13 +869,13 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
           <input type="checkbox" id="conditionLieuAjout" required>
           Je confirme que j'ajoute cet article <strong>depuis la boutique où il est réellement vendu</strong> (pas un autre lieu ou un autre magasin).
         </label>
-      </div>
 
-      <div class="bloc-audio-conditions">
-        <label class="label">📢 Écoutez ce message avant de continuer</label>
+        <hr style="border:none;border-top:1px solid rgba(0,0,0,0.08);margin:16px 0;">
+
+        <label class="label" style="margin-top:0;">📢 Écoutez ce message avant de continuer</label>
         <audio controls src="conditions-audio.mp3" style="width:100%;"></audio>
 
-        <label class="case-audio-conditions">
+        <label class="case-condition-obligatoire" style="margin-top:12px;">
           <input type="checkbox" id="conditionsEcoutees" required>
           J'ai écouté le message ci-dessus et j'accepte les conditions.
         </label>
