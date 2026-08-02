@@ -147,6 +147,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   display:grid;
   grid-template-columns:repeat(5, 1fr);
   gap:22px; /* espacement demandé entre les articles */
+  align-items:start; /* empêche les cartes de s'étirer pour égaler la plus haute de leur ligne */
 }
 
 .carte-produit{
@@ -158,7 +159,135 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   align-items:center;
   text-align:center;
   background:var(--blanc);
+  box-shadow:0 2px 10px rgba(0,0,0,0.04);
+  transition:box-shadow .15s ease, transform .15s ease;
 }
+.carte-produit:hover{
+  box-shadow:0 6px 18px rgba(0,0,0,0.08);
+  transform:translateY(-2px);
+}
+
+.carte-produit .zone-image{
+  width:100%;
+  aspect-ratio:1/1;
+  border-radius:10px;
+  overflow:hidden;
+  margin-bottom:10px;
+  cursor:zoom-in;
+  background:#f4f4f4;
+}
+.carte-produit .zone-image img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+
+.visionneuse-image{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(10,10,10,0.92);
+  z-index:999;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+}
+.visionneuse-image img{
+  max-width:100%;
+  max-height:100%;
+  border-radius:10px;
+  box-shadow:0 10px 40px rgba(0,0,0,0.5);
+}
+.fermer-visionneuse{
+  position:absolute;
+  top:18px;
+  right:18px;
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  border:none;
+  background:rgba(255,255,255,0.15);
+  color:#fff;
+  font-size:20px;
+  cursor:pointer;
+}
+
+/* ===================== ENVOI DE NOTIFICATIONS ===================== */
+.rangee-articles-notif{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:6px;
+}
+.tuile-ajout-notif{
+  width:72px;
+  height:72px;
+  border:2px dashed var(--orange);
+  border-radius:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:28px;
+  color:var(--orange);
+  cursor:pointer;
+  background:#fff7ed;
+  flex:0 0 auto;
+}
+.tuile-article-notif{
+  position:relative;
+  width:72px;
+  height:72px;
+  border-radius:12px;
+  overflow:hidden;
+  flex:0 0 auto;
+  border:2px solid var(--orange);
+}
+.tuile-article-notif img{ width:100%; height:100%; object-fit:cover; display:block; }
+.tuile-article-notif .retirer{
+  position:absolute;
+  top:2px; right:2px;
+  width:20px; height:20px;
+  border-radius:50%;
+  background:rgba(0,0,0,0.65);
+  color:#fff;
+  border:none;
+  font-size:12px;
+  line-height:20px;
+  cursor:pointer;
+}
+
+.grille-choix-notif{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:10px;
+  max-height:340px;
+  overflow-y:auto;
+  margin:12px 0;
+}
+.choix-article-notif{
+  position:relative;
+  aspect-ratio:1/1;
+  border-radius:10px;
+  overflow:hidden;
+  cursor:pointer;
+  border:3px solid transparent;
+}
+.choix-article-notif img{ width:100%; height:100%; object-fit:cover; display:block; }
+.choix-article-notif.selectionne{ border-color:var(--orange); }
+.choix-article-notif .coche{
+  position:absolute;
+  top:4px; right:4px;
+  width:22px; height:22px;
+  border-radius:50%;
+  background:var(--orange);
+  color:#fff;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  font-size:13px;
+}
+.choix-article-notif.selectionne .coche{ display:flex; }
 
 .carte-produit .icone-produit{
   font-size:44px;
@@ -970,6 +1099,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       <button class="btn-principal" onclick="ouvrirFormulaireArticle()">➕ Ajouter un article</button>
       <button class="btn-secondaire" style="width:100%;margin-top:10px;" onclick="ouvrirGestionArticles()">📋 Gérer / Supprimer mes articles</button>
       <button class="btn-secondaire" style="width:100%;margin-top:10px;" onclick="afficherLienInscription()">🔗 Lien d'inscription boutiquiers</button>
+      <button class="btn-secondaire" style="width:100%;margin-top:10px;" onclick="ouvrirEnvoiNotification()">🔔 Envoyer une notification</button>
 
       <div id="blocLienInscription" style="display:none;margin-top:10px;">
         <input type="text" id="champLienInscription" class="champ" readonly>
@@ -1003,6 +1133,36 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       <h3 style="margin-top:0;">📋 Vos articles publiés</h3>
       <div id="listeGestionArticles" class="liste-gestion"><!-- injecté par JS --></div>
       <button type="button" class="btn-retour-lien" onclick="fermerGestionArticles()">Fermer</button>
+    </div>
+
+    <!-- ========== ENVOI D'UNE NOTIFICATION A TOUS LES VISITEURS ========== -->
+    <div id="envoiNotification" style="display:none;">
+      <h3 style="margin-top:0;">🔔 Prévenir vos clients &amp; boutiquiers</h3>
+      <p style="font-size:13px;color:#666;margin-top:-6px;">
+        Une notification part vers tous ceux qui ont déjà ouvert le site ou l'appli au moins une fois.
+      </p>
+
+      <label class="label">Articles à mettre en avant</label>
+      <div id="rangeeArticlesNotif" class="rangee-articles-notif">
+        <div class="tuile-ajout-notif" onclick="ouvrirChoixArticlesNotif()">+</div>
+      </div>
+
+      <label class="label" style="margin-top:14px;">Message</label>
+      <textarea id="messageNotification" class="champ" rows="3">Prime Service vient de publier de nouveaux articles ! Venez jeter un coup d'œil 👀</textarea>
+
+      <button class="btn-principal" style="margin-top:14px;" onclick="envoyerNotification()">📣 Envoyer la notification</button>
+      <p id="statutEnvoiNotif" class="statut-envoi"></p>
+      <button type="button" class="btn-retour-lien" onclick="fermerEnvoiNotification()">Fermer</button>
+    </div>
+
+    <!-- ========== MODALE : CHOISIR LES ARTICLES A METTRE DANS LA NOTIF ========== -->
+    <div id="modaleChoixArticlesNotif" class="modale" style="display:none;">
+      <div class="modale-contenu">
+        <h3 style="margin-top:0;">Choisissez vos articles</h3>
+        <div id="grilleChoixArticlesNotif" class="grille-choix-notif"><!-- injecté par JS --></div>
+        <button class="btn-principal" onclick="validerChoixArticlesNotif()">Valider</button>
+        <button type="button" class="btn-retour-lien" onclick="document.getElementById('modaleChoixArticlesNotif').style.display='none'">Annuler</button>
+      </div>
     </div>
 
     <form id="formArticle" style="display:none;" onsubmit="return publierArticle(event)">
@@ -1153,6 +1313,11 @@ if("serviceWorker" in navigator){
       });
     });
   }).catch(() => {});
+
+  // Abonne le visiteur aux notifications (une seule fois par appareil),
+  // avec un petit délai pour ne pas cumuler les demandes de permission
+  // au tout premier instant de chargement.
+  setTimeout(() => abonnerAuxNotifications(), 4000);
 
   // Une fois que la nouvelle version prend le contrôle (après avoir cliqué
   // "Mettre à jour"), on recharge la page pour l'afficher.
@@ -1392,9 +1557,11 @@ function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pouss
   } else {
     grille.innerHTML = produits.map((p, index) => `
       <div class="carte-produit">
-        ${p.image_url
-          ? `<img src="${p.image_url}" alt="${p.nom}" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;margin-bottom:10px;" onerror="this.outerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
-          : `<span class="icone-produit">📦</span>`}
+        <div class="zone-image" ${p.image_url ? `onclick="ouvrirImageEnGrand('${p.image_url}', '${(p.nom || "").replace(/'/g, "\\'")}')"` : ""}>
+          ${p.image_url
+            ? `<img src="${p.image_url}" alt="${p.nom}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
+            : `<span class="icone-produit">📦</span>`}
+        </div>
         <h4>${p.nom}</h4>
         ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${p.nom_boutique}</p>` : ""}
         <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
@@ -2320,6 +2487,172 @@ function cacherBlocInstaller(){
    caméra) + lien copiable + partage via applications (WhatsApp, SMS...),
    tous affichés ensemble dans la même fenêtre.
    ===================================================================== */
+/* =====================================================================
+   ZOOM PLEIN ECRAN SUR L'IMAGE D'UN ARTICLE (comme regarder une photo)
+   ===================================================================== */
+function ouvrirImageEnGrand(url, nom){
+  let visionneuse = document.getElementById("visionneuseImage");
+  if(!visionneuse){
+    visionneuse = document.createElement("div");
+    visionneuse.id = "visionneuseImage";
+    visionneuse.className = "visionneuse-image";
+    visionneuse.onclick = fermerImageEnGrand;
+    visionneuse.innerHTML = `
+      <button class="fermer-visionneuse" onclick="fermerImageEnGrand()">✕</button>
+      <img id="imageVisionneuse" src="" alt="">
+    `;
+    document.body.appendChild(visionneuse);
+  }
+  document.getElementById("imageVisionneuse").src = url;
+  document.getElementById("imageVisionneuse").alt = nom || "Article";
+  visionneuse.style.display = "flex";
+}
+
+function fermerImageEnGrand(){
+  const visionneuse = document.getElementById("visionneuseImage");
+  if(visionneuse) visionneuse.style.display = "none";
+}
+
+/* =====================================================================
+   NOTIFICATIONS PUSH — abonnement des visiteurs + composition par le vendeur
+   ===================================================================== */
+const CLE_VAPID_PUBLIQUE = "BKUvZzJuPGArqm0y7jr69DJMp4NjO9EnDRwPzyIB4yJl7efqLtJSrem-uUQfvk46RkWfK9kshSONNp4ad5EQxlY";
+
+function urlBase64VersUint8Array(base64String){
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const brut = window.atob(base64);
+  return Uint8Array.from([...brut].map(c => c.charCodeAt(0)));
+}
+
+// Abonne silencieusement le visiteur (une seule fois) pour qu'il puisse
+// recevoir les notifications du vendeur plus tard.
+async function abonnerAuxNotifications(){
+  try{
+    if(!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if(localStorage.getItem("prime_service_deja_abonne_notif") === "oui") return;
+
+    const permission = await Notification.requestPermission();
+    if(permission !== "granted") return;
+
+    const enregistrement = await navigator.serviceWorker.ready;
+    const abonnement = await enregistrement.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64VersUint8Array(CLE_VAPID_PUBLIQUE),
+    });
+
+    if(supabaseClient){
+      await supabaseClient.from("abonnements_push").insert({ subscription: abonnement.toJSON() });
+    }
+    localStorage.setItem("prime_service_deja_abonne_notif", "oui");
+  } catch(erreur){
+    console.error("Abonnement notifications impossible :", erreur);
+  }
+}
+
+let articlesSelectionnesNotif = [];
+
+function ouvrirEnvoiNotification(){
+  document.getElementById("admin-accueil").style.display = "none";
+  document.getElementById("envoiNotification").style.display = "block";
+}
+function fermerEnvoiNotification(){
+  document.getElementById("envoiNotification").style.display = "none";
+  document.getElementById("admin-accueil").style.display = "block";
+}
+
+function ouvrirChoixArticlesNotif(){
+  const grille = document.getElementById("grilleChoixArticlesNotif");
+  const tousLesArticles = Object.values(produitsParCle).flat();
+  if(tousLesArticles.length === 0){
+    grille.innerHTML = `<p style="grid-column:1/-1;color:#666;">Publiez d'abord un article.</p>`;
+  } else {
+    grille.innerHTML = tousLesArticles.map(a => `
+      <div class="choix-article-notif ${articlesSelectionnesNotif.some(s => s.id === a.id) ? "selectionne" : ""}"
+           data-id="${a.id}" onclick="basculerChoixArticleNotif('${a.id}')">
+        <img src="${a.image_url || ""}" alt="${a.nom}">
+        <span class="coche">✓</span>
+      </div>
+    `).join("");
+  }
+  document.getElementById("modaleChoixArticlesNotif").style.display = "flex";
+}
+
+function basculerChoixArticleNotif(id){
+  const tousLesArticles = Object.values(produitsParCle).flat();
+  const article = tousLesArticles.find(a => String(a.id) === String(id));
+  if(!article) return;
+
+  const dejaChoisi = articlesSelectionnesNotif.some(a => a.id === article.id);
+  if(dejaChoisi){
+    articlesSelectionnesNotif = articlesSelectionnesNotif.filter(a => a.id !== article.id);
+  } else {
+    articlesSelectionnesNotif.push(article);
+  }
+
+  const tuile = document.querySelector(`.choix-article-notif[data-id="${id}"]`);
+  if(tuile) tuile.classList.toggle("selectionne");
+}
+
+function validerChoixArticlesNotif(){
+  document.getElementById("modaleChoixArticlesNotif").style.display = "none";
+  const rangee = document.getElementById("rangeeArticlesNotif");
+  rangee.innerHTML = `<div class="tuile-ajout-notif" onclick="ouvrirChoixArticlesNotif()">+</div>` +
+    articlesSelectionnesNotif.map(a => `
+      <div class="tuile-article-notif">
+        <img src="${a.image_url || ""}" alt="${a.nom}">
+        <button class="retirer" onclick="retirerArticleNotif('${a.id}')">✕</button>
+      </div>
+    `).join("");
+}
+
+function retirerArticleNotif(id){
+  articlesSelectionnesNotif = articlesSelectionnesNotif.filter(a => String(a.id) !== String(id));
+  validerChoixArticlesNotif();
+}
+
+async function envoyerNotification(){
+  const statut = document.getElementById("statutEnvoiNotif");
+  const message = document.getElementById("messageNotification").value.trim();
+
+  if(!message){
+    statut.style.color = "#dc2626";
+    statut.textContent = "⚠️ Écrivez un message avant d'envoyer.";
+    return;
+  }
+
+  statut.style.color = "#666";
+  statut.textContent = "Envoi en cours...";
+
+  try{
+    const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/clever-processor`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+        "apikey": CONFIG.SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        titre: "Prime Service 🚀",
+        message,
+        image: articlesSelectionnesNotif[0]?.image_url || null,
+        url: window.location.origin + window.location.pathname,
+      }),
+    });
+
+    if(!reponse.ok) throw new Error("Échec de l'envoi (" + reponse.status + ")");
+
+    statut.style.color = "#16a34a";
+    statut.textContent = "✅ Notification envoyée à vos clients et boutiquiers !";
+    articlesSelectionnesNotif = [];
+    validerChoixArticlesNotif();
+  } catch(erreur){
+    console.error(erreur);
+    statut.style.color = "#dc2626";
+    statut.textContent = "❌ Envoi impossible pour le moment. Réessayez.";
+  }
+}
+
 function partagerApplication(){
   const lien = window.location.origin + window.location.pathname;
   if(document.getElementById("modalePartage")) return;
