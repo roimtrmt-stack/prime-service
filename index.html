@@ -301,6 +301,35 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 }
 .choix-article-notif.selectionne .coche{ display:flex; }
 
+/* ===================== MASQUER CATEGORIES ===================== */
+.groupe-categorie-masque{
+  border:1px solid var(--gris-bordure);
+  border-radius:12px;
+  padding:12px 14px;
+  margin-top:12px;
+}
+.groupe-categorie-masque .ligne-cat-principale{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-weight:700;
+  font-size:15px;
+}
+.groupe-categorie-masque .liste-sous{
+  margin:10px 0 0 26px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.groupe-categorie-masque .ligne-sous{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-size:14px;
+  color:#444;
+}
+
+
 .carte-produit .icone-produit{
   font-size:44px;
   margin-bottom:10px;
@@ -586,13 +615,14 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   background:var(--blanc);
   z-index:200;
   display:flex;
-  align-items:center;
-  justify-content:center;
   padding:24px;
+  overflow-y:auto;
 }
 .carte-pause{
   max-width:420px;
   text-align:center;
+  margin:auto;
+  padding:20px 0;
 }
 .carte-pause .icone-pause{ font-size:56px; margin-bottom:10px; }
 .carte-pause h2{ margin:0 0 10px; }
@@ -1191,6 +1221,9 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
         <button class="item-menu-admin" onclick="ouvrirEnvoiNotification()">
           <span class="icone-item">🔔</span> Envoyer une notification <span class="fleche">›</span>
         </button>
+        <button class="item-menu-admin" onclick="ouvrirGestionCategories()">
+          <span class="icone-item">🙈</span> Masquer des catégories <span class="fleche">›</span>
+        </button>
       </div>
 
       <div id="blocLienInscription" class="panneau-admin" style="display:none;">
@@ -1226,6 +1259,16 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       <div style="margin-top:14px;"></div>
       <div id="listeGestionArticles" class="liste-gestion"><!-- injecté par JS --></div>
       <button type="button" class="btn-retour-lien" onclick="fermerGestionArticles()">Fermer</button>
+    </div>
+
+    <!-- ========== MASQUER DES CATEGORIES / SOUS-CATEGORIES ========== -->
+    <div id="gestionCategories" class="panneau-admin" style="display:none;">
+      <h3 class="titre-panneau">🙈 Masquer des catégories</h3>
+      <p class="sous-titre-panneau">Décochez ce qui ne doit plus apparaître sur le site, même vide.</p>
+      <div id="listeGestionCategories"><!-- injecté par JS --></div>
+      <button class="btn-principal" style="margin-top:14px;" onclick="sauvegarderCategoriesMasquees()">Enregistrer</button>
+      <p id="statutCategories" class="statut-envoi"></p>
+      <button type="button" class="btn-retour-lien" onclick="fermerGestionCategories()">Fermer</button>
     </div>
 
     <!-- ========== ENVOI D'UNE NOTIFICATION A TOUS LES VISITEURS ========== -->
@@ -1324,6 +1367,9 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
     <p>Prime Service ne prend pas de commande pour le moment.</p>
     <div class="raison-pause" id="raisonPauseAffichee">Raison non précisée</div>
     <p>Merci de revenir un peu plus tard 🙏</p>
+    <hr style="border:none;border-top:1px solid var(--gris-bordure);margin:20px 0;">
+    <p style="font-weight:700;margin-bottom:10px;">🏪 Vous êtes boutiquier ?</p>
+    <a href="inscription.html" class="btn-devenir-boutiquier" style="display:block;width:100%;box-sizing:border-box;font-size:16px;padding:14px;">📸 Publier mes articles quand même</a>
     <button class="lien-admin-pause" onclick="ouvrirEspaceAdminDepuisPause()">Accès vendeur</button>
   </div>
 </div>
@@ -1527,6 +1573,7 @@ const CATEGORIES = [
    ETAT DE L'APPLICATION
    ===================================================================== */
 let panier = [];
+let categoriesMasquees = []; // ex: ["moto", "mode|foulards"] -> catégorie ou sous-catégorie cachée
 let produitsParCle = {}; // ex: "electronique|telephones" -> [ {id, nom, prix, adresse, lat, lng, image_url}, ... ]
 let vueEnCours = { nom: "accueil", idCategorie: null, idSousCategorie: null };
 
@@ -1672,7 +1719,9 @@ function afficherSousCategories(idCategorie, changerVue = true, pousserHistoriqu
   btnRetour.onclick = () => afficherAccueil();
 
   const grille = document.getElementById("grilleSousCategories");
-  grille.innerHTML = categorie.sousCategories.map(sc => {
+  grille.innerHTML = categorie.sousCategories
+    .filter(sc => !categoriesMasquees.includes(`${categorie.id}|${sc.id}`))
+    .map(sc => {
     const nbProduits = (produitsParCle[cleSousCategorie(categorie.id, sc.id)] || []).filter(p => !p.masque).length;
     return `
     <div class="carte-categorie" onclick="afficherProduits('${categorie.id}', '${sc.id}')">
@@ -1749,7 +1798,9 @@ function afficherCheckout(pousserHistorique = true){
 
 function construireCategories(){
   const grille = document.getElementById("grilleCategories");
-  grille.innerHTML = CATEGORIES.map(cat => {
+  grille.innerHTML = CATEGORIES
+    .filter(cat => !categoriesMasquees.includes(cat.id))
+    .map(cat => {
     const nbArticles = cat.sousCategories.reduce((n, sc) => n + (produitsParCle[cleSousCategorie(cat.id, sc.id)] || []).length, 0);
     return `
     <div class="carte-categorie" onclick="afficherSousCategories('${cat.id}')">
@@ -2816,6 +2867,59 @@ async function envoyerNotification(){
   }
 }
 
+/* =====================================================================
+   MASQUER DES CATEGORIES / SOUS-CATEGORIES (même vides)
+   ===================================================================== */
+function ouvrirGestionCategories(){
+  document.getElementById("admin-accueil").style.display = "none";
+  document.getElementById("gestionCategories").style.display = "block";
+
+  const conteneur = document.getElementById("listeGestionCategories");
+  conteneur.innerHTML = CATEGORIES.map(cat => `
+    <div class="groupe-categorie-masque">
+      <label class="ligne-cat-principale">
+        <input type="checkbox" class="case-cat" data-cle="${cat.id}" ${categoriesMasquees.includes(cat.id) ? "" : "checked"}>
+        ${cat.icone} ${cat.nom}
+      </label>
+      <div class="liste-sous">
+        ${cat.sousCategories.map(sc => `
+          <label class="ligne-sous">
+            <input type="checkbox" class="case-souscat" data-cle="${cat.id}|${sc.id}" ${categoriesMasquees.includes(`${cat.id}|${sc.id}`) ? "" : "checked"}>
+            ${sc.icone} ${sc.nom}
+          </label>
+        `).join("")}
+      </div>
+    </div>
+  `).join("");
+}
+
+function fermerGestionCategories(){
+  document.getElementById("gestionCategories").style.display = "none";
+  document.getElementById("admin-accueil").style.display = "block";
+}
+
+async function sauvegarderCategoriesMasquees(){
+  const statut = document.getElementById("statutCategories");
+  const nouvelleListe = [];
+
+  document.querySelectorAll(".case-cat, .case-souscat").forEach(c => {
+    if(!c.checked) nouvelleListe.push(c.dataset.cle);
+  });
+
+  try{
+    const { error } = await supabaseClient.from("parametres").update({ categories_masquees: nouvelleListe }).eq("id", 1);
+    if(error) throw error;
+    categoriesMasquees = nouvelleListe;
+    construireCategories();
+    statut.style.color = "#16a34a";
+    statut.textContent = "✅ Enregistré.";
+  } catch(erreur){
+    console.error(erreur);
+    statut.style.color = "#dc2626";
+    statut.textContent = "❌ Échec de l'enregistrement, réessayez.";
+  }
+}
+
 function partagerApplication(){
   const lien = window.location.origin + window.location.pathname;
   if(document.getElementById("modalePartage")) return;
@@ -2922,6 +3026,9 @@ async function verifierEtatPause(){
     return;
   }
   appliquerEtatPause(data.en_pause, data.raison_pause);
+  categoriesMasquees = data.categories_masquees || [];
+  construireCategories();
+  if(vueEnCours.nom === "souscategories") afficherSousCategories(vueEnCours.idCategorie, false, false);
 }
 
 function appliquerEtatPause(enPause, raison){
@@ -2947,6 +3054,8 @@ if(supabaseClient){
     .channel("etat-site-en-direct")
     .on("postgres_changes", { event: "*", schema: "public", table: "parametres" }, (payload) => {
       appliquerEtatPause(payload.new.en_pause, payload.new.raison_pause);
+      categoriesMasquees = payload.new.categories_masquees || [];
+      construireCategories();
     })
     .subscribe();
 }
