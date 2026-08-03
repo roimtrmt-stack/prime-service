@@ -743,6 +743,47 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   color:#777;
   margin-top:8px;
 }
+
+.bandeau-notif-optin{
+  position:sticky;
+  top:0;
+  z-index:50;
+  background:#fff7ed;
+  border-bottom:2px solid var(--orange);
+  padding:10px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.texte-bandeau-notif{
+  font-size:13.5px;
+  font-weight:600;
+  color:var(--noir);
+  flex:1;
+  min-width:200px;
+}
+.boutons-bandeau-notif{ display:flex; gap:8px; flex-shrink:0; }
+.btn-bandeau-oui{
+  background:var(--orange);
+  color:#fff;
+  border:none;
+  padding:9px 16px;
+  border-radius:var(--rayon);
+  font-weight:700;
+  font-size:13px;
+  cursor:pointer;
+}
+.btn-bandeau-plus-tard{
+  background:none;
+  border:none;
+  color:#777;
+  font-size:13px;
+  text-decoration:underline;
+  cursor:pointer;
+  padding:9px 6px;
+}
 .btn-partager{
   display:block;
   margin:0 auto;
@@ -1015,6 +1056,30 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 </head>
 <body>
 
+<!-- ===================================================================
+     FILET DE SECOURS — script séparé et minimal, indépendant du reste.
+     But : si le script principal plus bas plante ENTIÈREMENT (erreur de
+     syntaxe, vieux téléphone incompatible, CDN qui casse tout...), CE
+     script continue de tourner quand même, car chaque bloc de script
+     est indépendante des autres. Il affiche un message clair après 12s
+     si la page n'a toujours rien affiché, au lieu d'un blocage silencieux.
+     ==================================================================== -->
+<script>
+  setTimeout(function(){
+    if(window.primeServiceAppReady) return; // tout s'est bien chargé, rien à faire
+    var zone = document.getElementById("grilleCategories");
+    if(zone && zone.innerHTML.trim() !== "") return; // déjà quelque chose à l'écran
+
+    var bandeau = document.createElement("div");
+    bandeau.style.cssText = "position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:16px;text-align:center;z-index:9999;font-family:sans-serif;";
+    bandeau.innerHTML =
+      "📡 Le chargement semble bloqué (réseau faible ou navigateur incompatible).<br>" +
+      "<button onclick=\"window.location.reload()\" style=\"margin-top:10px;background:#f97316;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:15px;\">Recharger la page</button>";
+    document.body.appendChild(bandeau);
+  }, 12000);
+</script>
+
+
 <!-- ===================== ENTETE ===================== -->
 <header class="header">
   <div class="header-left" onclick="window.location.href='index.html'" style="cursor:pointer;">
@@ -1028,6 +1093,14 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
     <button class="btn-options" onclick="ouvrirEspaceAdmin()" title="Options vendeur">⚙️</button>
   </div>
 </header>
+
+<div class="bandeau-notif-optin" id="blocNotifOptin" style="display:none;">
+  <span class="texte-bandeau-notif">🔔 Activez les notifications pour être prévenu dès qu'un nouvel article est publié.</span>
+  <div class="boutons-bandeau-notif">
+    <button class="btn-bandeau-oui" onclick="activerNotifDepuisBouton()">Autoriser</button>
+    <button class="btn-bandeau-plus-tard" onclick="reporterNotifOptin()">Plus tard</button>
+  </div>
+</div>
 
 <main id="main">
 
@@ -1054,6 +1127,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       </button>
       <p class="texte-installer">Ajoutez Prime Service sur votre téléphone ou ordinateur, comme une vraie appli.</p>
     </div>
+
 
     <div class="bloc-partager">
       <button class="btn-partager" onclick="partagerApplication()">
@@ -1453,10 +1527,10 @@ if("serviceWorker" in navigator){
     });
   }).catch(() => {});
 
-  // Abonne le visiteur aux notifications (une seule fois par appareil),
-  // avec un petit délai pour ne pas cumuler les demandes de permission
-  // au tout premier instant de chargement.
-  setTimeout(() => abonnerAuxNotifications(), 4000);
+  // La demande de permission notifications ne se déclenche plus toute
+  // seule (ça pouvait bloquer/geler le premier chargement sur certains
+  // téléphones) — voir le bouton "Activer les notifications" plus bas,
+  // qui appelle abonnerAuxNotifications() suite à un vrai clic.
 
   // Une fois que la nouvelle version prend le contrôle (après avoir cliqué
   // "Mettre à jour"), on recharge la page pour l'afficher.
@@ -1809,6 +1883,7 @@ function construireCategories(){
       <p>${nbArticles} article(s)</p>
     </div>`;
   }).join("");
+  window.primeServiceAppReady = true;
 }
 
 /* =====================================================================
@@ -2763,6 +2838,44 @@ async function abonnerAuxNotifications(){
     console.error("Abonnement notifications impossible :", erreur);
   }
 }
+
+// Appelé par un vrai clic du visiteur (jamais automatiquement) — évite le
+// blocage/gel déjà observé quand la permission était demandée toute seule.
+async function activerNotifDepuisBouton(){
+  const bloc = document.getElementById("blocNotifOptin");
+  await abonnerAuxNotifications();
+  if(bloc) bloc.style.display = "none";
+}
+
+// "Plus tard" : referme pour cette visite, mais réapparaît à la prochaine —
+// contrairement à un refus dans le navigateur, ce n'est pas définitif.
+function reporterNotifOptin(){
+  const bloc = document.getElementById("blocNotifOptin");
+  if(bloc) bloc.style.display = "none";
+}
+
+// Décide si le bandeau doit s'afficher. Vérifie l'état RÉEL du navigateur
+// (Notification.permission), pas seulement notre mémo local — au cas où le
+// mémo aurait été perdu (données du site effacées, autre navigateur...) ou
+// au cas où le visiteur aurait déjà répondu par un autre moyen.
+(function initAffichageBoutonNotif(){
+  const bloc = document.getElementById("blocNotifOptin");
+  if(!bloc) return;
+
+  const supporte = ("serviceWorker" in navigator) && ("PushManager" in window) && ("Notification" in window);
+  if(!supporte) return; // pas de bandeau si le téléphone ne supporte pas du tout les notifications
+
+  const dejaAbonneIci = localStorage.getItem("prime_service_deja_abonne_notif") === "oui";
+  const permissionNavigateur = Notification.permission; // "granted" | "denied" | "default"
+
+  // Déjà accepté ou déjà refusé une fois dans le navigateur → on ne redemande
+  // jamais (un refus est aussi définitif qu'une acceptation, pas la peine
+  // d'insister, ça ne rouvrira pas de prompt de toute façon).
+  if(dejaAbonneIci || permissionNavigateur !== "default") return;
+
+  bloc.style.display = "flex";
+})();
+
 
 let articlesSelectionnesNotif = [];
 
