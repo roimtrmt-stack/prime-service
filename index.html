@@ -2969,8 +2969,17 @@ async function envoyerNotification(){
 
     if(!reponse.ok) throw new Error("Échec de l'envoi (" + reponse.status + ")");
 
+    const resultat = await reponse.json().catch(() => ({}));
+    const nbEnvoyes = typeof resultat.envoyes === "number" ? resultat.envoyes : null;
+
     statut.style.color = "#16a34a";
-    statut.textContent = "✅ Notification envoyée à vos clients et boutiquiers !";
+    if(nbEnvoyes === 0){
+      statut.textContent = "✅ Envoi réussi, mais 0 personne abonnée pour l'instant — personne n'a encore cliqué \"Autoriser\" sur le bandeau notifications.";
+    } else if(nbEnvoyes !== null){
+      statut.textContent = `✅ Notification envoyée à ${nbEnvoyes} personne${nbEnvoyes > 1 ? "s" : ""} abonnée${nbEnvoyes > 1 ? "s" : ""}.`;
+    } else {
+      statut.textContent = "✅ Notification envoyée à vos clients et boutiquiers !";
+    }
     articlesSelectionnesNotif = [];
     validerChoixArticlesNotif();
   } catch(erreur){
