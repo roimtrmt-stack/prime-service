@@ -846,6 +846,9 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       <label class="label">Votre nom complet</label>
       <input type="text" id="nomSoumissionnaire" class="champ" placeholder="Ex : Awa Traoré" required>
 
+      <label class="label">Nom de votre boutique</label>
+      <input type="text" id="nomBoutiqueSoumissionnaire" class="champ" placeholder="Ex : Boutique Awa" required>
+
       <label class="label">Votre numéro de téléphone</label>
       <input type="tel" id="telephoneSoumissionnaire" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" title="Entrez un vrai numéro de téléphone" required>
 
@@ -1001,11 +1004,18 @@ async function envoyerSoumission(event){
   event.preventDefault();
 
   const nom = document.getElementById("nomSoumissionnaire").value.trim();
+  const nomBoutique = document.getElementById("nomBoutiqueSoumissionnaire").value.trim();
   const telephone = document.getElementById("telephoneSoumissionnaire").value.trim();
   const lat = document.getElementById("latInscription").value;
   const lng = document.getElementById("lngInscription").value;
   const statut = document.getElementById("statutInscription");
   const bouton = document.getElementById("btnEnvoyerInscription");
+
+  if(!nomBoutique){
+    statut.style.color = "#dc2626";
+    statut.textContent = "⚠️ Indiquez le nom de votre boutique.";
+    return false;
+  }
 
   if(photosAjoutees.length === 0){
     statut.style.color = "#dc2626";
@@ -1057,6 +1067,7 @@ async function envoyerSoumission(event){
 
     let texte = `📥 **Nouvelle demande d'inscription boutiquier**\n\n`;
     texte += `👤 Nom : ${nom}\n`;
+    texte += `🏪 Boutique : ${nomBoutique}\n`;
     texte += `📞 Téléphone : ${telephone}\n`;
     texte += `📍 Position : ${lienPosition}\n\n`;
     texte += `**Articles proposés (voir photos jointes) :**\n`;
@@ -1073,10 +1084,23 @@ async function envoyerSoumission(event){
       donneesFormulaire.append(`files[${i}]`, photo.fichier, photo.fichier.name);
     });
 
-    const reponse = await fetch(CONFIG.DISCORD_WEBHOOK_URL, {
-      method: "POST",
-      body: donneesFormulaire,
-    });
+    // Délai de sécurité : sur un réseau faible, l'envoi de plusieurs photos
+    // peut rester bloqué très longtemps sans jamais échouer ni réussir.
+    // On arrête nous-mêmes après 25 secondes pour donner un retour clair
+    // au lieu d'un "Envoi en cours..." qui ne se termine jamais.
+    const controleur = new AbortController();
+    const delaiSecurite = setTimeout(() => controleur.abort(), 25000);
+
+    let reponse;
+    try{
+      reponse = await fetch(CONFIG.DISCORD_WEBHOOK_URL, {
+        method: "POST",
+        body: donneesFormulaire,
+        signal: controleur.signal,
+      });
+    } finally {
+      clearTimeout(delaiSecurite);
+    }
 
     if(!reponse.ok) throw new Error("Réponse serveur incorrecte");
 
@@ -1086,7 +1110,11 @@ async function envoyerSoumission(event){
   } catch(erreur){
     console.error(erreur);
     statut.style.color = "#dc2626";
-    statut.textContent = "❌ Erreur lors de l'envoi. Vérifiez votre connexion et réessayez (photos trop lourdes ?).";
+    if(erreur.name === "AbortError"){
+      statut.textContent = "❌ Ça prend trop de temps (réseau faible). Essayez avec moins de photos, ou une par une.";
+    } else {
+      statut.textContent = "❌ Erreur lors de l'envoi. Vérifiez votre connexion et réessayez (photos trop lourdes ?).";
+    }
   } finally {
     bouton.disabled = false;
   }
