@@ -61,9 +61,11 @@ body{
   border-radius:var(--rayon);
   cursor:pointer;
 }
-/* Sur PC, le logo (clic = accueil) et la souris suffisent pour naviguer ;
-   ce bouton reste utile seulement sur mobile. */
-@media (min-width:768px){
+/* Sur PC dans un onglet de navigateur classique, le bouton retour du
+   navigateur suffit. Mais dans l'appli installée (mode standalone, sans
+   barre de navigateur), il n'y a plus aucun autre moyen de reculer — donc
+   on ne cache ce bouton que si on N'est PAS en mode standalone. */
+@media (min-width:768px) and (display-mode: browser){
   .btn-retour{ display:none !important; }
 }
 
