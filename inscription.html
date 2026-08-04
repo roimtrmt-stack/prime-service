@@ -983,7 +983,8 @@ function recupererPositionInscription(){
     return;
   }
 
-  statut.textContent = "📡 Recherche de votre position...";
+  statut.textContent = "📡 Recherche de votre position... (jusqu'à 1 minute sans connexion, restez dehors si possible)";
+  statut.style.color = "#666";
 
   navigator.geolocation.getCurrentPosition(
     (position) => {
@@ -992,11 +993,17 @@ function recupererPositionInscription(){
       statut.textContent = "✅ Position récupérée avec succès.";
       statut.style.color = "#16a34a";
     },
-    () => {
-      statut.textContent = "❌ Impossible de récupérer votre position. Activez votre GPS et réessayez.";
+    (erreur) => {
+      if(erreur.code === erreur.TIMEOUT){
+        statut.textContent = "❌ Ça prend trop de temps. Sortez à l'extérieur (ciel dégagé) et réessayez.";
+      } else if(erreur.code === erreur.PERMISSION_DENIED){
+        statut.textContent = "❌ Autorisez l'accès à la position dans les réglages de votre navigateur, puis réessayez.";
+      } else {
+        statut.textContent = "❌ Impossible de récupérer votre position. Activez votre GPS et réessayez.";
+      }
       statut.style.color = "#dc2626";
     },
-    { enableHighAccuracy: true, timeout: 10000 }
+    { enableHighAccuracy: true, timeout: 55000, maximumAge: 0 }
   );
 }
 
