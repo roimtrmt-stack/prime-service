@@ -815,6 +815,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 
 </style>
 <link rel="icon" href="icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -912,7 +913,20 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
    ===================================================================== */
 const CONFIG = {
   DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1527664130838757526/ImLvQwT_ZKk7WRSrMjyCh9_Xy5v0lp8Hwlw6wyoKOUcxreF8FC7M83L4QfABu_SVb513",
+  SUPABASE_URL: "https://kfxalpvbtbvkncztjwzc.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
+  COMMISSION_FCFA: 300,
 };
+
+// Comme sur index.html : si le CDN Supabase échoue à charger (réseau
+// faible), on ne bloque pas tout le formulaire pour autant — l'envoi
+// Discord (qui ne dépend pas de Supabase) continue de fonctionner.
+let supabaseClient = null;
+try{
+  supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+} catch(erreur){
+  console.error("Supabase indisponible (réseau ou CDN) :", erreur);
+}
 
 /* =====================================================================
    PHOTOS + PRIX (chaque photo ajoutée devient un article candidat)
@@ -946,6 +960,8 @@ function redessinerPhotos(){
     <div class="carte-photo-inscription">
       <button type="button" class="btn-retirer-photo" onclick="retirerPhoto(${p.id})">✕</button>
       <img src="${p.apercuUrl}" class="apercu-photo-inscription">
+      <label class="label" style="margin-top:8px;">Nom de l'article ${index + 1}</label>
+      <input type="text" class="champ nom-photo" data-photo-id="${p.id}" placeholder="Ex : Robe bleue taille M" required>
       <label class="label" style="margin-top:8px;">Prix de l'article ${index + 1} (FCFA) — minimum 1000 FCFA</label>
       <input type="number" class="champ prix-photo" data-photo-id="${p.id}" placeholder="Ex : 5000" min="1000" step="1" required>
     </div>
@@ -1057,7 +1073,17 @@ async function envoyerSoumission(event){
     return false;
   }
 
-  // Vérifie que chaque photo a bien un prix rempli et respecte le minimum de 1000 FCFA
+  // Vérifie que chaque photo a bien un nom et un prix (minimum 1000 FCFA)
+  const champsNoms = Array.from(document.querySelectorAll(".nom-photo"));
+  for(const champ of champsNoms){
+    if(!champ.value.trim()){
+      statut.style.color = "#dc2626";
+      statut.textContent = "⚠️ Donnez un nom à chaque article.";
+      champ.focus();
+      return false;
+    }
+  }
+
   const champsPrix = Array.from(document.querySelectorAll(".prix-photo"));
   for(const champ of champsPrix){
     if(!champ.value || Number(champ.value) < 1000){
@@ -1080,17 +1106,23 @@ async function envoyerSoumission(event){
     texte += `🏪 Boutique : ${nomBoutique}\n`;
     texte += `📞 Téléphone : ${telephone}\n`;
     texte += `📍 Position : ${lienPosition}\n\n`;
-    texte += `**Articles proposés (voir photos jointes) :**\n`;
+    texte += `**Articles ajoutés automatiquement (masqués, à catégoriser) :**\n`;
 
-    photosAjoutees.forEach((photo, i) => {
+    const detailsPhotos = photosAjoutees.map((photo, i) => {
       const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
-      texte += `\n▪️ Photo ${i + 1} — ${Number(champPrix.value).toLocaleString("fr-FR")} FCFA`;
+      const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
+      return { photo, nomArticle: champNom.value.trim(), prixSaisi: Number(champPrix.value) };
+    });
+
+    detailsPhotos.forEach(({ nomArticle, prixSaisi }, i) => {
+      const prixFinal = prixSaisi + CONFIG.COMMISSION_FCFA;
+      texte += `\n▪️ ${nomArticle} — ${prixSaisi.toLocaleString("fr-FR")} FCFA (+ ${CONFIG.COMMISSION_FCFA} FCFA = ${prixFinal.toLocaleString("fr-FR")} FCFA affiché)`;
     });
 
     const donneesFormulaire = new FormData();
     donneesFormulaire.append("payload_json", JSON.stringify({ content: texte }));
 
-    photosAjoutees.forEach((photo, i) => {
+    detailsPhotos.forEach(({ photo }, i) => {
       donneesFormulaire.append(`files[${i}]`, photo.fichier, photo.fichier.name);
     });
 
@@ -1103,7 +1135,9 @@ async function envoyerSoumission(event){
 
     let reponse;
     try{
-      reponse = await fetch(CONFIG.DISCORD_WEBHOOK_URL, {
+      // ?wait=true : Discord renvoie le message créé (avec les URLs des
+      // photos hébergées), dont on a besoin pour publier automatiquement.
+      reponse = await fetch(CONFIG.DISCORD_WEBHOOK_URL + "?wait=true", {
         method: "POST",
         body: donneesFormulaire,
         signal: controleur.signal,
@@ -1113,6 +1147,33 @@ async function envoyerSoumission(event){
     }
 
     if(!reponse.ok) throw new Error("Réponse serveur incorrecte");
+
+    // Publication automatique (masquée) dans le catalogue : le boutiquier
+    // n'a plus rien à faire, et toi tu n'as plus qu'à choisir une catégorie
+    // puis démasquer — au lieu de tout retaper à la main.
+    try{
+      const messageDiscord = await reponse.json();
+      const urlsPhotos = (messageDiscord.attachments || []).map(a => a.url);
+
+      if(supabaseClient && urlsPhotos.length === detailsPhotos.length){
+        const lignesAInserer = detailsPhotos.map(({ nomArticle, prixSaisi }, i) => ({
+          nom: nomArticle,
+          prix: prixSaisi + CONFIG.COMMISSION_FCFA,
+          stock: 1,
+          image_url: urlsPhotos[i],
+          nom_boutique: nomBoutique,
+          masque: true, // caché tant que l'admin n'a pas choisi la catégorie
+          categorie_id: null,
+          sous_categorie_id: null,
+        }));
+        const { error: erreurInsertion } = await supabaseClient.from("produits").insert(lignesAInserer);
+        if(erreurInsertion) console.error("Publication automatique impossible :", erreurInsertion);
+      }
+    } catch(erreurAuto){
+      // Si l'ajout automatique échoue, ce n'est pas grave : le message
+      // Discord avec les photos est déjà envoyé, la demande n'est pas perdue.
+      console.error("Étape d'automatisation échouée (le message Discord, lui, est bien parti) :", erreurAuto);
+    }
 
     document.getElementById("vue-formulaire").style.display = "none";
     document.getElementById("vue-merci-inscription").style.display = "block";
