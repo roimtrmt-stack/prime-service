@@ -141,20 +141,38 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 .bloc-echec-chargement p{ margin-bottom:14px; }
 .carte-categorie{
   border:1px solid var(--gris-bordure);
-  border-radius:var(--rayon);
-  padding:24px 14px;
+  border-radius:16px;
+  padding:22px 14px;
   text-align:center;
   cursor:pointer;
-  background:var(--gris-fond);
-  transition:transform .15s ease, border-color .15s ease;
+  background:var(--blanc);
+  box-shadow:0 2px 12px rgba(0,0,0,0.045);
+  transition:transform .15s ease, box-shadow .15s ease;
 }
 .carte-categorie:hover{
   transform:translateY(-3px);
-  border-color:var(--bleu);
+  box-shadow:0 8px 20px rgba(0,0,0,0.09);
 }
-.carte-categorie .icone{ font-size:40px; display:block; margin-bottom:10px; }
+.badge-icone{
+  width:64px;
+  height:64px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:0 auto 12px;
+}
+.carte-categorie .icone{ font-size:30px; display:block; line-height:1; }
 .carte-categorie h3{ margin:6px 0 4px; }
 .carte-categorie p{ color:#666; font-size:13px; margin:0; }
+
+/* Un dégradé distinct par catégorie — look "icône illustrée", zéro image téléchargée */
+.badge-mode{ background:linear-gradient(135deg,#FBC7D4,#F6A6C1); }
+.badge-beaute{ background:linear-gradient(135deg,#E8C7FB,#C99BF0); }
+.badge-electronique{ background:linear-gradient(135deg,#BFE0FE,#8FC7FD); }
+.badge-maison{ background:linear-gradient(135deg,#FFE0B2,#FFC46B); }
+.badge-alimentation{ background:linear-gradient(135deg,#C8F0C2,#98E091); }
+.badge-moto{ background:linear-gradient(135deg,#DADFE3,#B7C0C7); }
 
 /* ===================== GRILLE PRODUITS (CATALOGUE) ===================== */
 .grille-produits{
@@ -1030,7 +1048,8 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 @media (max-width: 600px){
   .grille-categories{ grid-template-columns:repeat(2, 1fr); gap:14px; }
   .carte-categorie{ padding:18px 10px; }
-  .carte-categorie .icone{ font-size:32px; margin-bottom:6px; }
+  .badge-icone{ width:52px; height:52px; margin-bottom:8px; }
+  .carte-categorie .icone{ font-size:24px; }
   .carte-categorie h3{ font-size:14px; }
   .carte-categorie p{ font-size:12px; }
   .grille-produits{ grid-template-columns:repeat(3, 1fr); gap:12px; }
@@ -1801,7 +1820,7 @@ function afficherSousCategories(idCategorie, changerVue = true, pousserHistoriqu
     const nbProduits = (produitsParCle[cleSousCategorie(categorie.id, sc.id)] || []).filter(p => !p.masque).length;
     return `
     <div class="carte-categorie" onclick="afficherProduits('${categorie.id}', '${sc.id}')">
-      <span class="icone">${sc.icone}</span>
+      <span class="badge-icone badge-${categorie.id}"><span class="icone">${sc.icone}</span></span>
       <h3>${sc.nom}</h3>
       <p>${nbProduits} article(s)</p>
     </div>`;
@@ -1880,7 +1899,7 @@ function construireCategories(){
     const nbArticles = cat.sousCategories.reduce((n, sc) => n + (produitsParCle[cleSousCategorie(cat.id, sc.id)] || []).length, 0);
     return `
     <div class="carte-categorie" onclick="afficherSousCategories('${cat.id}')">
-      <span class="icone">${cat.icone}</span>
+      <span class="badge-icone badge-${cat.id}"><span class="icone">${cat.icone}</span></span>
       <h3>${cat.nom}</h3>
       <p>${nbArticles} article(s)</p>
     </div>`;
