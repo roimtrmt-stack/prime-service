@@ -818,6 +818,35 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+<script type="module">
+  // Retrait de fond + fond blanc — tourne entièrement dans le navigateur
+  // du boutiquier (WASM), aucune clé API, aucun compte, aucun serveur à
+  // toi. Télécharge un modèle IA (quelques Mo) au premier usage : sur un
+  // réseau très faible, la première photo peut prendre du temps — c'est
+  // pour ça que ajouterPhoto() ci-dessous n'attend jamais indéfiniment
+  // sans retour visuel, et retombe sur la photo originale si ça échoue.
+  import removeBackground from "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/index.mjs";
+
+  window.retirerFondEtBlanchir = async function(fichier){
+    const blobDecoupe = await removeBackground(fichier);
+
+    const bitmap = await createImageBitmap(blobDecoupe);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0);
+
+    const blobFinal = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+    return new File(
+      [blobFinal],
+      fichier.name.replace(/\.[^.]+$/, "") + "-fond-blanc.jpg",
+      { type: "image/jpeg" }
+    );
+  };
+</script>
 
 <header class="header">
   <div class="header-left" onclick="window.location.href='index.html'" style="cursor:pointer;">
@@ -934,17 +963,38 @@ try{
 let photosAjoutees = []; // { id, fichier, apercuUrl }
 let compteurPhoto = 0;
 
-function ajouterPhoto(event){
-  const fichier = event.target.files[0];
-  if(!fichier) return;
+async function ajouterPhoto(event){
+  const fichierOriginal = event.target.files[0];
+  if(!fichierOriginal) return;
+  event.target.value = ""; // permet de resélectionner le même fichier si besoin
 
   compteurPhoto++;
   const id = compteurPhoto;
-  const apercuUrl = URL.createObjectURL(fichier);
-  photosAjoutees.push({ id, fichier, apercuUrl });
-
+  photosAjoutees.push({
+    id,
+    fichier: fichierOriginal,
+    apercuUrl: URL.createObjectURL(fichierOriginal),
+    traitement: true, // affiche "fond blanc en cours..." le temps du calcul
+  });
   redessinerPhotos();
-  event.target.value = ""; // permet de resélectionner le même fichier si besoin
+
+  try{
+    const fichierBlanchi = await window.retirerFondEtBlanchir(fichierOriginal);
+    const entree = photosAjoutees.find(p => p.id === id);
+    if(entree){
+      entree.fichier = fichierBlanchi;
+      entree.apercuUrl = URL.createObjectURL(fichierBlanchi);
+    }
+  } catch(erreur){
+    // Réseau trop faible pour télécharger le modèle IA, ou photo trop
+    // complexe : on garde la photo originale plutôt que de bloquer le
+    // boutiquier — mieux vaut un fond non blanchi qu'aucun article publié.
+    console.error("Fond blanc automatique impossible, photo originale conservée :", erreur);
+  } finally {
+    const entree = photosAjoutees.find(p => p.id === id);
+    if(entree) entree.traitement = false;
+    redessinerPhotos();
+  }
 }
 
 function retirerPhoto(id){
@@ -960,6 +1010,7 @@ function redessinerPhotos(){
     <div class="carte-photo-inscription">
       <button type="button" class="btn-retirer-photo" onclick="retirerPhoto(${p.id})">✕</button>
       <img src="${p.apercuUrl}" class="apercu-photo-inscription">
+      ${p.traitement ? `<p style="font-size:11px;color:#f97316;margin:4px 0 0;">⏳ Fond blanc en cours...</p>` : ``}
       <label class="label" style="margin-top:8px;">Nom de l'article ${index + 1}</label>
       <input type="text" class="champ nom-photo" data-photo-id="${p.id}" placeholder="Ex : Robe bleue taille M" required>
       <label class="label" style="margin-top:8px;">Prix de l'article ${index + 1} (FCFA) — minimum 1000 FCFA</label>
@@ -1162,6 +1213,7 @@ async function envoyerSoumission(event){
           stock: 1,
           image_url: urlsPhotos[i],
           nom_boutique: nomBoutique,
+          telephone_boutique: telephone, // pour savoir qui prévenir quand ça se vend
           masque: true, // caché tant que l'admin n'a pas choisi la catégorie
           categorie_id: null,
           sous_categorie_id: null,
