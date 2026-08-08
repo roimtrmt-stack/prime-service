@@ -2156,6 +2156,7 @@ async function envoyerCommande(event){
     texte += `\n▪️ **${a.nom}** x${a.quantite} — ${(Number(a.prix) * a.quantite).toLocaleString("fr-FR")} FCFA\n`;
     texte += `   🏪 Adresse boutique : ${a.adresse}\n`;
     texte += `   🗺️ Localisation boutique : ${lienBoutique}\n`;
+    texte += `   📞 À prévenir par SMS : ${a.telephone_boutique || "numéro non renseigné"}\n`;
   });
 
   texte += `\n💰 **Total : ${calculerTotal().toLocaleString("fr-FR")} FCFA**`;
