@@ -2341,6 +2341,10 @@ async function verifierSessionAdmin(){
     const email = (session.user.email || "").toLowerCase();
     if(email === CONFIG.EMAIL_ADMIN_AUTORISE.toLowerCase()){
       afficherEtatConnexion(true, session.user.email);
+      // Le premier chargement (avant connexion) ne voyait que les articles
+      // visibles au public. Maintenant qu'on est authentifié en admin, on
+      // recharge pour récupérer aussi les articles masqués en attente.
+      chargerProduits();
       return;
     }
     // Connecté, mais avec le mauvais compte Google : on éjecte immédiatement.
