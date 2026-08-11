@@ -1418,6 +1418,9 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       <label class="label">Prix (FCFA)</label>
       <input type="number" id="prixArticleAdmin" class="champ" placeholder="Ex : 65000" required>
 
+      <label class="label">Votre commission sur cet article (FCFA)</label>
+      <input type="number" id="commissionArticleAdmin" class="champ" value="300" min="0" required>
+
       <label class="label">Stock disponible (l'article disparaît automatiquement à 0)</label>
       <input type="number" id="stockArticleAdmin" class="champ" placeholder="Ex : 3" min="1" required>
 
@@ -1474,7 +1477,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
    CONFIGURATION
    ===================================================================== */
 const CONFIG = {
-  DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1530519565266583603/uFvdbXwz4xB98dH-I41ZzADfbYNMXvAyM51fyDqk_9kRZJ7mcsXNfSiXSef8s3RypqnM",
+  DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1527130570415407234/rUfmlOIYWRHh3sa_xekFAf4ZVp4NyeWQ7XTMrmJGa_tMEOV4wbbssKsFVAvIJoOikS9F",
   SUPABASE_URL: "https://kfxalpvbtbvkncztjwzc.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
   NUMERO_PAIEMENT: "94134408",
@@ -2119,8 +2122,8 @@ async function envoyerCommande(event){
   const nom = document.getElementById("nomClient").value.trim();
   const tel = document.getElementById("telClient").value.trim();
   const paiement = document.getElementById("paiementClient").value;
-  const lat = document.getElementById("latClient").value;
-  const lng = document.getElementById("lngClient").value;
+  const lat = Number(document.getElementById("latClient").value);
+  const lng = Number(document.getElementById("lngClient").value);
   const statutEnvoi = document.getElementById("statutEnvoi");
   const btnEnvoyer = document.getElementById("btnEnvoyer");
 
@@ -2159,12 +2162,119 @@ async function envoyerCommande(event){
     texte += `   📞 À prévenir par SMS : ${a.telephone_boutique || "numéro non renseigné"}\n`;
   });
 
+  // ===== Détail financier : combien envoyer à chaque boutique, combien garder =====
+  // (basé sur la commission enregistrée par article — 300 FCFA par défaut,
+  // mais peut varier si tu l'as changée pour un article précis).
+  const boutiquesUniques = {};
+  panier.forEach(a => {
+    const cle = `${a.nom_boutique || "Boutique inconnue"}|${a.telephone_boutique || ""}`;
+    if(!boutiquesUniques[cle]){
+      boutiquesUniques[cle] = { nomBoutique: a.nom_boutique || "Boutique inconnue", telephone: a.telephone_boutique, aEnvoyer: 0, commission: 0 };
+    }
+    const commissionUnitaire = Number(a.commission) || 0;
+    const partBoutiqueUnitaire = Number(a.prix) - commissionUnitaire;
+    boutiquesUniques[cle].aEnvoyer += partBoutiqueUnitaire * a.quantite;
+    boutiquesUniques[cle].commission += commissionUnitaire * a.quantite;
+  });
+
+  let totalAEnvoyer = 0;
+  let totalCommission = 0;
+
+  texte += `\n💵 **Répartition du paiement**\n`;
+  Object.values(boutiquesUniques).forEach(b => {
+    texte += `\n🏪 ${b.nomBoutique}${b.telephone ? " (" + b.telephone + ")" : ""}`;
+    texte += `\n   → À lui envoyer : **${b.aEnvoyer.toLocaleString("fr-FR")} FCFA**`;
+    texte += `\n   → Ta commission : ${b.commission.toLocaleString("fr-FR")} FCFA\n`;
+    totalAEnvoyer += b.aEnvoyer;
+    totalCommission += b.commission;
+  });
+
+  texte += `\n📤 Total à reverser aux boutiques : **${totalAEnvoyer.toLocaleString("fr-FR")} FCFA**`;
+  texte += `\n🟢 Total à garder pour toi : **${totalCommission.toLocaleString("fr-FR")} FCFA**`;
+
   texte += `\n💰 **Total : ${calculerTotal().toLocaleString("fr-FR")} FCFA**`;
 
   const premierAvecImage = panier.find(a => a.image_url);
+
+  // ===== Carte + itinéraires cliquables =====
+  // Une seule image ne suffit pas sur une longue distance (il faudrait
+  // dézoomer au point de rendre les noms de rue illisibles). On zoome donc
+  // uniquement sur la position du CLIENT (toujours lisible, quelle que
+  // soit la distance totale du trajet), et on ajoute un lien cliquable
+  // par boutique pour l'itinéraire complet (utilisable si connexion).
+  // Vraie photo satellite, sans clé, sans compte, sans carte bancaire —
+  // service Esri utilisé librement par la communauté OpenStreetMap.
+  // On convertit la position (latitude/longitude) en coordonnées de tuile
+  // (méthode standard "Slippy Map"), pour obtenir l'image de la bonne zone.
+  // Vraie photo satellite, sans clé, sans compte, sans carte bancaire —
+  // service public Esri (World Imagery), utilisable librement par tous.
+  // On calcule un petit cadre (~350m de large) autour du point exact, pour
+  // que la position du client soit toujours pile au centre de l'image.
+  function construireUrlCarteZoomee(latitude, longitude){
+    const demiLargeurDegres = 0.0018; // ~350m de large au total à cette latitude
+    const xmin = longitude - demiLargeurDegres;
+    const xmax = longitude + demiLargeurDegres;
+    const ymin = latitude - demiLargeurDegres;
+    const ymax = latitude + demiLargeurDegres;
+    return `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${xmin},${ymin},${xmax},${ymax}&bboxSR=4326&size=640,420&format=png&f=image`;
+  }
+
+  // Vue d'ensemble : englobe les DEUX points (boutique + client) avec une
+  // marge de 25% — moins détaillée qu'une vue zoomée, mais donne une idée
+  // de la direction et de la distance à parcourir, quelle que soit sa taille.
+  function construireUrlVueEnsemble(latA, lngA, latB, lngB){
+    const margeRatio = 0.25;
+    const xmin0 = Math.min(lngA, lngB), xmax0 = Math.max(lngA, lngB);
+    const ymin0 = Math.min(latA, latB), ymax0 = Math.max(latA, latB);
+    const margeX = Math.max((xmax0 - xmin0) * margeRatio, 0.002);
+    const margeY = Math.max((ymax0 - ymin0) * margeRatio, 0.002);
+    const xmin = xmin0 - margeX, xmax = xmax0 + margeX;
+    const ymin = ymin0 - margeY, ymax = ymax0 + margeY;
+    return `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${xmin},${ymin},${xmax},${ymax}&bboxSR=4326&size=640,420&format=png&f=image`;
+  }
+
+  // Adresse écrite en clair (service gratuit, sans clé — OpenStreetMap
+  // Nominatim) : l'image satellite seule n'a aucun texte, ça comble le trou.
+  let adresseClientLisible = "";
+  try{
+    const reponseAdresse = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+    const donneesAdresse = await reponseAdresse.json();
+    adresseClientLisible = donneesAdresse.display_name || "";
+  } catch(erreurAdresse){
+    console.error("Adresse non trouvée (pas grave, la carte reste utilisable) :", erreurAdresse);
+  }
+  if(adresseClientLisible){
+    texte += `\n📍 Adresse approximative du client : ${adresseClientLisible}`;
+  }
+
+  const embeds = [];
+
+  if(premierAvecImage){
+    embeds.push({ image: { url: premierAvecImage.image_url } });
+  }
+
+  embeds.push({
+    title: "📍 Photo satellite de la zone du client (clique pour la position exacte)",
+    url: lienPositionClient,
+    image: { url: construireUrlCarteZoomee(lat, lng) },
+  });
+
+  Object.entries(boutiquesUniques).forEach(([, b]) => {
+    const articleBoutique = panier.find(a => `${a.nom_boutique || "Boutique inconnue"}|${a.telephone_boutique || ""}` === `${b.nomBoutique}|${b.telephone || ""}`);
+    if(!articleBoutique) return;
+    const latBoutique = Number(articleBoutique.lat);
+    const lngBoutique = Number(articleBoutique.lng);
+    const lienItineraire = `https://www.google.com/maps/dir/?api=1&origin=${latBoutique},${lngBoutique}&destination=${lat},${lng}`;
+    embeds.push({
+      title: `🗺️ Itinéraire complet : ${b.nomBoutique} → Client`,
+      url: lienItineraire,
+      image: { url: construireUrlVueEnsemble(latBoutique, lngBoutique, lat, lng) },
+    });
+  });
+
   const corpsRequete = {
     content: texte,
-    embeds: premierAvecImage ? [{ image: { url: premierAvecImage.image_url } }] : []
+    embeds,
   };
 
   const commandeAEnvoyer = { corpsRequete, articlesPourStock: panier.map(a => ({ id: a.id, quantite: a.quantite })) };
@@ -2430,6 +2540,7 @@ function ouvrirFormulaireArticle(articleAModifier){
     document.getElementById("nomBoutiqueAdmin").value = articleAModifier.nom_boutique || "";
     document.getElementById("telephoneArticleAdmin").value = articleAModifier.telephone || "";
     document.getElementById("prixArticleAdmin").value = articleAModifier.prix || "";
+    document.getElementById("commissionArticleAdmin").value = articleAModifier.commission ?? 300;
     document.getElementById("stockArticleAdmin").value = articleAModifier.stock || 1;
     document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || "";
     document.getElementById("latBoutiqueAdmin").value = articleAModifier.lat || "";
@@ -2456,6 +2567,7 @@ function ouvrirFormulaireArticle(articleAModifier){
     document.getElementById("nomBoutiqueAdmin").value = articleAModifier.nom_boutique || "";
     document.getElementById("telephoneArticleAdmin").value = articleAModifier.telephone || "";
     document.getElementById("prixArticleAdmin").value = articleAModifier.prix || "";
+    document.getElementById("commissionArticleAdmin").value = articleAModifier.commission ?? 300;
     document.getElementById("stockArticleAdmin").value = articleAModifier.stock || 1;
     document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || "";
     document.getElementById("latBoutiqueAdmin").value = articleAModifier.lat || "";
@@ -2605,6 +2717,7 @@ async function publierArticle(event){
   const nomBoutique = document.getElementById("nomBoutiqueAdmin").value.trim();
   const telephone = document.getElementById("telephoneArticleAdmin").value.trim();
   const prix = parseInt(document.getElementById("prixArticleAdmin").value, 10);
+  const commission = parseInt(document.getElementById("commissionArticleAdmin").value, 10) || 0;
   const stock = parseInt(document.getElementById("stockArticleAdmin").value, 10);
   const adresse = document.getElementById("adresseBoutiqueAdmin").value.trim();
   const lat = parseFloat(document.getElementById("latBoutiqueAdmin").value) || null;
@@ -2661,7 +2774,7 @@ async function publierArticle(event){
       const [categorie_id, sous_categorie_id] = casesCochees[0].value.split("|");
       const { error: erreurMaj } = await supabaseClient
         .from("produits")
-        .update({ nom, nom_boutique: nomBoutique, prix, telephone, stock, categorie_id, sous_categorie_id, adresse, lat, lng, image_url: imageUrl })
+        .update({ nom, nom_boutique: nomBoutique, prix, commission, telephone, stock, categorie_id, sous_categorie_id, adresse, lat, lng, image_url: imageUrl })
         .eq("id", articleEnEdition);
 
       if(erreurMaj) throw erreurMaj;
@@ -2673,7 +2786,7 @@ async function publierArticle(event){
       // ===== MODE AJOUT : une ligne par rayon coché =====
       const lignesAInserer = casesCochees.map(caseCochee => {
         const [categorie_id, sous_categorie_id] = caseCochee.value.split("|");
-        return { nom, nom_boutique: nomBoutique, prix, telephone, stock, categorie_id, sous_categorie_id, adresse, lat, lng, image_url: imageUrl };
+        return { nom, nom_boutique: nomBoutique, prix, commission, telephone, stock, categorie_id, sous_categorie_id, adresse, lat, lng, image_url: imageUrl };
       });
 
       const { error: erreurInsertion } = await supabaseClient.from("produits").insert(lignesAInserer);
