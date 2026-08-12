@@ -895,6 +895,11 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
           Oui, j'utilise mon propre livreur pour cet article.
         </label>
 
+        <label class="case-condition-obligatoire">
+          <input type="checkbox" id="autorisationNotifBoutique">
+          J'autorise Prime Service à m'envoyer une notification quand ma boutique reçoit une commande.
+        </label>
+
         <p class="texte-info-conditions">Une question ? Appelez le <strong>94 13 44 08</strong>.</p>
       </div>
 
@@ -934,6 +939,45 @@ try{
   supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 } catch(erreur){
   console.error("Supabase indisponible (réseau ou CDN) :", erreur);
+}
+
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+
+const CLE_VAPID_PUBLIQUE = "BKUvZzJuPGArqm0y7jr69DJMp4NjO9EnDRwPzyIB4yJl7efqLtJSrem-uUQfvk46RkWfK9kshSONNp4ad5EQxlY";
+
+function urlBase64VersUint8Array(base64String){
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const brut = window.atob(base64);
+  return Uint8Array.from([...brut].map(c => c.charCodeAt(0)));
+}
+
+// Abonne ce boutiquier aux notifications, en liant l'abonnement à son
+// numéro de téléphone — c'est ce numéro qui permet de le cibler plus tard
+// (et lui seul) quand SA boutique reçoit une commande.
+async function abonnerBoutiquierAuxNotifications(telephoneBoutique){
+  try{
+    if(!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    const permission = await Notification.requestPermission();
+    if(permission !== "granted") return;
+
+    const enregistrement = await navigator.serviceWorker.ready;
+    const abonnement = await enregistrement.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64VersUint8Array(CLE_VAPID_PUBLIQUE),
+    });
+
+    if(supabaseClient){
+      await supabaseClient.from("abonnements_push").insert({
+        subscription: abonnement.toJSON(),
+        telephone_boutique: telephoneBoutique,
+      });
+    }
+  } catch(erreur){
+    console.error("Abonnement notifications boutiquier impossible :", erreur);
+  }
 }
 
 /* =====================================================================
@@ -1189,6 +1233,7 @@ async function envoyerSoumission(event){
         const lignesAInserer = detailsPhotos.map(({ nomArticle, prixSaisi }, i) => ({
           nom: nomArticle,
           prix: prixSaisi + CONFIG.COMMISSION_FCFA,
+          commission: CONFIG.COMMISSION_FCFA,
           stock: 1,
           image_url: urlsPhotos[i],
           nom_boutique: nomBoutique,
@@ -1208,6 +1253,12 @@ async function envoyerSoumission(event){
 
     document.getElementById("vue-formulaire").style.display = "none";
     document.getElementById("vue-merci-inscription").style.display = "block";
+
+    // Abonnement aux notifications de commande, uniquement si autorisé —
+    // après le clic, donc dans un vrai geste utilisateur (pas automatique).
+    if(document.getElementById("autorisationNotifBoutique").checked){
+      abonnerBoutiquierAuxNotifications(telephone);
+    }
 
   } catch(erreur){
     console.error(erreur);
