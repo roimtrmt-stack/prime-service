@@ -1477,7 +1477,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
    CONFIGURATION
    ===================================================================== */
 const CONFIG = {
-  DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1527130570415407234/rUfmlOIYWRHh3sa_xekFAf4ZVp4NyeWQ7XTMrmJGa_tMEOV4wbbssKsFVAvIJoOikS9F",
+  DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1530519565266583603/uFvdbXwz4xB98dH-I41ZzADfbYNMXvAyM51fyDqk_9kRZJ7mcsXNfSiXSef8s3RypqnM",
   SUPABASE_URL: "https://kfxalpvbtbvkncztjwzc.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
   NUMERO_PAIEMENT: "94134408",
@@ -2210,6 +2210,18 @@ async function envoyerCommande(event){
   // service public Esri (World Imagery), utilisable librement par tous.
   // On calcule un petit cadre (~350m de large) autour du point exact, pour
   // que la position du client soit toujours pile au centre de l'image.
+  // Carte façon "Google Maps" (rues, noms de quartiers) plutôt qu'une
+  // photo satellite brute — plus reconnaissable pour la plupart des gens.
+  // Zoom "quartier" (~1.6 km de large), pas toute la ville.
+  function construireUrlCarteQuartier(latitude, longitude){
+    const demiLargeurDegres = 0.008; // ~1.6km de large au total
+    const xmin = longitude - demiLargeurDegres;
+    const xmax = longitude + demiLargeurDegres;
+    const ymin = latitude - demiLargeurDegres;
+    const ymax = latitude + demiLargeurDegres;
+    return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export?bbox=${xmin},${ymin},${xmax},${ymax}&bboxSR=4326&size=640,420&format=png&f=image`;
+  }
+
   function construireUrlCarteZoomee(latitude, longitude){
     const demiLargeurDegres = 0.0018; // ~350m de large au total à cette latitude
     const xmin = longitude - demiLargeurDegres;
@@ -2254,9 +2266,9 @@ async function envoyerCommande(event){
   }
 
   embeds.push({
-    title: "📍 Photo satellite de la zone du client (clique pour la position exacte)",
+    title: "📍 Position du client (quartier)",
     url: lienPositionClient,
-    image: { url: construireUrlCarteZoomee(lat, lng) },
+    image: { url: construireUrlCarteQuartier(lat, lng) },
   });
 
   Object.entries(boutiquesUniques).forEach(([, b]) => {
@@ -2288,6 +2300,42 @@ async function envoyerCommande(event){
     mettreAJourCompteur();
     afficherPageMerci(paiement, totalCommande, true);
     return false;
+  }
+
+  // Enregistre la commande + met chaque boutiquier en file d'attente de
+  // notification — AVANT le message Discord admin, et indépendamment de
+  // lui : même si ce message Discord échoue, la file d'attente (qui, elle,
+  // tourne sur les serveurs Supabase, PC allumé ou pas) reste créée.
+  try{
+    const { data: commandeEnregistree } = await supabaseClient
+      .from("commandes")
+      .insert({
+        nom_client: nom,
+        telephone_client: tel,
+        paiement,
+        lat_client: lat,
+        lng_client: lng,
+        articles: panier,
+        total: calculerTotal(),
+      })
+      .select()
+      .single();
+
+    if(commandeEnregistree){
+      const lignesNotifBoutiquiers = Object.values(boutiquesUniques)
+        .filter(b => b.telephone)
+        .map(b => ({
+          commande_id: commandeEnregistree.id,
+          nom_boutique: b.nomBoutique,
+          telephone_boutique: b.telephone,
+          message: `Nouvelle commande ! ${Math.round(b.aEnvoyer).toLocaleString("fr-FR")} FCFA à recevoir. Client : ${nom} (${tel}).`,
+        }));
+      if(lignesNotifBoutiquiers.length > 0){
+        await supabaseClient.from("notifications_boutiquiers").insert(lignesNotifBoutiquiers);
+      }
+    }
+  } catch(erreurEnregistrement){
+    console.error("Commande non enregistrée en base (le message Discord admin part quand même) :", erreurEnregistrement);
   }
 
   btnEnvoyer.disabled = true;
@@ -2741,6 +2789,12 @@ async function publierArticle(event){
   if(!stock || stock < 1){
     statutPublication.style.color = "#dc2626";
     statutPublication.textContent = "⚠️ Indiquez un stock d'au moins 1.";
+    return false;
+  }
+
+  if(lat === null || lng === null){
+    statutPublication.style.color = "#dc2626";
+    statutPublication.textContent = "⚠️ Cliquez sur \"Utiliser ma position\" pour situer cette boutique — sinon la carte de livraison ne fonctionnera pas pour cet article.";
     return false;
   }
 
