@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Prime Service Bamako — Livraison à domicile Mali</title>
-<meta name="description" content="Prime Service livre votre quotidien à domicile à Bamako, Mali : vêtements, électronique, alimentation. Commandez en ligne, payez à la livraison, Orange Money ou Wave.">
+<meta name="description" content="Prime Service livre votre quotidien à domicile à Bamako, Mali : vêtements, électronique, alimentation. Commandez en ligne, payez à la livraison, Orange Money.">
 <meta name="keywords" content="Prime Service, Prime Service Bamako, livraison Bamako, livraison Mali, commande en ligne Mali">
 <link rel="canonical" href="https://primeservice.netlify.app/">
 <meta property="og:title" content="Prime Service — Livraison à domicile à Bamako">
@@ -1203,10 +1203,9 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       <label class="label">Votre numéro (Orange / Wave / autre)</label>
       <input type="tel" id="telClient" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" title="Entrez un vrai numéro de téléphone (8 à 15 chiffres)" required>
 
-      <label class="label">Mode de paiement souhaité</label>
+      <label class="label">Mode de paiement</label>
       <select id="paiementClient" class="champ">
         <option value="Orange Money">Orange Money</option>
-        <option value="Wave">Wave</option>
       </select>
 
       <label class="label">Votre position (obligatoire)</label>
@@ -1261,23 +1260,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
         </ol>
       </div>
 
-      <div class="bloc-instructions" id="instructionsWave" style="display:none;">
-        <h3>📲 Comment payer avec Wave</h3>
 
-        <p class="sous-titre-instruction">✅ Le plus simple : chez un kiosque Wave</p>
-        <ol>
-          <li>Cherchez un vendeur/kiosque avec le logo bleu <strong>Wave</strong> (très courant à Bamako).</li>
-          <li>Donnez-lui ce numéro : <strong id="numeroWaveInstructionKiosque">94134408</strong> et ce montant : <strong id="montantWaveInstructionKiosque">0 FCFA</strong>.</li>
-          <li>Remettez-lui l'argent en espèces, il fait le transfert pour vous.</li>
-          <li>Gardez le reçu ou le SMS de confirmation qu'il vous montre.</li>
-        </ol>
-
-        <p class="sous-titre-instruction">📱 Si vous avez déjà l'application Wave sur votre téléphone</p>
-        <ol>
-          <li>Ouvrez l'application <strong>Wave</strong>, appuyez sur <strong>Envoyer de l'argent</strong>.</li>
-          <li>Entrez le numéro <strong id="numeroWaveInstruction">94134408</strong> et le montant <strong id="montantWaveInstruction">0 FCFA</strong>, puis confirmez.</li>
-        </ol>
-      </div>
 
       <button class="btn-principal" onclick="afficherAccueil()">Retour à l'accueil</button>
     </div>
@@ -1318,6 +1301,9 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
         </button>
         <button class="item-menu-admin" onclick="ouvrirGestionCategories()">
           <span class="icone-item">🙈</span> Masquer des catégories <span class="fleche">›</span>
+        </button>
+        <button class="item-menu-admin" onclick="ouvrirNotificationsBoutiquiers()">
+          <span class="icone-item">📨</span> Notifications aux boutiquiers <span class="fleche">›</span>
         </button>
       </div>
 
@@ -2043,7 +2029,12 @@ function supprimerArticle(index){
 }
 
 function calculerTotal(){
-  return panier.reduce((total, a) => total + Number(a.prix) * a.quantite, 0);
+  return panier.reduce((total, a) => {
+    const prix = Number(a.prix);
+    const qte = Number(a.quantite);
+    if(isNaN(prix) || isNaN(qte) || prix <= 0) return total;
+    return total + (prix * qte);
+  }, 0);
 }
 
 function mettreAJourCompteur(){
@@ -2129,7 +2120,7 @@ async function envoyerCommande(event){
 
   if(!/^[0-9+ ]{8,15}$/.test(tel)){
     statutEnvoi.style.color = "#dc2626";
-    statutEnvoi.textContent = "⚠️ Entrez un vrai numéro de téléphone (chiffres uniquement, 8 à 15 caractères).";
+    statutEnvoi.textContent = "⚠️ Entrez un vrai numéro de téléphone.";
     return false;
   }
 
@@ -2145,167 +2136,133 @@ async function envoyerCommande(event){
     return false;
   }
 
-  const lienPositionClient = `https://www.google.com/maps?q=${lat},${lng}`;
-
-  let texte = `🛒 **NOUVELLE COMMANDE — Prime Service**\n\n`;
-  texte += `👤 Client : ${nom}\n`;
-  texte += `📞 Téléphone : ${tel}\n`;
-  texte += `💳 Paiement souhaité : ${paiement}\n`;
-  texte += `📍 Position du client : ${lienPositionClient}\n\n`;
-  texte += `**Articles commandés :**\n`;
-
-  panier.forEach(a => {
-    const lienBoutique = `https://www.google.com/maps?q=${a.lat},${a.lng}`;
-    texte += `\n▪️ **${a.nom}** x${a.quantite} — ${(Number(a.prix) * a.quantite).toLocaleString("fr-FR")} FCFA\n`;
-    texte += `   🏪 Adresse boutique : ${a.adresse}\n`;
-    texte += `   🗺️ Localisation boutique : ${lienBoutique}\n`;
-    texte += `   📞 À prévenir par SMS : ${a.telephone_boutique || "numéro non renseigné"}\n`;
-  });
-
-  // ===== Détail financier : combien envoyer à chaque boutique, combien garder =====
-  // (basé sur la commission enregistrée par article — 300 FCFA par défaut,
-  // mais peut varier si tu l'as changée pour un article précis).
-  const boutiquesUniques = {};
-  panier.forEach(a => {
-    const cle = `${a.nom_boutique || "Boutique inconnue"}|${a.telephone_boutique || ""}`;
-    if(!boutiquesUniques[cle]){
-      boutiquesUniques[cle] = { nomBoutique: a.nom_boutique || "Boutique inconnue", telephone: a.telephone_boutique, aEnvoyer: 0, commission: 0 };
-    }
-    const commissionUnitaire = Number(a.commission) || 0;
-    const partBoutiqueUnitaire = Number(a.prix) - commissionUnitaire;
-    boutiquesUniques[cle].aEnvoyer += partBoutiqueUnitaire * a.quantite;
-    boutiquesUniques[cle].commission += commissionUnitaire * a.quantite;
-  });
-
-  let totalAEnvoyer = 0;
-  let totalCommission = 0;
-
-  texte += `\n💵 **Répartition du paiement**\n`;
-  Object.values(boutiquesUniques).forEach(b => {
-    texte += `\n🏪 ${b.nomBoutique}${b.telephone ? " (" + b.telephone + ")" : ""}`;
-    texte += `\n   → À lui envoyer : **${b.aEnvoyer.toLocaleString("fr-FR")} FCFA**`;
-    texte += `\n   → Ta commission : ${b.commission.toLocaleString("fr-FR")} FCFA\n`;
-    totalAEnvoyer += b.aEnvoyer;
-    totalCommission += b.commission;
-  });
-
-  texte += `\n📤 Total à reverser aux boutiques : **${totalAEnvoyer.toLocaleString("fr-FR")} FCFA**`;
-  texte += `\n🟢 Total à garder pour toi : **${totalCommission.toLocaleString("fr-FR")} FCFA**`;
-
-  texte += `\n💰 **Total : ${calculerTotal().toLocaleString("fr-FR")} FCFA**`;
-
-  const premierAvecImage = panier.find(a => a.image_url);
-
-  // ===== Carte + itinéraires cliquables =====
-  // Une seule image ne suffit pas sur une longue distance (il faudrait
-  // dézoomer au point de rendre les noms de rue illisibles). On zoome donc
-  // uniquement sur la position du CLIENT (toujours lisible, quelle que
-  // soit la distance totale du trajet), et on ajoute un lien cliquable
-  // par boutique pour l'itinéraire complet (utilisable si connexion).
-  // Vraie photo satellite, sans clé, sans compte, sans carte bancaire —
-  // service Esri utilisé librement par la communauté OpenStreetMap.
-  // On convertit la position (latitude/longitude) en coordonnées de tuile
-  // (méthode standard "Slippy Map"), pour obtenir l'image de la bonne zone.
-  // Vraie photo satellite, sans clé, sans compte, sans carte bancaire —
-  // service public Esri (World Imagery), utilisable librement par tous.
-  // On calcule un petit cadre (~350m de large) autour du point exact, pour
-  // que la position du client soit toujours pile au centre de l'image.
-  // Carte façon "Google Maps" (rues, noms de quartiers) plutôt qu'une
-  // photo satellite brute — plus reconnaissable pour la plupart des gens.
-  // Zoom "quartier" (~1.6 km de large), pas toute la ville.
-  function construireUrlCarteQuartier(latitude, longitude){
-    const demiLargeurDegres = 0.008; // ~1.6km de large au total
-    const xmin = longitude - demiLargeurDegres;
-    const xmax = longitude + demiLargeurDegres;
-    const ymin = latitude - demiLargeurDegres;
-    const ymax = latitude + demiLargeurDegres;
-    return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export?bbox=${xmin},${ymin},${xmax},${ymax}&bboxSR=4326&size=640,420&format=png&f=image`;
+  const totalCommande = calculerTotal();
+  if(totalCommande <= 0){
+    statutEnvoi.style.color = "#dc2626";
+    statutEnvoi.textContent = "⚠️ Erreur de calcul du total. Réessayez.";
+    return false;
   }
 
-  function construireUrlCarteZoomee(latitude, longitude){
-    const demiLargeurDegres = 0.0018; // ~350m de large au total à cette latitude
-    const xmin = longitude - demiLargeurDegres;
-    const xmax = longitude + demiLargeurDegres;
-    const ymin = latitude - demiLargeurDegres;
-    const ymax = latitude + demiLargeurDegres;
-    return `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${xmin},${ymin},${xmax},${ymax}&bboxSR=4326&size=640,420&format=png&f=image`;
-  }
+  const lienPositionClient = construireLienGoogleMaps(lat, lng);
 
-  // Vue d'ensemble : englobe les DEUX points (boutique + client) avec une
-  // marge de 25% — moins détaillée qu'une vue zoomée, mais donne une idée
-  // de la direction et de la distance à parcourir, quelle que soit sa taille.
-  function construireUrlVueEnsemble(latA, lngA, latB, lngB){
-    const margeRatio = 0.25;
-    const xmin0 = Math.min(lngA, lngB), xmax0 = Math.max(lngA, lngB);
-    const ymin0 = Math.min(latA, latB), ymax0 = Math.max(latA, latB);
-    const margeX = Math.max((xmax0 - xmin0) * margeRatio, 0.002);
-    const margeY = Math.max((ymax0 - ymin0) * margeRatio, 0.002);
-    const xmin = xmin0 - margeX, xmax = xmax0 + margeX;
-    const ymin = ymin0 - margeY, ymax = ymax0 + margeY;
-    return `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${xmin},${ymin},${xmax},${ymax}&bboxSR=4326&size=640,420&format=png&f=image`;
-  }
-
-  // Adresse écrite en clair (service gratuit, sans clé — OpenStreetMap
-  // Nominatim) : l'image satellite seule n'a aucun texte, ça comble le trou.
-  let adresseClientLisible = "";
+  // Adresse texte du client
+  let adresseClientLisible = "Position GPS enregistrée";
   try{
     const reponseAdresse = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
     const donneesAdresse = await reponseAdresse.json();
-    adresseClientLisible = donneesAdresse.display_name || "";
-  } catch(erreurAdresse){
-    console.error("Adresse non trouvée (pas grave, la carte reste utilisable) :", erreurAdresse);
-  }
-  if(adresseClientLisible){
-    texte += `\n📍 Adresse approximative du client : ${adresseClientLisible}`;
+    adresseClientLisible = donneesAdresse.display_name || adresseClientLisible;
+  } catch(e){
+    console.error("Adresse non trouvée :", e);
   }
 
+  // Grouper par boutique
+  const boutiquesUniques = {};
+  panier.forEach(a => {
+    const cle = `${a.nom_boutique || "Boutique"}|${a.telephone_boutique || ""}|${a.lat || ""}|${a.lng || ""}|${a.adresse || ""}`;
+    if(!boutiquesUniques[cle]){
+      boutiquesUniques[cle] = {
+        nomBoutique: a.nom_boutique || "Boutique inconnue",
+        telephone: a.telephone_boutique || "Non renseigné",
+        lat: a.lat,
+        lng: a.lng,
+        adresse: a.adresse || "Non renseignée",
+        articles: [],
+        totalAEnvoyer: 0,
+        totalCommission: 0
+      };
+    }
+    const commissionUnitaire = Number(a.commission) || 0;
+    const partBoutique = Number(a.prix) - commissionUnitaire;
+    const qte = Number(a.quantite) || 1;
+
+    boutiquesUniques[cle].articles.push({ nom: a.nom, quantite: qte, prixUnitaire: Number(a.prix), imageUrl: a.image_url });
+    boutiquesUniques[cle].totalAEnvoyer += partBoutique * qte;
+    boutiquesUniques[cle].totalCommission += commissionUnitaire * qte;
+  });
+
+  // ===== MESSAGE DISCORD AU FORMAT DEMANDÉ =====
+  let texte = `🛒 **NOUVELLE COMMANDE — Prime Service**\n\n`;
+  texte += `📋 **INFOS CLIENT**\n`;
+  texte += `Nom du client: ${nom}\n`;
+  texte += `Numero: ${tel}\n\n`;
+
+  texte += `📦 **ARTICLES COMMANDÉS**\n`;
+  const articlesDejaPhoto = new Set();
+  panier.forEach(a => {
+    const qte = Number(a.quantite) || 1;
+    texte += `\nnom du produit qu'il a acheter(son nonbre): ${a.nom} x${qte}\n`;
+    if(a.image_url && !articlesDejaPhoto.has(a.id)){
+      texte += `une seule photo du produit: ${a.image_url}\n`;
+      articlesDejaPhoto.add(a.id);
+    }
+  });
+
+  texte += `\n📍 **ADRESSE CLIENT**\n`;
+  texte += `Son adresse: ${adresseClientLisible}\n`;
+  texte += `Carte: ${lienPositionClient}\n\n`;
+
+  texte += `🏪 **DÉTAILS PAR BOUTIQUE**\n`;
+  Object.values(boutiquesUniques).forEach((b, idx) => {
+    if(idx > 0) texte += `\n---\n`;
+    const lienItineraire = (b.lat && b.lng) 
+      ? construireLienItineraire(b.lat, b.lng, lat, lng)
+      : "Itinéraire non disponible";
+
+    texte += `\nle nom de la boutique: ${b.nomBoutique}\n`;
+    texte += `l'argent a l'envoier: ${Math.round(b.totalAEnvoyer).toLocaleString("fr-FR")} FCFA\n`;
+    texte += `son adresse vers le la maison du client ou l'itineraire: ${lienItineraire}\n`;
+    texte += `Ma commison: ${Math.round(b.totalCommission).toLocaleString("fr-FR")} FCFA\n`;
+  });
+
+  texte += `\n💰 **TOTAL COMMANDE: ${totalCommande.toLocaleString("fr-FR")} FCFA**`;
+
+  // Embeds Discord (liens cliquables qui affichent des aperçus de carte)
   const embeds = [];
 
+  // Photo du premier article (une seule)
+  const premierAvecImage = panier.find(a => a.image_url);
   if(premierAvecImage){
     embeds.push({ image: { url: premierAvecImage.image_url } });
   }
 
+  // Carte client
   embeds.push({
-    title: "📍 Position du client (quartier)",
+    title: `📍 Position client — ${adresseClientLisible}`,
     url: lienPositionClient,
-    image: { url: construireUrlCarteQuartier(lat, lng) },
+    description: `Cliquez pour ouvrir dans Google Maps`,
+    color: 0x2563eb,
   });
 
-  Object.entries(boutiquesUniques).forEach(([, b]) => {
-    const articleBoutique = panier.find(a => `${a.nom_boutique || "Boutique inconnue"}|${a.telephone_boutique || ""}` === `${b.nomBoutique}|${b.telephone || ""}`);
-    if(!articleBoutique) return;
-    const latBoutique = Number(articleBoutique.lat);
-    const lngBoutique = Number(articleBoutique.lng);
-    const lienItineraire = `https://www.google.com/maps/dir/?api=1&origin=${latBoutique},${lngBoutique}&destination=${lat},${lng}`;
-    embeds.push({
-      title: `🗺️ Itinéraire complet : ${b.nomBoutique} → Client`,
-      url: lienItineraire,
-      image: { url: construireUrlVueEnsemble(latBoutique, lngBoutique, lat, lng) },
-    });
+  // Itinéraires par boutique
+  Object.values(boutiquesUniques).forEach(b => {
+    if(b.lat && b.lng){
+      const lienItineraire = construireLienItineraire(b.lat, b.lng, lat, lng);
+      embeds.push({
+        title: `🗺️ Itinéraire: ${b.nomBoutique} → Client`,
+        url: lienItineraire,
+        description: `Trajet complet Google Maps`,
+        color: 0xf97316,
+      });
+    }
   });
 
-  const corpsRequete = {
-    content: texte,
-    embeds,
+  const corpsRequete = { content: texte, embeds };
+  const commandeAEnvoyer = { 
+    corpsRequete, 
+    articlesPourStock: panier.map(a => ({ id: a.id, quantite: a.quantite })),
+    total: totalCommande 
   };
 
-  const commandeAEnvoyer = { corpsRequete, articlesPourStock: panier.map(a => ({ id: a.id, quantite: a.quantite })) };
-
-  // Pas de connexion : on enregistre la commande sur l'appareil et on
-  // l'enverra automatiquement dès que la connexion reviendra.
+  // Hors-ligne
   if(!navigator.onLine){
     mettreCommandeEnAttente(commandeAEnvoyer);
-    const totalCommande = calculerTotal();
     panier = [];
     mettreAJourCompteur();
     afficherPageMerci(paiement, totalCommande, true);
     return false;
   }
 
-  // Enregistre la commande + met chaque boutiquier en file d'attente de
-  // notification — AVANT le message Discord admin, et indépendamment de
-  // lui : même si ce message Discord échoue, la file d'attente (qui, elle,
-  // tourne sur les serveurs Supabase, PC allumé ou pas) reste créée.
+  // Enregistrement Supabase
   try{
     const { data: commandeEnregistree } = await supabaseClient
       .from("commandes")
@@ -2316,31 +2273,32 @@ async function envoyerCommande(event){
         lat_client: lat,
         lng_client: lng,
         articles: panier,
-        total: calculerTotal(),
+        total: totalCommande,
       })
       .select()
       .single();
 
     if(commandeEnregistree){
-      const lignesNotifBoutiquiers = Object.values(boutiquesUniques)
-        .filter(b => b.telephone)
+      const lignesNotif = Object.values(boutiquesUniques)
+        .filter(b => b.telephone && b.telephone !== "Non renseigné")
         .map(b => ({
           commande_id: commandeEnregistree.id,
           nom_boutique: b.nomBoutique,
           telephone_boutique: b.telephone,
-          message: `Nouvelle commande ! ${Math.round(b.aEnvoyer).toLocaleString("fr-FR")} FCFA à recevoir. Client : ${nom} (${tel}).`,
+          montant_a_recevoir: Math.round(b.totalAEnvoyer),
+          message: `Nouvelle commande ! ${Math.round(b.totalAEnvoyer).toLocaleString("fr-FR")} FCFA à recevoir. Client: ${nom} (${tel}). Adresse: ${adresseClientLisible}`,
         }));
-      if(lignesNotifBoutiquiers.length > 0){
-        await supabaseClient.from("notifications_boutiquiers").insert(lignesNotifBoutiquiers);
+      if(lignesNotif.length > 0){
+        await supabaseClient.from("notifications_boutiquiers").insert(lignesNotif);
       }
     }
-  } catch(erreurEnregistrement){
-    console.error("Commande non enregistrée en base (le message Discord admin part quand même) :", erreurEnregistrement);
+  } catch(e){
+    console.error("Erreur enregistrement base :", e);
   }
 
   btnEnvoyer.disabled = true;
   statutEnvoi.style.color = "#555";
-  statutEnvoi.textContent = "⏳ Envoi de la commande en cours...";
+  statutEnvoi.textContent = "⏳ Envoi en cours...";
 
   try{
     const reponse = await fetch(CONFIG.DISCORD_WEBHOOK_URL, {
@@ -2350,35 +2308,28 @@ async function envoyerCommande(event){
     });
 
     if(reponse.ok){
-      // Diminue le stock de chaque article commandé (l'article disparaît
-      // automatiquement pour tout le monde s'il tombe à 0 — obligatoire).
       for(const article of panier){
         try{
           await supabaseClient.rpc("diminuer_stock", { p_id: article.id, p_quantite: article.quantite });
-        } catch(erreurStock){
-          console.error("Erreur de mise à jour du stock :", erreurStock);
+        } catch(e){
+          console.error("Erreur stock :", e);
         }
       }
-
-      const totalCommande = calculerTotal();
       panier = [];
       mettreAJourCompteur();
       afficherPageMerci(paiement, totalCommande);
     } else {
-      throw new Error("Réponse serveur incorrecte");
+      throw new Error("Réponse incorrecte: " + reponse.status);
     }
   } catch(erreur){
-    // La connexion a pu tomber juste au moment de l'envoi : on met en
-    // attente plutôt que de faire perdre la commande au client.
     if(!navigator.onLine){
       mettreCommandeEnAttente(commandeAEnvoyer);
-      const totalCommande = calculerTotal();
       panier = [];
       mettreAJourCompteur();
       afficherPageMerci(paiement, totalCommande, true);
     } else {
       statutEnvoi.style.color = "#dc2626";
-      statutEnvoi.textContent = "❌ Échec de l'envoi. Vérifiez votre connexion et réessayez.";
+      statutEnvoi.textContent = "❌ Échec de l'envoi. Vérifiez votre connexion.";
     }
   } finally {
     btnEnvoyer.disabled = false;
@@ -2441,36 +2392,25 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
   document.getElementById("vue-merci").style.display = "block";
   document.getElementById("btnRetour").style.display = "none";
 
+  const montantReel = Number(montant) || 0;
+  const montantAffiche = montantReel.toLocaleString("fr-FR") + " FCFA";
+
   document.getElementById("texteMerci").textContent = envoyeeHorsLigne
     ? "📡 Connectez-vous à internet pour valider votre commande. Elle est déjà enregistrée et sera envoyée automatiquement dès que vous serez connecté."
     : "Votre colis est en cours d'envoi et arrivera très bientôt chez vous.";
 
   const numero = CONFIG.NUMERO_PAIEMENT.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
   document.getElementById("numeroPaiementAffiche").textContent = numero;
-  document.getElementById("modePaiementAffiche").textContent = paiement;
-
-  const montantAffiche = Number(montant).toLocaleString("fr-FR") + " FCFA";
+  document.getElementById("modePaiementAffiche").textContent = "Orange Money";
 
   document.getElementById("instructionsOrange").style.display = "none";
-  document.getElementById("instructionsWave").style.display = "none";
 
-  if(paiement === "Orange Money"){
-    document.getElementById("numeroOrangeInstruction").textContent = CONFIG.NUMERO_PAIEMENT;
-    document.getElementById("montantOrangeInstruction").textContent = montantAffiche;
-    document.getElementById("numeroOrangeInstructionKiosque").textContent = CONFIG.NUMERO_PAIEMENT;
-    document.getElementById("montantOrangeInstructionKiosque").textContent = montantAffiche;
-    document.getElementById("instructionsOrange").style.display = "block";
-  } else if(paiement === "Wave"){
-    document.getElementById("numeroWaveInstruction").textContent = CONFIG.NUMERO_PAIEMENT;
-    document.getElementById("montantWaveInstruction").textContent = montantAffiche;
-    document.getElementById("numeroWaveInstructionKiosque").textContent = CONFIG.NUMERO_PAIEMENT;
-    document.getElementById("montantWaveInstructionKiosque").textContent = montantAffiche;
-    document.getElementById("instructionsWave").style.display = "block";
-  }
+  document.getElementById("numeroOrangeInstruction").textContent = CONFIG.NUMERO_PAIEMENT;
+  document.getElementById("montantOrangeInstruction").textContent = montantAffiche;
+  document.getElementById("numeroOrangeInstructionKiosque").textContent = CONFIG.NUMERO_PAIEMENT;
+  document.getElementById("montantOrangeInstructionKiosque").textContent = montantAffiche;
+  document.getElementById("instructionsOrange").style.display = "block";
 
-  // On remplace l'entrée d'historique plutôt que d'en ajouter une : revenir
-  // en arrière depuis cette page ne doit pas re-proposer une commande déjà
-  // envoyée (le panier est déjà vidé à ce stade).
   history.replaceState({ vue: "merci" }, "");
 }
 
@@ -3449,6 +3389,136 @@ async function reprendreSite(){
 function ouvrirEspaceAdminDepuisPause(){
   document.getElementById("ecranPause").style.display = "none";
   ouvrirEspaceAdmin();
+}
+
+let commandeSelectionneeNotif = null;
+
+async function ouvrirNotificationsBoutiquiers(){
+  document.getElementById("admin-accueil").style.display = "none";
+  document.getElementById("notificationsBoutiquiers").style.display = "block";
+  await chargerCommandesPourNotif();
+}
+
+function fermerNotificationsBoutiquiers(){
+  document.getElementById("notificationsBoutiquiers").style.display = "none";
+  document.getElementById("admin-accueil").style.display = "block";
+}
+
+async function chargerCommandesPourNotif(){
+  const conteneur = document.getElementById("listeCommandesPourNotif");
+  try{
+    const { data: commandes, error } = await supabaseClient
+      .from("commandes")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(15);
+
+    if(error) throw error;
+    if(!commandes || commandes.length === 0){
+      conteneur.innerHTML = `<p style="color:#666;text-align:center;">Aucune commande.</p>`;
+      return;
+    }
+
+    conteneur.innerHTML = commandes.map(cmd => {
+      const articles = cmd.articles || [];
+      const nb = articles.reduce((n, a) => n + (a.quantite || 1), 0);
+      const date = new Date(cmd.created_at).toLocaleString("fr-FR");
+      return `
+        <div style="border:1px solid var(--gris-bordure);border-radius:12px;padding:12px;margin-bottom:10px;">
+          <div style="font-weight:700;">Commande #${cmd.id} — ${date}</div>
+          <div style="font-size:13px;color:#666;margin:4px 0;">
+            👤 ${cmd.nom_client || "—"} · 📞 ${cmd.telephone_client || "—"} · 📦 ${nb} article(s)
+          </div>
+          <div style="font-size:13px;color:#666;margin-bottom:8px;">
+            💰 ${Number(cmd.total || 0).toLocaleString("fr-FR")} FCFA
+          </div>
+          <button class="btn-secondaire" style="margin:0;" onclick='preparerNotifBoutiquier(${JSON.stringify(cmd).replace(/'/g, "&#39;")})'>
+            📨 Préparer la notification
+          </button>
+        </div>
+      `;
+    }).join("");
+  } catch(e){
+    conteneur.innerHTML = `<p style="color:#dc2626;text-align:center;">Erreur de chargement.</p>`;
+  }
+}
+
+function preparerNotifBoutiquier(commande){
+  commandeSelectionneeNotif = commande;
+  const articles = commande.articles || [];
+
+  let msg = `Nouvelle commande reçue !\n\n`;
+  msg += `👤 Client: ${commande.nom_client || "—"}\n`;
+  msg += `📞 Téléphone: ${commande.telephone_client || "—"}\n`;
+  msg += `📍 Quartier: ${commande.lat_client ? "Voir carte ci-dessous" : "Non précisé"}\n\n`;
+  msg += `📦 Articles:\n`;
+
+  articles.forEach(a => {
+    msg += `- ${a.nom} x${a.quantite || 1}\n`;
+    if(a.image_url) msg += `  Photo: ${a.image_url}\n`;
+  });
+
+  msg += `\n💰 Total: ${Number(commande.total || 0).toLocaleString("fr-FR")} FCFA\n`;
+  msg += `💳 Paiement: Orange Money\n`;
+
+  if(commande.lat_client && commande.lng_client){
+    msg += `\n🗺️ Carte client: https://www.google.com/maps?q=${commande.lat_client},${commande.lng_client}`;
+  }
+
+  document.getElementById("messageNotifBoutiquier").value = msg;
+  document.getElementById("modaleNotifBoutiquier").style.display = "flex";
+  document.getElementById("statutNotifBoutiquier").textContent = "";
+}
+
+async function envoyerNotifBoutiquier(){
+  const statut = document.getElementById("statutNotifBoutiquier");
+  const message = document.getElementById("messageNotifBoutiquier").value.trim();
+
+  if(!message || !commandeSelectionneeNotif){
+    statut.style.color = "#dc2626";
+    statut.textContent = "⚠️ Message vide ou commande non sélectionnée.";
+    return;
+  }
+
+  statut.style.color = "#666";
+  statut.textContent = "Envoi en cours...";
+
+  try{
+    const articles = commandeSelectionneeNotif.articles || [];
+    const telephones = [...new Set(articles.map(a => a.telephone_boutique).filter(Boolean))];
+
+    if(telephones.length === 0){
+      statut.style.color = "#dc2626";
+      statut.textContent = "⚠️ Aucun numéro de boutique trouvé.";
+      return;
+    }
+
+    const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/clever-processor`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+        "apikey": CONFIG.SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        titre: "Nouvelle commande Prime Service 🚀",
+        message: message,
+        telephones_cibles: telephones,
+        url: window.location.origin + window.location.pathname,
+      }),
+    });
+
+    if(!reponse.ok) throw new Error("Échec");
+
+    statut.style.color = "#16a34a";
+    statut.textContent = "✅ Notification envoyée !";
+    setTimeout(() => {
+      document.getElementById("modaleNotifBoutiquier").style.display = "none";
+    }, 1500);
+  } catch(e){
+    statut.style.color = "#dc2626";
+    statut.textContent = "❌ Envoi impossible. Vérifiez la connexion.";
+  }
 }
 
 verifierEtatPause();
