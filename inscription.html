@@ -896,8 +896,8 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
         </label>
 
         <label class="case-condition-obligatoire">
-          <input type="checkbox" id="autorisationNotifBoutique">
-          J'autorise Prime Service à m'envoyer une notification quand ma boutique reçoit une commande.
+          <input type="checkbox" id="autorisationNotifBoutique" required>
+          J'autorise Prime Service à m'envoyer une notification quand ma boutique reçoit une commande. <strong style="color:#dc2626;">(Obligatoire)</strong>
         </label>
 
         <p class="texte-info-conditions">Une question ? Appelez le <strong>94 13 44 08</strong>.</p>
@@ -1138,6 +1138,12 @@ async function envoyerSoumission(event){
   if(!document.getElementById("conditionLivraison").checked){
     statut.style.color = "#dc2626";
     statut.textContent = "⚠️ Cochez la case confirmant que vous utilisez votre propre livreur.";
+    return false;
+  }
+
+  if(!document.getElementById("autorisationNotifBoutique").checked){
+    statut.style.color = "#dc2626";
+    statut.textContent = "⚠️ Vous devez autoriser les notifications pour recevoir les commandes de vos clients.";
     return false;
   }
 
