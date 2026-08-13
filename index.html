@@ -1074,7 +1074,6 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 <meta name="theme-color" content="#1a1a1a">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-<base target="_blank">
 </head>
 <body>
 
@@ -2421,10 +2420,6 @@ async function envoyerCommande(event){
   statutEnvoi.textContent = "⏳ Envoi en cours...";
 
   try{
-    // Vérifier que le webhook est configuré
-    if(!CONFIG.DISCORD_WEBHOOK_URL || CONFIG.DISCORD_WEBHOOK_URL === ""){
-      throw new Error("Webhook Discord non configuré");
-    }
 
     console.log("Envoi Discord en cours...", corpsRequete);
 
@@ -2435,7 +2430,7 @@ async function envoyerCommande(event){
         "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
       },
       body: JSON.stringify({
-        message: texte,
+        content: texte,
         embeds: embeds
       })
     });
