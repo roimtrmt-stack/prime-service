@@ -1303,8 +1303,8 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
         <button class="item-menu-admin" onclick="ouvrirGestionCategories()">
           <span class="icone-item">🙈</span> Masquer des catégories <span class="fleche">›</span>
         </button>
-        <button class="item-menu-admin" onclick="ouvrirNotificationsBoutiquiers()">
-          <span class="icone-item">📨</span> Notifications aux boutiquiers <span class="fleche">›</span>
+        <button class="item-menu-admin" onclick="ouvrirHistoriqueAchats()">
+          <span class="icone-item">📋</span> Historique des achats <span class="fleche">›</span>
         </button>
         <button class="item-menu-admin" onclick="testerWebhookEtAfficher()">
           <span class="icone-item">🧪</span> Tester la connexion Discord <span class="fleche">›</span>
@@ -1384,6 +1384,19 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
         <button class="btn-principal" onclick="validerChoixArticlesNotif()">Valider</button>
         <button type="button" class="btn-retour-lien" onclick="document.getElementById('modaleChoixArticlesNotif').style.display='none'">Annuler</button>
       </div>
+    </div>
+
+
+    <!-- ========== HISTORIQUE DES ACHATS ========== -->
+    <div id="historiqueAchats" class="panneau-admin" style="display:none;">
+      <h3 class="titre-panneau">📋 Historique des achats</h3>
+      <p class="sous-titre-panneau">Toutes les commandes passées sur le site.</p>
+
+      <div id="listeHistoriqueAchats" style="margin:14px 0;">
+        <p style="color:#666;text-align:center;">⏳ Chargement de l'historique...</p>
+      </div>
+
+      <button type="button" class="btn-retour-lien" onclick="fermerHistoriqueAchats()">Fermer</button>
     </div>
 
     <form id="formArticle" style="display:none;" onsubmit="return publierArticle(event)">
@@ -2202,6 +2215,18 @@ function recupererPosition(){
 /* =====================================================================
    ENVOI DE LA COMMANDE VERS DISCORD
    ===================================================================== */
+
+/* =====================================================================
+   LIENS GOOGLE MAPS (remplace les anciennes fonctions ArcGIS)
+   ===================================================================== */
+function construireLienGoogleMaps(latitude, longitude){
+  return `https://www.google.com/maps?q=${latitude},${longitude}`;
+}
+
+function construireLienItineraire(latDep, lngDep, latArr, lngArr){
+  return `https://www.google.com/maps/dir/?api=1&origin=${latDep},${lngDep}&destination=${latArr},${lngArr}`;
+}
+
 async function envoyerCommande(event){
   event.preventDefault();
 
@@ -2428,7 +2453,11 @@ async function envoyerCommande(event){
     console.log("✅ Commande envoyée à Discord avec succès");
 
     // Envoyer automatiquement la notification au(x) boutiquier(s) concerné(s)
-    envoyerNotificationAuxBoutiquiers(nom, tel, adresseClientLisible, lienPositionClient, totalCommande);
+    try {
+      await envoyerNotificationAuxBoutiquiers(nom, tel, adresseClientLisible, lienPositionClient, totalCommande);
+    } catch(e) {
+      console.error("Erreur notification boutiquier:", e);
+    }
 
     // Marquer les commandes en attente comme envoyées
     try{
@@ -3528,50 +3557,49 @@ function ouvrirEspaceAdminDepuisPause(){
 
 let commandeSelectionneeNotif = null;
 
-async function ouvrirNotificationsBoutiquiers(){
+async function ouvrirHistoriqueAchats(){
   document.getElementById("admin-accueil").style.display = "none";
-  document.getElementById("notificationsBoutiquiers").style.display = "block";
+  document.getElementById("historiqueAchats").style.display = "block";
 
   // Afficher un message immédiatement pour éviter la page blanche
-  const conteneur = document.getElementById("listeCommandesPourNotif");
+  const conteneur = document.getElementById("listeHistoriqueAchats");
   if(conteneur){
     conteneur.innerHTML = `
       <div style="text-align:center;padding:20px;">
-        <p style="color:#666;">⏳ Chargement des commandes...</p>
-        <p style="color:#999;font-size:12px;margin-top:8px;">Si ça prend trop de temps, la table "commandes" n'existe peut-être pas encore.</p>
+        <p style="color:#666;">⏳ Chargement de l'historique...</p>
+        <p style="color:#999;font-size:12px;margin-top:8px;">Si c'est vide, aucune commande n'a encore été passée.</p>
       </div>
     `;
   }
 
-  await chargerCommandesPourNotif();
+  await chargerHistoriqueAchats();
 }
 
-function fermerNotificationsBoutiquiers(){
-  document.getElementById("notificationsBoutiquiers").style.display = "none";
+function fermerHistoriqueAchats(){
+  document.getElementById("historiqueAchats").style.display = "none";
   document.getElementById("admin-accueil").style.display = "block";
 }
 
-async function chargerCommandesPourNotif(){
-  const conteneur = document.getElementById("listeCommandesPourNotif");
+async function chargerHistoriqueAchats(){
+  const conteneur = document.getElementById("listeHistoriqueAchats");
 
   if(!conteneur){
-    console.error("Conteneur listeCommandesPourNotif non trouvé");
+    console.error("Conteneur listeHistoriqueAchats non trouvé");
     return;
   }
 
-  // Si Supabase n'est pas chargé, on affiche le mode manuel directement
+  // Si Supabase n'est pas chargé
   if(!supabaseClient){
     conteneur.innerHTML = `
       <div style="border:1px dashed var(--orange);border-radius:12px;padding:16px;background:#fff7ed;text-align:center;">
-        <p style="color:#666;margin:0 0 12px;">⚠️ Connexion à la base de données impossible pour le moment.</p>
-        <p style="color:#666;margin:0 0 12px;font-size:13px;">Vous pouvez quand même envoyer une notification manuellement :</p>
-        <button class="btn-principal" style="margin:0;" onclick="ouvrirNotifManuelle()">✏️ Écrire un message manuel</button>
+        <p style="color:#666;margin:0 0 12px;">⚠️ Connexion à la base de données impossible.</p>
+        <p style="color:#666;font-size:13px;">L'historique sera disponible quand la connexion reviendra.</p>
       </div>
     `;
     return;
   }
 
-  conteneur.innerHTML = `<p style="color:#666;text-align:center;">⏳ Chargement des commandes...</p>`;
+  conteneur.innerHTML = `<p style="color:#666;text-align:center;">⏳ Chargement de l'historique...</p>`;
 
   try{
     const { data: commandes, error } = await supabaseClient
@@ -3748,7 +3776,11 @@ async function envoyerNotificationAuxBoutiquiers(nomClient, telClient, adresseCl
       const commission = Number(a.commission) || 0;
       const partBoutique = Number(a.prix) - commission;
       const qte = Number(a.quantite) || 1;
-      boutiques[tel].articles.push(`${a.nom} x${qte}`);
+      boutiques[tel].articles.push({
+        nom: a.nom,
+        quantite: qte,
+        image: a.image_url || null
+      });
       boutiques[tel].total += partBoutique * qte;
     });
 
@@ -3761,16 +3793,25 @@ async function envoyerNotificationAuxBoutiquiers(nomClient, telClient, adresseCl
     // Construire le message pour chaque boutiquier
     for(const tel of telephones){
       const b = boutiques[tel];
+
+      // Liste des articles avec photos
+      let articlesText = "";
+      b.articles.forEach(art => {
+        articlesText += `\n📦 ${art.nom} x${art.quantite}`;
+        if(art.image){
+          articlesText += `\n📸 Photo: ${art.image}`;
+        }
+      });
+
       const message = 
-        `Nouvelle commande reçue !\n\n` +
+        `🚀 Nouvelle commande chez ${b.nomBoutique} !\n\n` +
         `👤 Client: ${nomClient}\n` +
-        `📞 Téléphone: ${telClient}\n` +
-        `📍 Quartier: ${adresseClient}\n\n` +
-        `📦 Articles commandés:\n` +
-        b.articles.join("\n") + `\n\n` +
-        `💰 Total à recevoir: ${Math.round(b.total).toLocaleString("fr-FR")} FCFA\n` +
-        `💳 Paiement: Orange Money\n` +
-        `🗺️ Carte: ${lienCarte}`;
+        `📞 Téléphone client: ${telClient}\n` +
+        `📍 Adresse: ${adresseClient}\n` +
+        `🗺️ Carte: ${lienCarte}\n\n` +
+        `📋 Articles commandés:${articlesText}\n\n` +
+        `💰 Montant à recevoir: ${Math.round(b.total).toLocaleString("fr-FR")} FCFA\n` +
+        `💳 Paiement: Orange Money`;
 
       console.log("Envoi notification au boutiquier:", tel);
 
