@@ -1305,6 +1305,9 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
         <button class="item-menu-admin" onclick="ouvrirNotificationsBoutiquiers()">
           <span class="icone-item">📨</span> Notifications aux boutiquiers <span class="fleche">›</span>
         </button>
+        <button class="item-menu-admin" onclick="testerWebhookEtAfficher()">
+          <span class="icone-item">🧪</span> Tester la connexion Discord <span class="fleche">›</span>
+        </button>
       </div>
 
       <div id="blocLienInscription" class="panneau-admin" style="display:none;">
@@ -1463,7 +1466,9 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
    CONFIGURATION
    ===================================================================== */
 const CONFIG = {
-  DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1530519565266583603/uFvdbXwz4xB98dH-I41ZzADfbYNMXvAyM51fyDqk_9kRZJ7mcsXNfSiXSef8s3RypqnM",
+  // 🛡️ Le webhook Discord est maintenant caché côté serveur (Edge Function)
+  // Plus besoin de l'exposer ici. Il est stocké dans les variables d'environnement Supabase.
+  DISCORD_WEBHOOK_URL: "", // Laisser vide - plus utilisé
   SUPABASE_URL: "https://kfxalpvbtbvkncztjwzc.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
   NUMERO_PAIEMENT: "94134408",
@@ -1492,6 +1497,78 @@ function echapperHtml(texte){
 // du code arbitraire.
 function echapperPourOnclick(texte){
   return echapperHtml(JSON.stringify(String(texte ?? "")));
+}
+
+
+/* =====================================================================
+   TEST DU WEBHOOK DISCORD (pour déboguer)
+   ===================================================================== */
+async function testerWebhookDiscord(){
+  try{
+    const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-commande`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({
+        message: "🧪 Test de connexion - Prime Service",
+        embeds: []
+      })
+    });
+    console.log("Test Edge Function:", reponse.status, reponse.ok ? "✅ OK" : "❌ ÉCHEC");
+    return reponse.ok;
+  } catch(e){
+    console.error("Test Edge Function échoué:", e);
+    return false;
+  }
+}
+
+/* =====================================================================
+   SAUVEGARDE DE SECOURS DES COMMANDES (si Discord tombe)
+   ===================================================================== */
+const CLE_COMMANDES_SECOURS = "primeservice_commandes_secours";
+
+function sauvegarderCommandeSecours(commandeTexte){
+  try{
+    const existantes = JSON.parse(localStorage.getItem(CLE_COMMANDES_SECOURS) || "[]");
+    existantes.push({
+      date: new Date().toISOString(),
+      texte: commandeTexte,
+      envoyee: false
+    });
+    localStorage.setItem(CLE_COMMANDES_SECOURS, JSON.stringify(existantes));
+  } catch(e){}
+}
+
+function recupererCommandesSecours(){
+  try{
+    return JSON.parse(localStorage.getItem(CLE_COMMANDES_SECOURS) || "[]");
+  } catch(e){ return []; }
+}
+
+async function testerWebhookEtAfficher(){
+  const statut = document.getElementById("statutConnexion") || document.createElement("p");
+  if(!document.getElementById("statutConnexion")){
+    statut.id = "statutTestWebhook";
+    statut.className = "statut-envoi";
+    document.getElementById("admin-accueil").appendChild(statut);
+  }
+
+  statut.style.color = "#555";
+  statut.textContent = "🧪 Test en cours...";
+
+  const ok = await testerWebhookDiscord();
+
+  if(ok){
+    statut.style.color = "#16a34a";
+    statut.textContent = "✅ Webhook Discord fonctionne parfaitement !";
+  } else {
+    statut.style.color = "#dc2626";
+    statut.textContent = "❌ Webhook Discord ne répond pas. Vérifiez l'URL dans CONFIG ou régénérez-le sur Discord.";
+  }
+
+  setTimeout(() => { statut.textContent = ""; }, 8000);
 }
 
 /* =====================================================================
@@ -2301,27 +2378,64 @@ async function envoyerCommande(event){
   statutEnvoi.textContent = "⏳ Envoi en cours...";
 
   try{
-    const reponse = await fetch(CONFIG.DISCORD_WEBHOOK_URL, {
+    // Vérifier que le webhook est configuré
+    if(!CONFIG.DISCORD_WEBHOOK_URL || CONFIG.DISCORD_WEBHOOK_URL === ""){
+      throw new Error("Webhook Discord non configuré");
+    }
+
+    console.log("Envoi Discord en cours...", corpsRequete);
+
+    const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-commande`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(corpsRequete)
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({
+        message: texte,
+        embeds: embeds
+      })
     });
 
-    if(reponse.ok){
-      for(const article of panier){
-        try{
-          await supabaseClient.rpc("diminuer_stock", { p_id: article.id, p_quantite: article.quantite });
-        } catch(e){
-          console.error("Erreur stock :", e);
-        }
-      }
-      panier = [];
-      mettreAJourCompteur();
-      afficherPageMerci(paiement, totalCommande);
-    } else {
-      throw new Error("Réponse incorrecte: " + reponse.status);
+    console.log("Réponse Discord:", reponse.status, reponse.statusText);
+
+    // Si Discord renvoie 429 (rate limit) ou 401/403 (webhook invalide)
+    if(!reponse.ok){
+      const texteErreur = await reponse.text().catch(() => "");
+      console.error("Erreur Discord:", reponse.status, texteErreur);
+      throw new Error(`Discord a refusé l'envoi (${reponse.status}). ${texteErreur}`);
     }
+
+    // Succès !
+    console.log("✅ Commande envoyée à Discord avec succès");
+
+    // Marquer les commandes en attente comme envoyées
+    try{
+      const secours = recupererCommandesSecours();
+      if(secours.length > 0){
+        localStorage.setItem(CLE_COMMANDES_SECOURS, JSON.stringify(
+          secours.map(c => ({...c, envoyee: true}))
+        ));
+      }
+    } catch(e){}
+
+    for(const article of panier){
+      try{
+        await supabaseClient.rpc("diminuer_stock", { p_id: article.id, p_quantite: article.quantite });
+      } catch(e){
+        console.error("Erreur stock :", e);
+      }
+    }
+    panier = [];
+    mettreAJourCompteur();
+    afficherPageMerci(paiement, totalCommande);
+
   } catch(erreur){
+    console.error("Erreur complète:", erreur);
+
+    // Sauvegarder la commande en secours pour ne pas la perdre
+    sauvegarderCommandeSecours(texte);
+
     if(!navigator.onLine){
       mettreCommandeEnAttente(commandeAEnvoyer);
       panier = [];
@@ -2329,7 +2443,7 @@ async function envoyerCommande(event){
       afficherPageMerci(paiement, totalCommande, true);
     } else {
       statutEnvoi.style.color = "#dc2626";
-      statutEnvoi.textContent = "❌ Échec de l'envoi. Vérifiez votre connexion.";
+      statutEnvoi.textContent = "❌ " + (erreur.message || "Échec de l'envoi. Vérifiez votre connexion.");
     }
   } finally {
     btnEnvoyer.disabled = false;
@@ -3406,6 +3520,21 @@ function fermerNotificationsBoutiquiers(){
 
 async function chargerCommandesPourNotif(){
   const conteneur = document.getElementById("listeCommandesPourNotif");
+
+  // Si Supabase n'est pas chargé, on affiche le mode manuel directement
+  if(!supabaseClient){
+    conteneur.innerHTML = `
+      <div style="border:1px dashed var(--orange);border-radius:12px;padding:16px;background:#fff7ed;text-align:center;">
+        <p style="color:#666;margin:0 0 12px;">⚠️ Connexion à la base de données impossible pour le moment.</p>
+        <p style="color:#666;margin:0 0 12px;font-size:13px;">Vous pouvez quand même envoyer une notification manuellement :</p>
+        <button class="btn-principal" style="margin:0;" onclick="ouvrirNotifManuelle()">✏️ Écrire un message manuel</button>
+      </div>
+    `;
+    return;
+  }
+
+  conteneur.innerHTML = `<p style="color:#666;text-align:center;">⏳ Chargement des commandes...</p>`;
+
   try{
     const { data: commandes, error } = await supabaseClient
       .from("commandes")
@@ -3413,9 +3542,26 @@ async function chargerCommandesPourNotif(){
       .order("created_at", { ascending: false })
       .limit(15);
 
-    if(error) throw error;
+    if(error){
+      // La table n'existe probablement pas encore
+      console.error("Erreur Supabase:", error);
+      conteneur.innerHTML = `
+        <div style="border:1px dashed var(--orange);border-radius:12px;padding:16px;background:#fff7ed;text-align:center;">
+          <p style="color:#666;margin:0 0 12px;">⚠️ ${error.message || "Impossible de charger les commandes"}</p>
+          <p style="color:#666;margin:0 0 12px;font-size:13px;">La table "commandes" n'existe peut-être pas encore dans Supabase, ou les permissions RLS bloquent l'accès.</p>
+          <button class="btn-principal" style="margin:0;" onclick="ouvrirNotifManuelle()">✏️ Écrire un message manuel</button>
+        </div>
+      `;
+      return;
+    }
+
     if(!commandes || commandes.length === 0){
-      conteneur.innerHTML = `<p style="color:#666;text-align:center;">Aucune commande.</p>`;
+      conteneur.innerHTML = `
+        <div style="border:1px dashed var(--gris-bordure);border-radius:12px;padding:16px;background:var(--gris-fond);text-align:center;">
+          <p style="color:#666;margin:0 0 12px;">Aucune commande enregistrée pour le moment.</p>
+          <button class="btn-principal" style="margin:0;" onclick="ouvrirNotifManuelle()">✏️ Écrire un message manuel</button>
+        </div>
+      `;
       return;
     }
 
@@ -3439,8 +3585,29 @@ async function chargerCommandesPourNotif(){
       `;
     }).join("");
   } catch(e){
-    conteneur.innerHTML = `<p style="color:#dc2626;text-align:center;">Erreur de chargement.</p>`;
+    console.error("Erreur chargement commandes:", e);
+    conteneur.innerHTML = `
+      <div style="border:1px dashed var(--orange);border-radius:12px;padding:16px;background:#fff7ed;text-align:center;">
+        <p style="color:#666;margin:0 0 12px;">⚠️ Erreur de connexion à Supabase.</p>
+        <button class="btn-principal" style="margin:0;" onclick="ouvrirNotifManuelle()">✏️ Écrire un message manuel</button>
+      </div>
+    `;
   }
+}
+
+function ouvrirNotifManuelle(){
+  commandeSelectionneeNotif = null;
+  document.getElementById("messageNotifBoutiquier").value = 
+    `Nouvelle commande reçue !\n\n` +
+    `👤 Client: (à compléter)\n` +
+    `📞 Téléphone: (à compléter)\n` +
+    `📍 Quartier: (à compléter)\n\n` +
+    `📦 Articles:\n` +
+    `- (article 1)\n\n` +
+    `💰 Total: FCFA\n` +
+    `💳 Paiement: Orange Money`;
+  document.getElementById("modaleNotifBoutiquier").style.display = "flex";
+  document.getElementById("statutNotifBoutiquier").textContent = "";
 }
 
 function preparerNotifBoutiquier(commande){
