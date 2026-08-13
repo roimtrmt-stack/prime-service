@@ -2426,6 +2426,9 @@ async function envoyerCommande(event){
     // Succès !
     console.log("✅ Commande envoyée à Discord avec succès");
 
+    // Envoyer automatiquement la notification au(x) boutiquier(s) concerné(s)
+    envoyerNotificationAuxBoutiquiers(nom, tel, adresseClientLisible, lienPositionClient, totalCommande);
+
     // Marquer les commandes en attente comme envoyées
     try{
       const secours = recupererCommandesSecours();
@@ -3719,6 +3722,76 @@ async function envoyerNotifBoutiquier(){
   } catch(e){
     statut.style.color = "#dc2626";
     statut.textContent = "❌ Envoi impossible. Vérifiez la connexion.";
+  }
+}
+
+/* =====================================================================
+   ENVOI AUTOMATIQUE DE NOTIFICATION AU BOUTIQUIER CONCERNÉ
+   Cette fonction s'exécute automatiquement après chaque commande
+   ===================================================================== */
+async function envoyerNotificationAuxBoutiquiers(nomClient, telClient, adresseClient, lienCarte, totalCommande){
+  try{
+    // Récupérer les articles du panier pour trouver les boutiquiers concernés
+    const boutiques = {};
+    panier.forEach(a => {
+      const tel = a.telephone_boutique;
+      if(!tel) return;
+      if(!boutiques[tel]){
+        boutiques[tel] = {
+          telephone: tel,
+          nomBoutique: a.nom_boutique || "Boutique",
+          articles: [],
+          total: 0
+        };
+      }
+      const commission = Number(a.commission) || 0;
+      const partBoutique = Number(a.prix) - commission;
+      const qte = Number(a.quantite) || 1;
+      boutiques[tel].articles.push(`${a.nom} x${qte}`);
+      boutiques[tel].total += partBoutique * qte;
+    });
+
+    const telephones = Object.keys(boutiques);
+    if(telephones.length === 0){
+      console.log("Aucun boutiquier à notifier (pas de téléphone enregistré)");
+      return;
+    }
+
+    // Construire le message pour chaque boutiquier
+    for(const tel of telephones){
+      const b = boutiques[tel];
+      const message = 
+        `Nouvelle commande reçue !\n\n` +
+        `👤 Client: ${nomClient}\n` +
+        `📞 Téléphone: ${telClient}\n` +
+        `📍 Quartier: ${adresseClient}\n\n` +
+        `📦 Articles commandés:\n` +
+        b.articles.join("\n") + `\n\n` +
+        `💰 Total à recevoir: ${Math.round(b.total).toLocaleString("fr-FR")} FCFA\n` +
+        `💳 Paiement: Orange Money\n` +
+        `🗺️ Carte: ${lienCarte}`;
+
+      console.log("Envoi notification au boutiquier:", tel);
+
+      await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/clever-processor`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+          "apikey": CONFIG.SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          titre: "Nouvelle commande Prime Service 🚀",
+          message: message,
+          telephones_cibles: [tel],
+          url: window.location.origin + window.location.pathname,
+        }),
+      });
+    }
+
+    console.log("✅ Notifications boutiquiers envoyées automatiquement");
+  } catch(e){
+    console.error("Erreur envoi notification boutiquier:", e);
   }
 }
 
