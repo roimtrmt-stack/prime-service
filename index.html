@@ -1548,27 +1548,44 @@ function recupererCommandesSecours(){
 }
 
 async function testerWebhookEtAfficher(){
-  const statut = document.getElementById("statutConnexion") || document.createElement("p");
-  if(!document.getElementById("statutConnexion")){
+  // Créer ou récupérer l'élément de statut dédié
+  let statut = document.getElementById("statutTestWebhook");
+  if(!statut){
+    statut = document.createElement("p");
     statut.id = "statutTestWebhook";
     statut.className = "statut-envoi";
+    statut.style.marginTop = "14px";
+    statut.style.padding = "10px";
+    statut.style.borderRadius = "8px";
     document.getElementById("admin-accueil").appendChild(statut);
   }
 
+  statut.style.display = "block";
   statut.style.color = "#555";
+  statut.style.background = "var(--gris-fond)";
   statut.textContent = "🧪 Test en cours...";
 
-  const ok = await testerWebhookDiscord();
+  try{
+    const ok = await testerWebhookDiscord();
 
-  if(ok){
-    statut.style.color = "#16a34a";
-    statut.textContent = "✅ Webhook Discord fonctionne parfaitement !";
-  } else {
+    if(ok){
+      statut.style.color = "#16a34a";
+      statut.style.background = "#f0fdf4";
+      statut.textContent = "✅ Connexion Discord OK ! Les commandes arriveront bien.";
+    } else {
+      statut.style.color = "#dc2626";
+      statut.style.background = "#fef2f2";
+      statut.textContent = "❌ La connexion a échoué. Vérifie dans Supabase que le secret DISCORD_WEBHOOK_URL est bien ajouté et que le JWT est désactivé.";
+    }
+  } catch(e){
     statut.style.color = "#dc2626";
-    statut.textContent = "❌ Webhook Discord ne répond pas. Vérifiez l'URL dans CONFIG ou régénérez-le sur Discord.";
+    statut.style.background = "#fef2f2";
+    statut.textContent = "❌ Erreur: " + e.message;
   }
 
-  setTimeout(() => { statut.textContent = ""; }, 8000);
+  setTimeout(() => { 
+    if(statut) statut.style.display = "none"; 
+  }, 10000);
 }
 
 /* =====================================================================
@@ -3510,6 +3527,18 @@ let commandeSelectionneeNotif = null;
 async function ouvrirNotificationsBoutiquiers(){
   document.getElementById("admin-accueil").style.display = "none";
   document.getElementById("notificationsBoutiquiers").style.display = "block";
+
+  // Afficher un message immédiatement pour éviter la page blanche
+  const conteneur = document.getElementById("listeCommandesPourNotif");
+  if(conteneur){
+    conteneur.innerHTML = `
+      <div style="text-align:center;padding:20px;">
+        <p style="color:#666;">⏳ Chargement des commandes...</p>
+        <p style="color:#999;font-size:12px;margin-top:8px;">Si ça prend trop de temps, la table "commandes" n'existe peut-être pas encore.</p>
+      </div>
+    `;
+  }
+
   await chargerCommandesPourNotif();
 }
 
@@ -3520,6 +3549,11 @@ function fermerNotificationsBoutiquiers(){
 
 async function chargerCommandesPourNotif(){
   const conteneur = document.getElementById("listeCommandesPourNotif");
+
+  if(!conteneur){
+    console.error("Conteneur listeCommandesPourNotif non trouvé");
+    return;
+  }
 
   // Si Supabase n'est pas chargé, on affiche le mode manuel directement
   if(!supabaseClient){
