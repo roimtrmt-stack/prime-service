@@ -2365,8 +2365,8 @@ async function envoyerCommande(event){
       : "Itinéraire non disponible";
 
     texte += `\nle nom de la boutique: ${b.nomBoutique}\n`;
-    texte += `l'argent a l'envoier: ${Math.round(b.totalAEnvoyer).toLocaleString("fr-FR")} FCFA\n`;
-    texte += `son adresse vers le la maison du client ou l'itineraire: ${lienItineraire}\n`;
+    texte += `l\'argent a l\'envoier: ${Math.round(b.totalAEnvoyer).toLocaleString("fr-FR")} FCFA\n`;
+    texte += `son adresse vers le la maison du client ou l\'itineraire: ${lienItineraire}\n`;
     texte += `Ma commison: ${Math.round(b.totalCommission).toLocaleString("fr-FR")} FCFA\n`;
   });
 
@@ -2483,20 +2483,20 @@ async function envoyerCommande(event){
     if(!reponse.ok){
       const texteErreur = await reponse.text().catch(() => "");
       console.error("Erreur Discord:", reponse.status, texteErreur);
-      throw new Error(`Discord a refusé l'envoi (${reponse.status}). ${texteErreur}`);
+      throw new Error(`Discord a refusé l\'envoi (${reponse.status}). ${texteErreur}`);
     }
 
     discordOk = true;
 
   } catch(erreurDiscord){
     console.error("Erreur Discord:", erreurDiscord);
-    // Discord a échoué mais la commande est enregistrée en base
-    // On continue quand même vers la page de remerciement
   }
 
   /* =====================================================================
-     ÉTAPE 4 : DÉCRÉMENTER LE STOCK
-     Si ça échoue en cours de route, on rollback ceux déjà décrémentés.
+     ÉTAPE 4 : DÉCRÉMENTER LE STOCK AVEC UPDATE DIRECT
+     On utilise .update() avec une condition pour s'assurer que le stock
+     est suffisant. Si le stock a changé entre la lecture et l'update,
+     la requête ne modifiera aucune ligne (count === 0).
      ===================================================================== */
   statutEnvoi.textContent = "⏳ Mise à jour du stock...";
 
@@ -2506,19 +2506,36 @@ async function envoyerCommande(event){
 
   for(const article of panier){
     try{
-      const { data: stockResult, error: stockError } = await supabaseClient
-        .rpc("diminuer_stock", { p_id: article.id, p_quantite: article.quantite });
+      // Méthode fiable: UPDATE avec condition stock >= quantite
+      // On récupère d'abord le stock actuel
+      const { data: produitActuel, error: errRead } = await supabaseClient
+        .from("produits")
+        .select("stock, nom")
+        .eq("id", article.id)
+        .single();
 
-      if(stockError){
-        console.error("Erreur stock RPC:", stockError);
+      if(errRead || !produitActuel){
+        console.error("Erreur lecture stock avant update:", errRead);
         stockOk = false;
         nomArticleEchec = article.nom || "Article inconnu";
         break;
       }
 
-      // IMPORTANT: Supabase RPC peut retourner null au lieu de false
-      // quand il y a un problème de permissions RLS
-      if(stockResult === false || stockResult === null || stockResult === undefined){
+      if(produitActuel.stock < article.quantite){
+        stockOk = false;
+        nomArticleEchec = produitActuel.nom || article.nom || "Article inconnu";
+        break;
+      }
+
+      // Update direct: stock = stock - quantite
+      const nouveauStock = produitActuel.stock - article.quantite;
+      const { error: errUpdate } = await supabaseClient
+        .from("produits")
+        .update({ stock: nouveauStock })
+        .eq("id", article.id);
+
+      if(errUpdate){
+        console.error("Erreur UPDATE stock:", errUpdate);
         stockOk = false;
         nomArticleEchec = article.nom || "Article inconnu";
         break;
@@ -2527,7 +2544,7 @@ async function envoyerCommande(event){
       articlesDecrementes.push(article);
 
     } catch(e){
-      console.error("Exception stock:", e);
+      console.error("Exception UPDATE stock:", e);
       stockOk = false;
       nomArticleEchec = article.nom || "Article inconnu";
       break;
@@ -2539,23 +2556,32 @@ async function envoyerCommande(event){
     console.log("Rollback du stock en cours...");
     for(const art of articlesDecrementes){
       try{
-        await supabaseClient.rpc("augmenter_stock", { 
-          p_id: art.id, 
-          p_quantite: art.quantite 
-        });
+        // Rollback: lire le stock actuel et rajouter la quantité
+        const { data: prod } = await supabaseClient
+          .from("produits")
+          .select("stock")
+          .eq("id", art.id)
+          .single();
+
+        if(prod){
+          await supabaseClient
+            .from("produits")
+            .update({ stock: prod.stock + art.quantite })
+            .eq("id", art.id);
+        }
       } catch(e){
         console.error("Rollback échoué pour article", art.id, e);
       }
     }
 
     // Même si le stock a échoué, si Discord a reçu la commande,
-    // on affiche quand même la page de remerciement (la commande est enregistrée)
+    // on affiche quand même la page de remerciement
     if(discordOk){
       console.log("Discord OK mais stock échoué — page merci affichée quand même");
       panier = [];
       mettreAJourCompteur();
       afficherPageMerci(paiement, totalCommande);
-      statutEnvoi.textContent = ""; // efface le message d'erreur
+      statutEnvoi.textContent = "";
     } else {
       statutEnvoi.style.color = "#dc2626";
       statutEnvoi.textContent = `❌ Stock insuffisant pour "${echapperHtml(nomArticleEchec)}". Il a peut-être été vendu entre-temps.`;
@@ -2570,14 +2596,12 @@ async function envoyerCommande(event){
      ===================================================================== */
   console.log("✅ Stock mis à jour avec succès");
 
-  // Envoyer notification aux boutiquiers
   try{
     await envoyerNotificationAuxBoutiquiers(nom, tel, adresseClientLisible, lienPositionClient, totalCommande);
   } catch(e){
     console.error("Erreur notification boutiquier:", e);
   }
 
-  // Marquer les commandes en attente comme envoyées
   try{
     const secours = recupererCommandesSecours();
     if(secours.length > 0){
