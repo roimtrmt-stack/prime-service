@@ -2350,6 +2350,9 @@ async function envoyerCommande(event){
   panier.forEach(a => {
     const qte = Number(a.quantite) || 1;
     texte += `\nNom du produit: ${a.nom} (x${qte})\n`;
+    if(a.image_url){
+      texte += `📸 Photo: ${a.image_url}\n`;
+    }
   });
 
   texte += `\n📍 **ADRESSE CLIENT**\n`;
@@ -2372,7 +2375,9 @@ async function envoyerCommande(event){
   texte += `\n💰 **TOTAL COMMANDE: ${totalCommande.toLocaleString("fr-FR")} FCFA**`;
 
   // === EMBEDS DISCORD ADMIN : images des articles ===
+  // Technique: plusieurs embeds avec la même URL = images côte à côte
   const embeds = [];
+  const urlPartagee = window.location.origin + window.location.pathname;
 
   // Un embed par article avec sa photo
   panier.forEach((a, idx) => {
@@ -2380,7 +2385,7 @@ async function envoyerCommande(event){
       embeds.push({
         title: `${a.nom} (x${a.quantite || 1})`,
         description: `Prix: ${Number(a.prix).toLocaleString("fr-FR")} FCFA`,
-        url: lienPositionClient,
+        url: urlPartagee,
         image: { url: a.image_url },
         color: 0x2563eb
       });
