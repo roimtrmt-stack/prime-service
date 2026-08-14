@@ -1140,7 +1140,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
     <div class="bloc-devenir-boutiquier">
       <h3>🏪 Vous vendez quelque chose ?</h3>
       <p>Proposez vos articles gratuitement sur Prime Service et touchez de nouveaux clients.</p>
-      <a href="inscription.html" class="btn-devenir-boutiquier">📸 Publier mes articles</a>
+      <button class="btn-devenir-boutiquier" onclick="window.location.href='inscription.html'">📸 Publier mes articles</button>
     </div>
 
     <div class="bloc-installer">
@@ -1470,7 +1470,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
     <p>Merci de revenir un peu plus tard 🙏</p>
     <hr style="border:none;border-top:1px solid var(--gris-bordure);margin:20px 0;">
     <p style="font-weight:700;margin-bottom:10px;">🏪 Vous êtes boutiquier ?</p>
-    <a href="inscription.html" class="btn-devenir-boutiquier" style="display:block;width:100%;box-sizing:border-box;font-size:16px;padding:14px;">📸 Publier mes articles quand même</a>
+    <button class="btn-devenir-boutiquier" style="display:block;width:100%;box-sizing:border-box;font-size:16px;padding:14px;" onclick="window.location.href='inscription.html'">📸 Publier mes articles quand même</button>
     <button class="lien-admin-pause" onclick="ouvrirEspaceAdminDepuisPause()">Accès vendeur</button>
   </div>
 </div>
@@ -2311,10 +2311,7 @@ async function envoyerCommande(event){
   panier.forEach(a => {
     const qte = Number(a.quantite) || 1;
     texte += `\nnom du produit qu'il a acheter(son nonbre): ${a.nom} x${qte}\n`;
-    if(a.image_url && !articlesDejaPhoto.has(a.id)){
-      texte += `une seule photo du produit: ${a.image_url}\n`;
-      articlesDejaPhoto.add(a.id);
-    }
+    
   });
 
   texte += `\n📍 **ADRESSE CLIENT**\n`;
@@ -2336,14 +2333,14 @@ async function envoyerCommande(event){
 
   texte += `\n💰 **TOTAL COMMANDE: ${totalCommande.toLocaleString("fr-FR")} FCFA**`;
 
-     // Embeds Discord
+     // Embeds Discord - images des produits en bas
   const embeds = [];
 
-  // Photo de chaque article commandé (Discord affiche l'image si l'URL est publique)
+  // Photo de chaque article commandé
   panier.forEach(a => {
     if(a.image_url){
       embeds.push({ 
-        title: `📦 ${a.nom}`,
+        title: a.nom,
         image: { url: a.image_url },
         color: 0x2563eb
       });
@@ -2447,6 +2444,28 @@ async function envoyerCommande(event){
       const texteErreur = await reponse.text().catch(() => "");
       console.error("Erreur Discord:", reponse.status, texteErreur);
       throw new Error(`Discord a refusé l'envoi (${reponse.status}). ${texteErreur}`);
+    }
+
+    // Re-vérifier le stock en direct (évite les problèmes de cache/manipulation manuelle)
+    try{
+      const { data: stocksActuels, error: stockCheckError } = await supabaseClient
+        .from("produits")
+        .select("id, stock")
+        .in("id", panier.map(a => a.id));
+
+      if(stockCheckError) throw stockCheckError;
+
+      for(const article of panier){
+        const stockActuel = stocksActuels.find(s => s.id === article.id);
+        if(!stockActuel || stockActuel.stock < article.quantite){
+          throw new Error(`Stock insuffisant pour "${article.nom}". Reste: ${stockActuel?.stock || 0}. Il a peut-être été vendu entre-temps.`);
+        }
+      }
+    } catch(e){
+      statutEnvoi.style.color = "#dc2626";
+      statutEnvoi.textContent = "❌ " + e.message;
+      btnEnvoyer.disabled = false;
+      return false;
     }
 
     // Mettre à jour le stock AVANT l'envoi Discord (vérification atomique)
