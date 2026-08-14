@@ -2268,8 +2268,8 @@ async function envoyerCommande(event){
   statutEnvoi.textContent = "⏳ Vérification du stock...";
 
   /* =====================================================================
-     ÉTAPE 1 : VÉRIFIER LE STOCK EN LECTURE D'ABORD
-     (évite de décrémenter partiellement si un article manque)
+     ÉTAPE 1 : VÉRIFIER LE STOCK EN LECTURE (sans modifier)
+     Si un article manque, on s'arrête IMMÉDIATEMENT — rien n'est envoyé.
      ===================================================================== */
   try{
     for(const article of panier){
@@ -2286,8 +2286,8 @@ async function envoyerCommande(event){
         return false;
       }
 
-      if(!produit || (produit.stock === null) || (produit.stock < article.quantite)){
-        const nomArticle = (produit && produit.nom) ? produit.nom : article.nom;
+      if(!produit || (produit.stock === null) || (produit.stock === undefined) || (produit.stock < article.quantite)){
+        const nomArticle = (produit && produit.nom) ? produit.nom : (article.nom || "Article inconnu");
         statutEnvoi.style.color = "#dc2626";
         statutEnvoi.textContent = `❌ Stock insuffisant pour "${echapperHtml(nomArticle)}". Il a peut-être été vendu entre-temps.`;
         btnEnvoyer.disabled = false;
@@ -2295,6 +2295,7 @@ async function envoyerCommande(event){
       }
     }
   } catch(e){
+    console.error("Erreur vérification stock:", e);
     statutEnvoi.style.color = "#dc2626";
     statutEnvoi.textContent = "❌ Erreur de vérification du stock. Vérifiez votre connexion.";
     btnEnvoyer.disabled = false;
@@ -2302,7 +2303,7 @@ async function envoyerCommande(event){
   }
 
   /* =====================================================================
-     ÉTAPE 2 : CONSTRUIRE LE MESSAGE DISCORD (avant tout envoi)
+     ÉTAPE 2 : CONSTRUIRE LE MESSAGE DISCORD
      ===================================================================== */
   const lienPositionClient = construireLienGoogleMaps(lat, lng);
 
@@ -2489,17 +2490,19 @@ async function envoyerCommande(event){
 
   } catch(erreurDiscord){
     console.error("Erreur Discord:", erreurDiscord);
-    // Discord a échoué mais la commande est enregistrée en base → on continue quand même
-    // (le vendeur peut voir la commande dans l'historique)
+    // Discord a échoué mais la commande est enregistrée en base
+    // On continue quand même vers la page de remerciement
   }
 
   /* =====================================================================
-     ÉTAPE 4 : DÉCRÉMENTER LE STOCK (seulement si Discord OK ou enregistrée)
+     ÉTAPE 4 : DÉCRÉMENTER LE STOCK
+     Si ça échoue en cours de route, on rollback ceux déjà décrémentés.
      ===================================================================== */
   statutEnvoi.textContent = "⏳ Mise à jour du stock...";
 
-  const articlesDecrementes = []; // pour rollback si besoin
+  const articlesDecrementes = [];
   let stockOk = true;
+  let nomArticleEchec = "";
 
   for(const article of panier){
     try{
@@ -2509,11 +2512,15 @@ async function envoyerCommande(event){
       if(stockError){
         console.error("Erreur stock RPC:", stockError);
         stockOk = false;
+        nomArticleEchec = article.nom || "Article inconnu";
         break;
       }
 
-      if(stockResult === false || stockResult === null){
+      // IMPORTANT: Supabase RPC peut retourner null au lieu de false
+      // quand il y a un problème de permissions RLS
+      if(stockResult === false || stockResult === null || stockResult === undefined){
         stockOk = false;
+        nomArticleEchec = article.nom || "Article inconnu";
         break;
       }
 
@@ -2522,16 +2529,14 @@ async function envoyerCommande(event){
     } catch(e){
       console.error("Exception stock:", e);
       stockOk = false;
+      nomArticleEchec = article.nom || "Article inconnu";
       break;
     }
   }
 
   // Si un article a échoué en cours de route, rollback ceux déjà décrémentés
   if(!stockOk){
-    statutEnvoi.style.color = "#dc2626";
-    statutEnvoi.textContent = "❌ Stock insuffisant pour un article. Il a peut-être été vendu entre-temps.";
-
-    // Rollback : remettre le stock des articles déjà décrémentés
+    console.log("Rollback du stock en cours...");
     for(const art of articlesDecrementes){
       try{
         await supabaseClient.rpc("augmenter_stock", { 
@@ -2543,13 +2548,29 @@ async function envoyerCommande(event){
       }
     }
 
+    // Même si le stock a échoué, si Discord a reçu la commande,
+    // on affiche quand même la page de remerciement (la commande est enregistrée)
+    if(discordOk){
+      console.log("Discord OK mais stock échoué — page merci affichée quand même");
+      panier = [];
+      mettreAJourCompteur();
+      afficherPageMerci(paiement, totalCommande);
+      statutEnvoi.textContent = ""; // efface le message d'erreur
+    } else {
+      statutEnvoi.style.color = "#dc2626";
+      statutEnvoi.textContent = `❌ Stock insuffisant pour "${echapperHtml(nomArticleEchec)}". Il a peut-être été vendu entre-temps.`;
+    }
+
     btnEnvoyer.disabled = false;
     return false;
   }
 
   /* =====================================================================
-     ÉTAPE 5 : SUCCÈS TOTAL → PAGE DE REMERCIEMENT
+     ÉTAPE 5 : SUCCÈS TOTAL
      ===================================================================== */
+  console.log("✅ Stock mis à jour avec succès");
+
+  // Envoyer notification aux boutiquiers
   try{
     await envoyerNotificationAuxBoutiquiers(nom, tel, adresseClientLisible, lienPositionClient, totalCommande);
   } catch(e){
