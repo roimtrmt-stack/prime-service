@@ -798,6 +798,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 </style>
 <link rel="icon" href="icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<base target="_blank">
 </head>
 <body>
 <script type="module">
@@ -1200,30 +1201,53 @@ async function envoyerSoumission(event){
     });
 
         // Upload des photos dans Supabase Storage (permanent)
-    const urlsPhotos = [];
-    for(const { photo } of detailsPhotos){
-      const cheminFichier = `${Date.now()}-${photo.fichier.name}`;
-      const { error: erreurUpload } = await supabaseClient
-        .storage
-        .from("photos-articles")
-        .upload(cheminFichier, photo.fichier);
+    let urlsPhotosSupabase = [];
+    let uploadSupabaseReussi = false;
 
-      if(erreurUpload) throw erreurUpload;
+    if(supabaseClient){
+      try{
+        for(const { photo } of detailsPhotos){
+          const cheminFichier = `${Date.now()}-${photo.fichier.name}`;
+          const { error: erreurUpload } = await supabaseClient
+            .storage
+            .from("photos-articles")
+            .upload(cheminFichier, photo.fichier);
 
-      const { data: donneesPublic } = supabaseClient
-        .storage
-        .from("photos-articles")
-        .getPublicUrl(cheminFichier);
+          if(erreurUpload) throw erreurUpload;
 
-      urlsPhotos.push(donneesPublic.publicUrl);
+          const { data: donneesPublic } = supabaseClient
+            .storage
+            .from("photos-articles")
+            .getPublicUrl(cheminFichier);
+
+          urlsPhotosSupabase.push(donneesPublic.publicUrl);
+        }
+        uploadSupabaseReussi = true;
+      } catch(erreurUpload){
+        console.error("Upload Supabase échoué :", erreurUpload);
+      }
     }
 
-    // Envoi Discord avec les URLs Supabase (pas les fichiers)
+    // Ajoute les URLs au message Discord
+    if(uploadSupabaseReussi && urlsPhotosSupabase.length > 0){
+      texte += `
+
+📸 **Photos (URLs permanentes) :**
+`;
+      urlsPhotosSupabase.forEach((url, i) => {
+        texte += `
+Photo ${i+1} : ${url}`;
+      });
+    }
+
+    // Envoi Discord avec les fichiers joints (pour l'aperçu visuel)
     const donneesFormulaire = new FormData();
     donneesFormulaire.append("payload_json", JSON.stringify({ content: texte }));
 
-    // Optionnel : joindre une seule photo pour l'aperçu Discord
-    // mais l'URL permanente est dans le textes
+    // Joindre les fichiers pour que Discord affiche les images en preview
+    detailsPhotos.forEach(({ photo }, i) => {
+      donneesFormulaire.append(`file${i}`, photo.fichier, photo.fichier.name);
+    });
 
     // Délai de sécurité : sur un réseau faible, l'envoi de plusieurs photos
     // peut rester bloqué très longtemps sans jamais échouer ni réussir.
@@ -1245,22 +1269,22 @@ async function envoyerSoumission(event){
       clearTimeout(delaiSecurite);
     }
 
-    if(!reponse.ok) throw new Error("Réponse serveur incorrecte");
+    if(!reponse.ok){
+      const texteErreur = await reponse.text();
+      throw new Error(`Discord ${reponse.status} : ${texteErreur}`);
+    }
 
     // Publication automatique (masquée) dans le catalogue : le boutiquier
     // n'a plus rien à faire, et toi tu n'as plus qu'à choisir une catégorie
     // puis démasquer — au lieu de tout retaper à la main.
     try{
-      const messageDiscord = await reponse.json();
-      const urlsPhotos = (messageDiscord.attachments || []).map(a => a.url);
-
-      if(supabaseClient && urlsPhotos.length === detailsPhotos.length){
+      if(supabaseClient && urlsPhotosSupabase.length === detailsPhotos.length){
         const lignesAInserer = detailsPhotos.map(({ nomArticle, prixSaisi }, i) => ({
           nom: nomArticle,
           prix: prixSaisi + CONFIG.COMMISSION_FCFA,
           commission: CONFIG.COMMISSION_FCFA,
           stock: 1,
-          image_url: urlsPhotos[i],
+          image_url: urlsPhotosSupabase[i],
           nom_boutique: nomBoutique,
           telephone_boutique: telephone, // pour savoir qui prévenir quand ça se vend
           masque: true, // caché tant que l'admin n'a pas choisi la catégorie
