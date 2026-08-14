@@ -2685,11 +2685,11 @@ function ouvrirFormulaireArticle(articleAModifier){
 
     document.getElementById("nomArticleAdmin").value = articleAModifier.nom || "";
     document.getElementById("nomBoutiqueAdmin").value = articleAModifier.nom_boutique || "";
-    document.getElementById("telephoneArticleAdmin").value = articleAModifier.telephone || "";
+    document.getElementById("telephoneArticleAdmin").value = articleAModifier.telephone || articleAModifier.telephone_boutique || "";
     document.getElementById("prixArticleAdmin").value = articleAModifier.prix || "";
     document.getElementById("commissionArticleAdmin").value = articleAModifier.commission ?? 300;
     document.getElementById("stockArticleAdmin").value = articleAModifier.stock || 1;
-    document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || "";
+    document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || articleAModifier.adresse_boutique || "";
     document.getElementById("latBoutiqueAdmin").value = articleAModifier.lat || "";
     document.getElementById("lngBoutiqueAdmin").value = articleAModifier.lng || "";
 
@@ -2891,7 +2891,7 @@ async function publierArticle(event){
     return false;
   }
 
-  if(lat === null || lng === null){
+    if(!articleEnEdition && (lat === null || lng === null)){
     statutPublication.style.color = "#dc2626";
     statutPublication.textContent = "⚠️ Cliquez sur \"Utiliser ma position\" pour situer cette boutique — sinon la carte de livraison ne fonctionnera pas pour cet article.";
     return false;
