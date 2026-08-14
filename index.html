@@ -2335,15 +2335,19 @@ async function envoyerCommande(event){
 
   texte += `\n💰 **TOTAL COMMANDE: ${totalCommande.toLocaleString("fr-FR")} FCFA**`;
 
-  // Embeds Discord (liens cliquables qui affichent des aperçus de carte)
+    // Embeds Discord
   const embeds = [];
 
-  // Photo du premier article (une seule)
-  const premierAvecImage = panier.find(a => a.image_url);
-  if(premierAvecImage){
-    embeds.push({ image: { url: premierAvecImage.image_url } });
-  }
-
+  // Photo de chaque article commandé
+  panier.forEach(a => {
+    if(a.image_url){
+      embeds.push({ 
+        title: `📦 ${a.nom}`,
+        image: { url: a.image_url },
+        color: 0x2563eb
+      });
+    }
+  });
   // Carte client
   embeds.push({
     title: `📍 Position client — ${adresseClientLisible}`,
@@ -2454,6 +2458,15 @@ async function envoyerCommande(event){
       console.error("Erreur notification boutiquier:", e);
     }
 
+    // Mettre à jour le stock AVANT l'envoi Discord
+    for(const article of panier){
+      try{
+        await supabaseClient.rpc("diminuer_stock", { p_id: article.id, p_quantite: article.quantite });
+      } catch(e){
+        console.error("Erreur stock :", e);
+      }
+    }
+
     // Marquer les commandes en attente comme envoyées
     try{
       const secours = recupererCommandesSecours();
@@ -2464,13 +2477,6 @@ async function envoyerCommande(event){
       }
     } catch(e){}
 
-    for(const article of panier){
-      try{
-        await supabaseClient.rpc("diminuer_stock", { p_id: article.id, p_quantite: article.quantite });
-      } catch(e){
-        console.error("Erreur stock :", e);
-      }
-    }
     panier = [];
     mettreAJourCompteur();
     afficherPageMerci(paiement, totalCommande);
@@ -2712,7 +2718,7 @@ function ouvrirFormulaireArticle(articleAModifier){
     if(boutonSubmit) boutonSubmit.textContent = "Publier l'article";
 
     document.getElementById("nomBoutiqueAdmin").value = articleAModifier.nom_boutique || "";
-    document.getElementById("telephoneArticleAdmin").value = articleAModifier.telephone || "";
+    document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || articleAModifier["texte d'adresse"] || "";
     document.getElementById("prixArticleAdmin").value = articleAModifier.prix || "";
     document.getElementById("commissionArticleAdmin").value = articleAModifier.commission ?? 300;
     document.getElementById("stockArticleAdmin").value = articleAModifier.stock || 1;
@@ -2722,6 +2728,10 @@ if(articleAModifier.lat && articleAModifier.lng){
   document.getElementById("statutPositionAdmin").style.color = "#16a34a";
 }
     document.getElementById("latBoutiqueAdmin").value = articleAModifier.lat || "";
+if(articleAModifier.lat && articleAModifier.lng){
+  document.getElementById("statutPositionAdmin").textContent = "✅ Position déjà enregistrée";
+  document.getElementById("statutPositionAdmin").style.color = "#16a34a";
+}
     document.getElementById("lngBoutiqueAdmin").value = articleAModifier.lng || "";
 
     if(articleAModifier.image_url){
