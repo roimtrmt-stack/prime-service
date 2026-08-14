@@ -2269,7 +2269,6 @@ async function envoyerCommande(event){
 
   /* =====================================================================
      ÉTAPE 1 : VÉRIFIER LE STOCK EN LECTURE (sans modifier)
-     Si un article manque, on s'arrête IMMÉDIATEMENT — rien n'est envoyé.
      ===================================================================== */
   try{
     for(const article of panier){
@@ -2303,7 +2302,7 @@ async function envoyerCommande(event){
   }
 
   /* =====================================================================
-     ÉTAPE 2 : CONSTRUIRE LE MESSAGE DISCORD
+     ÉTAPE 2 : CONSTRUIRE LE MESSAGE DISCORD (ADMIN)
      ===================================================================== */
   const lienPositionClient = construireLienGoogleMaps(lat, lng);
 
@@ -2341,7 +2340,7 @@ async function envoyerCommande(event){
     boutiquesUniques[cle].totalCommission += commissionUnitaire * qte;
   });
 
-  // Message Discord
+  // === MESSAGE DISCORD ADMIN ===
   let texte = `🛒 **NOUVELLE COMMANDE — Prime Service**\n\n`;
   texte += `📋 **INFOS CLIENT**\n`;
   texte += `Nom du client: ${nom}\n`;
@@ -2372,25 +2371,31 @@ async function envoyerCommande(event){
 
   texte += `\n💰 **TOTAL COMMANDE: ${totalCommande.toLocaleString("fr-FR")} FCFA**`;
 
-  // Embeds Discord
+  // === EMBEDS DISCORD ADMIN : images des articles ===
   const embeds = [];
-  panier.forEach(a => {
+
+  // Un embed par article avec sa photo
+  panier.forEach((a, idx) => {
     if(a.image_url){
-      embeds.push({ 
-        title: a.nom,
+      embeds.push({
+        title: `${a.nom} (x${a.quantite || 1})`,
+        description: `Prix: ${Number(a.prix).toLocaleString("fr-FR")} FCFA`,
+        url: lienPositionClient,
         image: { url: a.image_url },
         color: 0x2563eb
       });
     }
   });
 
+  // Embed position client
   embeds.push({
-    title: `📍 Position client — ${adresseClientLisible}`,
+    title: `📍 Position client`,
     url: lienPositionClient,
-    description: `Cliquez pour ouvrir dans Google Maps`,
+    description: `${adresseClientLisible}\nCliquez pour ouvrir dans Google Maps`,
     color: 0x2563eb
   });
 
+  // Embeds itinéraires boutiques
   Object.values(boutiquesUniques).forEach(b => {
     if(b.lat && b.lng){
       const lienItineraire = construireLienItineraire(b.lat, b.lng, lat, lng);
@@ -2457,7 +2462,7 @@ async function envoyerCommande(event){
   }
 
   /* =====================================================================
-     ÉTAPE 3 : ENVOYER À DISCORD
+     ÉTAPE 3 : ENVOYER À DISCORD (ADMIN)
      ===================================================================== */
   statutEnvoi.style.color = "#555";
   statutEnvoi.textContent = "⏳ Envoi de la commande...";
@@ -2494,9 +2499,6 @@ async function envoyerCommande(event){
 
   /* =====================================================================
      ÉTAPE 4 : DÉCRÉMENTER LE STOCK AVEC UPDATE DIRECT
-     On utilise .update() avec une condition pour s'assurer que le stock
-     est suffisant. Si le stock a changé entre la lecture et l'update,
-     la requête ne modifiera aucune ligne (count === 0).
      ===================================================================== */
   statutEnvoi.textContent = "⏳ Mise à jour du stock...";
 
@@ -2506,8 +2508,6 @@ async function envoyerCommande(event){
 
   for(const article of panier){
     try{
-      // Méthode fiable: UPDATE avec condition stock >= quantite
-      // On récupère d'abord le stock actuel
       const { data: produitActuel, error: errRead } = await supabaseClient
         .from("produits")
         .select("stock, nom")
@@ -2527,7 +2527,6 @@ async function envoyerCommande(event){
         break;
       }
 
-      // Update direct: stock = stock - quantite
       const nouveauStock = produitActuel.stock - article.quantite;
       const { error: errUpdate } = await supabaseClient
         .from("produits")
@@ -2551,12 +2550,11 @@ async function envoyerCommande(event){
     }
   }
 
-  // Si un article a échoué en cours de route, rollback ceux déjà décrémentés
+  // Rollback si échec
   if(!stockOk){
     console.log("Rollback du stock en cours...");
     for(const art of articlesDecrementes){
       try{
-        // Rollback: lire le stock actuel et rajouter la quantité
         const { data: prod } = await supabaseClient
           .from("produits")
           .select("stock")
@@ -2574,8 +2572,6 @@ async function envoyerCommande(event){
       }
     }
 
-    // Même si le stock a échoué, si Discord a reçu la commande,
-    // on affiche quand même la page de remerciement
     if(discordOk){
       console.log("Discord OK mais stock échoué — page merci affichée quand même");
       panier = [];
@@ -2597,7 +2593,7 @@ async function envoyerCommande(event){
   console.log("✅ Stock mis à jour avec succès");
 
   try{
-    await envoyerNotificationAuxBoutiquiers(nom, tel, adresseClientLisible, lienPositionClient, totalCommande);
+    await envoyerNotificationAuxBoutiquiers(nom, tel, adresseClientLisible, lienPositionClient, totalCommande, boutiquesUniques);
   } catch(e){
     console.error("Erreur notification boutiquier:", e);
   }
