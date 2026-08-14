@@ -2717,6 +2717,10 @@ function ouvrirFormulaireArticle(articleAModifier){
     document.getElementById("commissionArticleAdmin").value = articleAModifier.commission ?? 300;
     document.getElementById("stockArticleAdmin").value = articleAModifier.stock || 1;
     document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || "";
+if(articleAModifier.lat && articleAModifier.lng){
+  document.getElementById("statutPositionAdmin").textContent = "✅ Position déjà enregistrée";
+  document.getElementById("statutPositionAdmin").style.color = "#16a34a";
+}
     document.getElementById("latBoutiqueAdmin").value = articleAModifier.lat || "";
     document.getElementById("lngBoutiqueAdmin").value = articleAModifier.lng || "";
 
@@ -2894,6 +2898,12 @@ async function publierArticle(event){
     if(!articleEnEdition && (lat === null || lng === null)){
     statutPublication.style.color = "#dc2626";
     statutPublication.textContent = "⚠️ Cliquez sur \"Utiliser ma position\" pour situer cette boutique — sinon la carte de livraison ne fonctionnera pas pour cet article.";
+    return false;
+  }
+  
+  if(articleEnEdition && !adresse){
+    statutPublication.style.color = "#dc2626";
+    statutPublication.textContent = "⚠️ L'adresse est vide. Veuillez la remplir manuellement ou cliquer sur \"Enregistrer ma position\".";
     return false;
   }
 
