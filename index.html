@@ -2310,7 +2310,7 @@ async function envoyerCommande(event){
   const articlesDejaPhoto = new Set();
   panier.forEach(a => {
     const qte = Number(a.quantite) || 1;
-    texte += `\nnom du produit qu'il a acheter(son nonbre): ${a.nom} x${qte}\n`;
+    texte += `\nNom du produit: \${a.nom} (x\${qte})\n`;
     
   });
 
@@ -2444,28 +2444,6 @@ async function envoyerCommande(event){
       const texteErreur = await reponse.text().catch(() => "");
       console.error("Erreur Discord:", reponse.status, texteErreur);
       throw new Error(`Discord a refusé l'envoi (${reponse.status}). ${texteErreur}`);
-    }
-
-    // Re-vérifier le stock en direct (évite les problèmes de cache/manipulation manuelle)
-    try{
-      const { data: stocksActuels, error: stockCheckError } = await supabaseClient
-        .from("produits")
-        .select("id, stock")
-        .in("id", panier.map(a => a.id));
-
-      if(stockCheckError) throw stockCheckError;
-
-      for(const article of panier){
-        const stockActuel = stocksActuels.find(s => s.id === article.id);
-        if(!stockActuel || stockActuel.stock < article.quantite){
-          throw new Error(`Stock insuffisant pour "${article.nom}". Reste: ${stockActuel?.stock || 0}. Il a peut-être été vendu entre-temps.`);
-        }
-      }
-    } catch(e){
-      statutEnvoi.style.color = "#dc2626";
-      statutEnvoi.textContent = "❌ " + e.message;
-      btnEnvoyer.disabled = false;
-      return false;
     }
 
     // Mettre à jour le stock AVANT l'envoi Discord (vérification atomique)
