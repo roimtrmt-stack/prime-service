@@ -2263,9 +2263,49 @@ async function envoyerCommande(event){
     return false;
   }
 
+  btnEnvoyer.disabled = true;
+  statutEnvoi.style.color = "#555";
+  statutEnvoi.textContent = "⏳ Vérification du stock...";
+
+  /* =====================================================================
+     ÉTAPE 1 : VÉRIFIER LE STOCK EN LECTURE D'ABORD
+     (évite de décrémenter partiellement si un article manque)
+     ===================================================================== */
+  try{
+    for(const article of panier){
+      const { data: produit, error: errLecture } = await supabaseClient
+        .from("produits")
+        .select("stock, nom")
+        .eq("id", article.id)
+        .single();
+
+      if(errLecture){
+        statutEnvoi.style.color = "#dc2626";
+        statutEnvoi.textContent = "❌ Impossible de vérifier le stock. Réessayez.";
+        btnEnvoyer.disabled = false;
+        return false;
+      }
+
+      if(!produit || (produit.stock === null) || (produit.stock < article.quantite)){
+        const nomArticle = (produit && produit.nom) ? produit.nom : article.nom;
+        statutEnvoi.style.color = "#dc2626";
+        statutEnvoi.textContent = `❌ Stock insuffisant pour "${echapperHtml(nomArticle)}". Il a peut-être été vendu entre-temps.`;
+        btnEnvoyer.disabled = false;
+        return false;
+      }
+    }
+  } catch(e){
+    statutEnvoi.style.color = "#dc2626";
+    statutEnvoi.textContent = "❌ Erreur de vérification du stock. Vérifiez votre connexion.";
+    btnEnvoyer.disabled = false;
+    return false;
+  }
+
+  /* =====================================================================
+     ÉTAPE 2 : CONSTRUIRE LE MESSAGE DISCORD (avant tout envoi)
+     ===================================================================== */
   const lienPositionClient = construireLienGoogleMaps(lat, lng);
 
-  // Adresse texte du client
   let adresseClientLisible = "Position GPS enregistrée";
   try{
     const reponseAdresse = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
@@ -2300,18 +2340,16 @@ async function envoyerCommande(event){
     boutiquesUniques[cle].totalCommission += commissionUnitaire * qte;
   });
 
-  // ===== MESSAGE DISCORD AU FORMAT DEMANDÉ =====
+  // Message Discord
   let texte = `🛒 **NOUVELLE COMMANDE — Prime Service**\n\n`;
   texte += `📋 **INFOS CLIENT**\n`;
   texte += `Nom du client: ${nom}\n`;
   texte += `Numero: ${tel}\n\n`;
 
   texte += `📦 **ARTICLES COMMANDÉS**\n`;
-  const articlesDejaPhoto = new Set();
   panier.forEach(a => {
     const qte = Number(a.quantite) || 1;
-    texte += `\nNom du produit: \${a.nom} (x\${qte})\n`;
-    
+    texte += `\nNom du produit: ${a.nom} (x${qte})\n`;
   });
 
   texte += `\n📍 **ADRESSE CLIENT**\n`;
@@ -2333,10 +2371,8 @@ async function envoyerCommande(event){
 
   texte += `\n💰 **TOTAL COMMANDE: ${totalCommande.toLocaleString("fr-FR")} FCFA**`;
 
-     // Embeds Discord - images des produits en bas
+  // Embeds Discord
   const embeds = [];
-
-  // Photo de chaque article commandé
   panier.forEach(a => {
     if(a.image_url){
       embeds.push({ 
@@ -2347,14 +2383,13 @@ async function envoyerCommande(event){
     }
   });
 
-  // Carte Google Maps du client (lien cliquable, pas d'image sans clé API)
   embeds.push({
     title: `📍 Position client — ${adresseClientLisible}`,
     url: lienPositionClient,
     description: `Cliquez pour ouvrir dans Google Maps`,
     color: 0x2563eb
   });
-  // Itinéraires par boutique
+
   Object.values(boutiquesUniques).forEach(b => {
     if(b.lat && b.lng){
       const lienItineraire = construireLienItineraire(b.lat, b.lng, lat, lng);
@@ -2383,9 +2418,10 @@ async function envoyerCommande(event){
     return false;
   }
 
-  // Enregistrement Supabase
+  // Enregistrement Supabase commande
+  let commandeEnregistree = null;
   try{
-    const { data: commandeEnregistree } = await supabaseClient
+    const { data } = await supabaseClient
       .from("commandes")
       .insert({
         nom_client: nom,
@@ -2398,6 +2434,8 @@ async function envoyerCommande(event){
       })
       .select()
       .single();
+
+    commandeEnregistree = data;
 
     if(commandeEnregistree){
       const lignesNotif = Object.values(boutiquesUniques)
@@ -2417,12 +2455,14 @@ async function envoyerCommande(event){
     console.error("Erreur enregistrement base :", e);
   }
 
-  btnEnvoyer.disabled = true;
+  /* =====================================================================
+     ÉTAPE 3 : ENVOYER À DISCORD
+     ===================================================================== */
   statutEnvoi.style.color = "#555";
-  statutEnvoi.textContent = "⏳ Envoi en cours...";
+  statutEnvoi.textContent = "⏳ Envoi de la commande...";
 
+  let discordOk = false;
   try{
-
     console.log("Envoi Discord en cours...", corpsRequete);
 
     const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-commande`, {
@@ -2439,81 +2479,100 @@ async function envoyerCommande(event){
 
     console.log("Réponse Discord:", reponse.status, reponse.statusText);
 
-    // Si Discord renvoie 429 (rate limit) ou 401/403 (webhook invalide)
     if(!reponse.ok){
       const texteErreur = await reponse.text().catch(() => "");
       console.error("Erreur Discord:", reponse.status, texteErreur);
       throw new Error(`Discord a refusé l'envoi (${reponse.status}). ${texteErreur}`);
     }
 
-    // Mettre à jour le stock AVANT l'envoi Discord (vérification atomique)
-    for(const article of panier){
-      try{
-        const { data: stockResult, error: stockError } = await supabaseClient
-          .rpc("diminuer_stock", { p_id: article.id, p_quantite: article.quantite });
+    discordOk = true;
 
-        if(stockError){
-          console.error("Erreur stock :", stockError);
-          throw new Error(`Stock insuffisant pour "${article.nom}". Il a peut-être été vendu entre-temps.`);
-        }
-
-        if(stockResult === false || stockResult === null){
-          throw new Error(`Stock insuffisant pour "${article.nom}". Il a peut-être été vendu entre-temps.`);
-        }
-      } catch(e){
-        statutEnvoi.style.color = "#dc2626";
-        statutEnvoi.textContent = "❌ " + e.message;
-        btnEnvoyer.disabled = false;
-        return false;
-      }
-    }
-
-    // Succès du stock !
-    console.log("✅ Stock mis à jour avec succès");
-
-    // Envoyer automatiquement la notification au(x) boutiquier(s) concerné(s)
-    try {
-      await envoyerNotificationAuxBoutiquiers(nom, tel, adresseClientLisible, lienPositionClient, totalCommande);
-    } catch(e) {
-      console.error("Erreur notification boutiquier:", e);
-    }
-
-    // Marquer les commandes en attente comme envoyées
-    try{
-      const secours = recupererCommandesSecours();
-      if(secours.length > 0){
-        localStorage.setItem(CLE_COMMANDES_SECOURS, JSON.stringify(
-          secours.map(c => ({...c, envoyee: true}))
-        ));
-      }
-    } catch(e){}
-
-    panier = [];
-    mettreAJourCompteur();
-    afficherPageMerci(paiement, totalCommande);
-
-  } catch(erreur){
-    console.error("Erreur complète:", erreur);
-
-    // Sauvegarder la commande en secours pour ne pas la perdre
-    sauvegarderCommandeSecours(texte);
-
-    if(!navigator.onLine){
-      mettreCommandeEnAttente(commandeAEnvoyer);
-      panier = [];
-      mettreAJourCompteur();
-      afficherPageMerci(paiement, totalCommande, true);
-    } else {
-      statutEnvoi.style.color = "#dc2626";
-      statutEnvoi.textContent = "❌ " + (erreur.message || "Échec de l'envoi. Vérifiez votre connexion.");
-    }
-  } finally {
-    btnEnvoyer.disabled = false;
+  } catch(erreurDiscord){
+    console.error("Erreur Discord:", erreurDiscord);
+    // Discord a échoué mais la commande est enregistrée en base → on continue quand même
+    // (le vendeur peut voir la commande dans l'historique)
   }
 
+  /* =====================================================================
+     ÉTAPE 4 : DÉCRÉMENTER LE STOCK (seulement si Discord OK ou enregistrée)
+     ===================================================================== */
+  statutEnvoi.textContent = "⏳ Mise à jour du stock...";
+
+  const articlesDecrementes = []; // pour rollback si besoin
+  let stockOk = true;
+
+  for(const article of panier){
+    try{
+      const { data: stockResult, error: stockError } = await supabaseClient
+        .rpc("diminuer_stock", { p_id: article.id, p_quantite: article.quantite });
+
+      if(stockError){
+        console.error("Erreur stock RPC:", stockError);
+        stockOk = false;
+        break;
+      }
+
+      if(stockResult === false || stockResult === null){
+        stockOk = false;
+        break;
+      }
+
+      articlesDecrementes.push(article);
+
+    } catch(e){
+      console.error("Exception stock:", e);
+      stockOk = false;
+      break;
+    }
+  }
+
+  // Si un article a échoué en cours de route, rollback ceux déjà décrémentés
+  if(!stockOk){
+    statutEnvoi.style.color = "#dc2626";
+    statutEnvoi.textContent = "❌ Stock insuffisant pour un article. Il a peut-être été vendu entre-temps.";
+
+    // Rollback : remettre le stock des articles déjà décrémentés
+    for(const art of articlesDecrementes){
+      try{
+        await supabaseClient.rpc("augmenter_stock", { 
+          p_id: art.id, 
+          p_quantite: art.quantite 
+        });
+      } catch(e){
+        console.error("Rollback échoué pour article", art.id, e);
+      }
+    }
+
+    btnEnvoyer.disabled = false;
+    return false;
+  }
+
+  /* =====================================================================
+     ÉTAPE 5 : SUCCÈS TOTAL → PAGE DE REMERCIEMENT
+     ===================================================================== */
+  try{
+    await envoyerNotificationAuxBoutiquiers(nom, tel, adresseClientLisible, lienPositionClient, totalCommande);
+  } catch(e){
+    console.error("Erreur notification boutiquier:", e);
+  }
+
+  // Marquer les commandes en attente comme envoyées
+  try{
+    const secours = recupererCommandesSecours();
+    if(secours.length > 0){
+      localStorage.setItem(CLE_COMMANDES_SECOURS, JSON.stringify(
+        secours.map(c => ({...c, envoyee: true}))
+      ));
+    }
+  } catch(e){}
+
+  panier = [];
+  mettreAJourCompteur();
+  afficherPageMerci(paiement, totalCommande);
+
+  btnEnvoyer.disabled = false;
   return false;
 }
-
 /* =====================================================================
    FILE D'ATTENTE DES COMMANDES HORS-LIGNE
    ===================================================================== */
