@@ -798,6 +798,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 </style>
 <link rel="icon" href="icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<base target="_blank">
 </head>
 <body>
 <script type="module">
@@ -845,6 +846,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
     <div class="hero" style="padding-top:16px;">
       <h1 style="font-size:24px;">Proposez vos articles</h1>
       <p class="hero-baseline">Ajoutez vos photos, on s'occupe du reste 🚀</p>
+      <p id="compteurArticles" style="font-size:15px; font-weight:700; color:var(--orange); margin-top:8px;">📦 0 article ajouté</p>
     </div>
 
     <form id="formInscription" class="carte-formulaire" onsubmit="return envoyerSoumission(event)">
@@ -1028,6 +1030,7 @@ function retirerPhoto(id){
 function redessinerPhotos(){
   const grille = document.getElementById("grillePhotos");
   const statut = document.getElementById("statutPhotos");
+  const compteur = document.getElementById("compteurArticles");
 
   const cartesPhotos = photosAjoutees.map((p, index) => `
     <div class="carte-photo-inscription">
@@ -1053,6 +1056,21 @@ function redessinerPhotos(){
   statut.textContent = photosAjoutees.length === 0
     ? "Ajoutez au moins une photo pour continuer."
     : `${photosAjoutees.length} article(s) prêt(s) à être envoyé(s).`;
+
+  // Mise à jour du compteur dans le titre
+  if(compteur){
+    const nb = photosAjoutees.length;
+    if(nb === 0){
+      compteur.textContent = "📦 0 article ajouté";
+      compteur.style.color = "#999";
+    } else if(nb === 1){
+      compteur.textContent = "📦 1 article ajouté";
+      compteur.style.color = "var(--orange)";
+    } else {
+      compteur.textContent = `📦 ${nb} articles ajoutés`;
+      compteur.style.color = "var(--orange)";
+    }
+  }
 }
 
 document.addEventListener("click", function(e){
