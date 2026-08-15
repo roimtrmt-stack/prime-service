@@ -2695,6 +2695,47 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
   document.getElementById("montantOrangeInstructionKiosque").textContent = montantAffiche;
   document.getElementById("instructionsOrange").style.display = "block";
 
+  // ⏱️ BLOCAGE 1 MINUTE : empêche le client de quitter la page de remerciement
+  // trop vite sans avoir vu les instructions de paiement
+  const btnRetourAccueil = document.querySelector('#vue-merci .btn-principal');
+  const delaiAttente = 60; // secondes
+  let secondesRestantes = delaiAttente;
+
+  if(btnRetourAccueil){
+    btnRetourAccueil.disabled = true;
+    btnRetourAccueil.style.opacity = "0.5";
+    btnRetourAccueil.style.cursor = "not-allowed";
+    btnRetourAccueil.textContent = `⏳ Patientez ${secondesRestantes}s avant de quitter`;
+
+    const compteurInterval = setInterval(() => {
+      secondesRestantes--;
+      if(secondesRestantes > 0){
+        btnRetourAccueil.textContent = `⏳ Patientez ${secondesRestantes}s avant de quitter`;
+      } else {
+        clearInterval(compteurInterval);
+        btnRetourAccueil.disabled = false;
+        btnRetourAccueil.style.opacity = "1";
+        btnRetourAccueil.style.cursor = "pointer";
+        btnRetourAccueil.textContent = "Retour à l'accueil";
+      }
+    }, 1000);
+  }
+
+  // Bloque aussi le bouton "précédent" du navigateur pendant 1 minute
+  const bloquerNavigation = (e) => {
+    e.preventDefault();
+    history.pushState(null, "", window.location.href);
+    alert("⏳ Veuillez patienter encore " + secondesRestantes + " seconde(s) avant de quitter cette page. Cela vous laisse le temps de noter les instructions de paiement.");
+  };
+
+  history.pushState(null, "", window.location.href);
+  window.addEventListener("popstate", bloquerNavigation);
+
+  // Débloque après 1 minute
+  setTimeout(() => {
+    window.removeEventListener("popstate", bloquerNavigation);
+  }, delaiAttente * 1000);
+
   history.replaceState({ vue: "merci" }, "");
 }
 
