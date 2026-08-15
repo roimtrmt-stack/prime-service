@@ -798,7 +798,6 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 </style>
 <link rel="icon" href="icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<base target="_blank">
 </head>
 <body>
 <script type="module">
@@ -846,7 +845,6 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
     <div class="hero" style="padding-top:16px;">
       <h1 style="font-size:24px;">Proposez vos articles</h1>
       <p class="hero-baseline">Ajoutez vos photos, on s'occupe du reste 🚀</p>
-      <p id="compteurArticles" style="font-size:15px; font-weight:700; color:var(--orange); margin-top:8px;">📦 0 article ajouté</p>
     </div>
 
     <form id="formInscription" class="carte-formulaire" onsubmit="return envoyerSoumission(event)">
@@ -1030,7 +1028,6 @@ function retirerPhoto(id){
 function redessinerPhotos(){
   const grille = document.getElementById("grillePhotos");
   const statut = document.getElementById("statutPhotos");
-  const compteur = document.getElementById("compteurArticles");
 
   const cartesPhotos = photosAjoutees.map((p, index) => `
     <div class="carte-photo-inscription">
@@ -1039,6 +1036,8 @@ function redessinerPhotos(){
       ${p.traitement ? `<p style="font-size:11px;color:#f97316;margin:4px 0 0;">⏳ Fond blanc en cours...</p>` : ``}
       <label class="label" style="margin-top:8px;">Nom de l'article ${index + 1}</label>
       <input type="text" class="champ nom-photo" data-photo-id="${p.id}" placeholder="Ex : Robe bleue taille M" required>
+      <label class="label" style="margin-top:8px;">Quantité en stock</label>
+      <input type="number" class="champ stock-photo" data-photo-id="${p.id}" placeholder="Ex : 5" min="1" step="1" required>
       <label class="label" style="margin-top:8px;">Prix de l'article ${index + 1} (FCFA) — minimum 1000 FCFA</label>
       <input type="number" class="champ prix-photo" data-photo-id="${p.id}" placeholder="Ex : 5000" min="1000" step="1" required>
     </div>
@@ -1056,21 +1055,6 @@ function redessinerPhotos(){
   statut.textContent = photosAjoutees.length === 0
     ? "Ajoutez au moins une photo pour continuer."
     : `${photosAjoutees.length} article(s) prêt(s) à être envoyé(s).`;
-
-  // Mise à jour du compteur dans le titre
-  if(compteur){
-    const nb = photosAjoutees.length;
-    if(nb === 0){
-      compteur.textContent = "📦 0 article ajouté";
-      compteur.style.color = "#999";
-    } else if(nb === 1){
-      compteur.textContent = "📦 1 article ajouté";
-      compteur.style.color = "var(--orange)";
-    } else {
-      compteur.textContent = `📦 ${nb} articles ajoutés`;
-      compteur.style.color = "var(--orange)";
-    }
-  }
 }
 
 document.addEventListener("click", function(e){
@@ -1182,6 +1166,16 @@ async function envoyerSoumission(event){
     }
   }
 
+  const champsStock = Array.from(document.querySelectorAll(".stock-photo"));
+  for(const champ of champsStock){
+    if(!champ.value || Number(champ.value) < 1){
+      statut.style.color = "#dc2626";
+      statut.textContent = "⚠️ Chaque article doit avoir un stock d'au moins 1.";
+      champ.focus();
+      return false;
+    }
+  }
+
   const champsPrix = Array.from(document.querySelectorAll(".prix-photo"));
   for(const champ of champsPrix){
     if(!champ.value || Number(champ.value) < 1000){
@@ -1209,7 +1203,8 @@ async function envoyerSoumission(event){
     const detailsPhotos = photosAjoutees.map((photo, i) => {
       const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
       const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
-      return { photo, nomArticle: champNom.value.trim(), prixSaisi: Number(champPrix.value) };
+      const champStock = document.querySelector(`.stock-photo[data-photo-id="${photo.id}"]`);
+      return { photo, nomArticle: champNom.value.trim(), prixSaisi: Number(champPrix.value), stockSaisi: Number(champStock.value) };
     });
 
     detailsPhotos.forEach(({ nomArticle, prixSaisi }, i) => {
@@ -1297,11 +1292,11 @@ async function envoyerSoumission(event){
     // puis démasquer — au lieu de tout retaper à la main.
     try{
       if(supabaseClient && urlsPhotosSupabase.length === detailsPhotos.length){
-        const lignesAInserer = detailsPhotos.map(({ nomArticle, prixSaisi }, i) => ({
+        const lignesAInserer = detailsPhotos.map(({ nomArticle, prixSaisi, stockSaisi }, i) => ({
           nom: nomArticle,
           prix: prixSaisi + CONFIG.COMMISSION_FCFA,
           commission: CONFIG.COMMISSION_FCFA,
-          stock: 1,
+          stock: stockSaisi,
           image_url: urlsPhotosSupabase[i],
           nom_boutique: nomBoutique,
           telephone_boutique: telephone, // pour savoir qui prévenir quand ça se vend
