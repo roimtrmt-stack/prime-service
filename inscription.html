@@ -798,7 +798,6 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 </style>
 <link rel="icon" href="icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<base target="_blank">
 </head>
 <body>
 <script type="module">
@@ -1228,26 +1227,27 @@ async function envoyerSoumission(event){
       }
     }
 
-    // Ajoute les URLs au message Discord
-    if(uploadSupabaseReussi && urlsPhotosSupabase.length > 0){
-      texte += `
+    // Image directement affichée sous le nom de l'article (comme dans le
+    // message de commande) — plus de lien brut en texte, plus besoin de
+    // rejoindre le fichier en double à Discord, l'URL Supabase suffit.
+    const embedsArticles = uploadSupabaseReussi
+      ? detailsPhotos.map(({ nomArticle }, i) => ({
+          title: `📦 ${nomArticle}`,
+          image: { url: urlsPhotosSupabase[i] },
+        }))
+      : [];
 
-📸 **Photos (URLs permanentes) :**
-`;
-      urlsPhotosSupabase.forEach((url, i) => {
-        texte += `
-Photo ${i+1} : ${url}`;
+    const donneesFormulaire = new FormData();
+    donneesFormulaire.append("payload_json", JSON.stringify({ content: texte, embeds: embedsArticles }));
+
+    // Si l'upload Storage a échoué (réseau, etc.), on joint quand même les
+    // fichiers bruts à Discord — pas d'image permanente sur le site dans ce
+    // cas, mais au moins la demande n'arrive pas sans aucune photo.
+    if(!uploadSupabaseReussi){
+      detailsPhotos.forEach(({ photo }, i) => {
+        donneesFormulaire.append(`file${i}`, photo.fichier, photo.fichier.name);
       });
     }
-
-    // Envoi Discord avec les fichiers joints (pour l'aperçu visuel)
-    const donneesFormulaire = new FormData();
-    donneesFormulaire.append("payload_json", JSON.stringify({ content: texte }));
-
-    // Joindre les fichiers pour que Discord affiche les images en preview
-    detailsPhotos.forEach(({ photo }, i) => {
-      donneesFormulaire.append(`file${i}`, photo.fichier, photo.fichier.name);
-    });
 
     // Délai de sécurité : sur un réseau faible, l'envoi de plusieurs photos
     // peut rester bloqué très longtemps sans jamais échouer ni réussir.
@@ -1292,7 +1292,19 @@ Photo ${i+1} : ${url}`;
           sous_categorie_id: null,
         }));
         const { error: erreurInsertion } = await supabaseClient.from("produits").insert(lignesAInserer);
-        if(erreurInsertion) console.error("Publication automatique impossible :", erreurInsertion);
+        if(erreurInsertion){
+          console.error("Publication automatique impossible :", erreurInsertion);
+          // Avant, cette erreur restait invisible pour tout le monde — le
+          // boutiquier pensait avoir publié, mais rien n'arrivait jamais
+          // côté admin. On l'alerte maintenant sur Discord à chaque échec.
+          fetch(CONFIG.DISCORD_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: `⚠️ **Publication automatique échouée** pour la boutique "${nomBoutique}" (${telephone}).\nErreur technique : ${erreurInsertion.message || erreurInsertion}\nLe message ci-dessus contient quand même les infos — republie l'article manuellement si besoin.`,
+            }),
+          }).catch(() => {});
+        }
       }
     } catch(erreurAuto){
       // Si l'ajout automatique échoue, ce n'est pas grave : le message
