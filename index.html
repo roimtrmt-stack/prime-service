@@ -1074,7 +1074,6 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 <meta name="theme-color" content="#1a1a1a">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-<base target="_blank">
 </head>
 <body>
 
@@ -2698,7 +2697,7 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
   // ⏱️ BLOCAGE 1 MINUTE : empêche le client de quitter la page de remerciement
   // trop vite sans avoir vu les instructions de paiement
   const btnRetourAccueil = document.querySelector('#vue-merci .btn-principal');
-  const delaiAttente = 60; // secondes
+  const delaiAttente = 90; // secondes (1m30)
   let secondesRestantes = delaiAttente;
 
   if(btnRetourAccueil){
@@ -2721,11 +2720,13 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
     }, 1000);
   }
 
-  // Bloque aussi le bouton "précédent" du navigateur pendant 1 minute
+  // Bloque aussi le bouton "précédent" du navigateur pendant 1 minute 
   const bloquerNavigation = (e) => {
     e.preventDefault();
     history.pushState(null, "", window.location.href);
-    alert("⏳ Veuillez patienter encore " + secondesRestantes + " seconde(s) avant de quitter cette page. Cela vous laisse le temps de noter les instructions de paiement.");
+    if(secondesRestantes > 0){
+      alert(`⏳ Veuillez patienter encore ${secondesRestantes} secondes.\n\nProfitez-en pour noter le numéro Orange Money et effectuer votre paiement ! Une fois payé, vous pourrez quitter la page.`);
+    }
   };
 
   history.pushState(null, "", window.location.href);
@@ -3749,6 +3750,17 @@ async function ouvrirHistoriqueAchats(){
 
   await chargerHistoriqueAchats();
 }
+async function supprimerCommande(id){
+  if(!confirm("Voulez-vous vraiment supprimer cette commande ?")) return;
+  
+  const { error } = await supabaseClient.from("commandes").delete().eq("id", id);
+  if(error){
+    alert("Erreur lors de la suppression : " + error.message);
+    console.error(error);
+  } else {
+    chargerHistoriqueAchats(); // Recharge la liste automatiquement
+  }
+}
 
 function fermerHistoriqueAchats(){
   document.getElementById("historiqueAchats").style.display = "none";
@@ -3806,22 +3818,26 @@ async function chargerHistoriqueAchats(){
       return;
     }
 
-    conteneur.innerHTML = commandes.map(cmd => {
+        conteneur.innerHTML = commandes.map(cmd => {
       const articles = cmd.articles || [];
       const nb = articles.reduce((n, a) => n + (a.quantite || 1), 0);
       const date = new Date(cmd.created_at).toLocaleString("fr-FR");
       return `
         <div style="border:1px solid var(--gris-bordure);border-radius:12px;padding:12px;margin-bottom:10px;">
-          <div style="font-weight:700;">Commande #${cmd.id} — ${date}</div>
-          <div style="font-size:13px;color:#666;margin:4px 0;">
-            👤 ${cmd.nom_client || "—"} · 📞 ${cmd.telephone_client || "—"} · 📦 ${nb} article(s)
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-weight:700;">Commande #${cmd.id} — ${date}</div>
+              <div style="font-size:13px;color:#666;margin:4px 0;">
+                👤 ${cmd.nom_client || "—"} · 📞 ${cmd.telephone_client || "—"} · 📦 ${nb} article(s)
+              </div>
+              <div style="font-size:13px;color:#666;margin-bottom:4px;">
+                💰 ${Number(cmd.total || 0).toLocaleString("fr-FR")} FCFA
+              </div>
+            </div>
+            <button class="btn-supprimer-gestion" onclick="supprimerCommande('${cmd.id}')" title="Supprimer cette commande">
+              🗑️
+            </button>
           </div>
-          <div style="font-size:13px;color:#666;margin-bottom:8px;">
-            💰 ${Number(cmd.total || 0).toLocaleString("fr-FR")} FCFA
-          </div>
-          <button class="btn-secondaire" style="margin:0;" onclick='preparerNotifBoutiquier(${JSON.stringify(cmd).replace(/'/g, "&#39;")})'>
-            📨 Préparer la notification
-          </button>
         </div>
       `;
     }).join("");
