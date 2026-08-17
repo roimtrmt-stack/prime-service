@@ -2673,6 +2673,20 @@ async function envoyerCommandesEnAttente(){
 function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
   cacherToutesLesVues();
   document.getElementById("vue-merci").style.display = "block";
+    // 🔒 BLOQUER LE LOGO, LE PANIER ET LES OPTIONS
+  const logoHeader = document.querySelector('.header-left');
+  const btnPanier = document.querySelector('.btn-panier');
+  const btnOptions = document.querySelector('.btn-options');
+  
+  if(logoHeader) logoHeader.style.pointerEvents = 'none';
+  if(btnPanier) { btnPanier.style.pointerEvents = 'none'; btnPanier.style.opacity = '0.5'; }
+  if(btnOptions) { btnOptions.style.pointerEvents = 'none'; btnOptions.style.opacity = '0.5';   // 🔓 RÉACTIVER LES BOUTONS APRÈS 90 SECONDES
+  setTimeout(() => {
+    if(logoHeader) logoHeader.style.pointerEvents = 'auto';
+    if(btnPanier) { btnPanier.style.pointerEvents = 'auto'; btnPanier.style.opacity = '1'; }
+    if(btnOptions) { btnOptions.style.pointerEvents = 'auto'; btnOptions.style.opacity = '1'; }
+  }, delaiAttente * 1000);
+  }
   document.getElementById("btnRetour").style.display = "none";
 
   const montantReel = Number(montant) || 0;
