@@ -4062,21 +4062,20 @@ async function envoyerNotificationAuxBoutiquiers(nomClient, telClient, adresseCl
     });
 
     const telephones = Object.keys(boutiques);
-    if(telephones.length === 0){
-      console.log("Aucun boutiquier à notifier (pas de téléphone enregistré)");
-      return;
-    }
+    if(telephones.length === 0) return;
 
     // Construire le message pour chaque boutiquier
     for(const tel of telephones){
       const b = boutiques[tel];
 
-      // Liste des articles avec photos
       let articlesText = "";
-      b.articles.forEach(art => {
+      let imagePrincipale = null;
+      
+      b.articles.forEach((art, index) => {
         articlesText += `\n📦 ${art.nom} x${art.quantite}`;
-        if(art.image){
-          articlesText += `\n📸 Photo: ${art.image}`;
+        // On prend la première image pour l'afficher en grand dans la notif
+        if(art.image && index === 0){
+          imagePrincipale = art.image;
         }
       });
 
@@ -4086,29 +4085,34 @@ async function envoyerNotificationAuxBoutiquiers(nomClient, telClient, adresseCl
         `📞 Téléphone client: ${telClient}\n` +
         `📍 Adresse: ${adresseClient}\n` +
         `🗺️ Carte: ${lienCarte}\n\n` +
-        `📋 Articles commandés:${articlesText}\n\n` +
-        `💰 Montant à recevoir: ${Math.round(b.total).toLocaleString("fr-FR")} FCFA\n` +
-        `💳 Paiement: Orange Money`;
+        `📋 Articles:${articlesText}\n\n` +
+        `💰 Montant à recevoir: ${Math.round(b.total).toLocaleString("fr-FR")} FCFA`;
 
-      console.log("Envoi notification au boutiquier:", tel);
+      const payload = {
+        app_id: CONFIG.ONE_SIGNAL_APP_ID, // On utilise la clé de ton CONFIG
+        headings: { "fr": "Nouvelle commande Prime Service 🚀" },
+        contents: { "fr": message },
+        include_external_user_ids: [tel],
+        url: window.location.origin + window.location.pathname
+      };
 
-      await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/clever-processor`, {
+      // Si une image est trouvée, on l'ajoute en "big_picture"
+      if(imagePrincipale){
+        payload.big_picture = imagePrincipale; // C'est ce qui affiche l'image !
+      }
+
+      // Envoi vers OneSignal
+      await fetch("https://onesignal.com/api/v1/notifications", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
-          "apikey": CONFIG.SUPABASE_ANON_KEY,
+          "Authorization": `Key ${CONFIG.ONE_SIGNAL_REST_KEY}` // On utilise la clé REST
         },
-        body: JSON.stringify({
-          titre: "Nouvelle commande Prime Service 🚀",
-          message: message,
-          telephones_cibles: [tel],
-          url: window.location.origin + window.location.pathname,
-        }),
+        body: JSON.stringify(payload)
       });
     }
 
-    console.log("✅ Notifications boutiquiers envoyées automatiquement");
+    console.log("✅ Notifications boutiquiers envoyées avec images !");
   } catch(e){
     console.error("Erreur envoi notification boutiquier:", e);
   }
