@@ -2666,11 +2666,79 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
   if(btnPanier) { btnPanier.style.pointerEvents = 'none'; btnPanier.style.opacity = '0.5'; }
   if(btnOptions) { btnOptions.style.pointerEvents = 'none'; btnOptions.style.opacity = '0.5'; }
 
-  // Initialiser le délai ici (pour corriger l'erreur de la console)
+  // Initialiser le délai ici
   const delaiAttente = 90; // secondes (1m30)
 
-  // AFFICHER LE COMPTE À REBOURS ET LES INSTRUCTIONS SUR LA PAGE
-  // Ajout d'un conteneur pour le compte à rebours
+  // --- ANCIENNE PARTIE (Affichage du prix et du numéro) ---
+  const montantReel = Number(montant) || 0;
+  const montantAffiche = montantReel.toLocaleString("fr-FR") + " FCFA";
+
+  document.getElementById("texteMerci").textContent = envoyeeHorsLigne
+    ? "📡 Connectez-vous à internet pour valider votre commande. Elle est déjà enregistrée et sera envoyée automatiquement dès que vous serez connecté."
+    : "Votre colis est en cours d'envoi et arrivera très bientôt chez vous.";
+
+  const numero = CONFIG.NUMERO_PAIEMENT.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
+  document.getElementById("numeroPaiementAffiche").textContent = numero;
+  document.getElementById("modePaiementAffiche").textContent = "Orange Money";
+
+  // --- BLOQUER LE BOUTON "RETOUR A L'ACCUEIL" PENDANT 90s ---
+  const btnRetourAccueil = document.querySelector('#vue-merci .btn-principal');
+  if(btnRetourAccueil){
+    btnRetourAccueil.disabled = true;
+    btnRetourAccueil.style.opacity = "0.5";
+    btnRetourAccueil.style.cursor = "not-allowed";
+    btnRetourAccueil.textContent = `⏳ Patientez ${delaiAttente}s avant de quitter`;
+  }
+
+  // --- CRÉER ET AJOUTER LE BLOC D'INSTRUCTIONS DE PAIEMENT ---
+  let instructionsElement = document.getElementById("instructionsPaiementMerci");
+  if(!instructionsElement){
+    const divInstructions = document.createElement("div");
+    divInstructions.id = "instructionsPaiementMerci";
+
+    divInstructions.style.cssText = `
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 20px;
+      margin: 16px 0;
+      text-align: left;
+      font-size: 15px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      line-height: 1.6;
+    `;
+
+    divInstructions.innerHTML = `
+      <div style="background: #fef2f2; border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; border-left: 4px solid #dc2626;">
+        <strong style="color: #dc2626; display: block;">⚠️ Paiement Orange Money uniquement :</strong>
+        <span style="color: #991b1b; font-size: 14px;">N'envoyez PAS d'argent au livreur ! Payez simplement au numéro ci-dessous. Le bouton Retour se débloquera dans quelques secondes.</span>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <div style="font-weight: 700; font-size: 16px; margin-bottom: 8px; color: #1f2937;">💳 Paiement Orange Money</div>
+        <ol style="margin: 0; padding-left: 20px; color: #374151;">
+          <li style="margin-bottom: 6px;">Composez <strong>#144#</strong> sur votre téléphone.</li>
+          <li style="margin-bottom: 6px;">Suivez le menu <strong>Transfert d'argent</strong>.</li>
+          <li style="margin-bottom: 6px;">Entrez le numéro <strong style="color: #2563eb;">94 13 44 08</strong> et le montant de <strong style="color: #16a34a;">${montantAffiche}</strong>.</li>
+          <li>Validez avec votre code secret Orange Money.</li>
+        </ol>
+      </div>
+
+      <div style="border-top: 1px solid #e5e7eb; padding-top: 14px; margin-top: 8px;">
+        <div style="font-weight: 600; font-size: 14px; color: #374151; margin-bottom: 4px;">🏪 Alternative Kiosque Orange Money :</div>
+        <div style="color: #4b5563; font-size: 14px;">
+          Donnez le numéro <strong style="color: #2563eb;">94 13 44 08</strong> et <strong style="color: #16a34a;">${montantAffiche}</strong> au vendeur. Il fera le transfert pour vous (frais minimes).
+        </div>
+      </div>
+    `;
+
+    document.querySelector(".bloc-paiement").after(divInstructions);
+    instructionsElement = document.getElementById("instructionsPaiementMerci");
+  }
+
+  // --- COMPTE À REBOURS VISIBLE SUR LA PAGE ---
+  let secondesRestantes = delaiAttente;
+  
   let compteurElement = document.getElementById("compteurPageMerci");
   if(!compteurElement){
     compteurElement = document.createElement("p");
@@ -2679,63 +2747,63 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
     document.querySelector(".bloc-paiement").after(compteurElement);
   }
 
-      // Affichage des instructions de paiement et du compte à rebours
-    let instructionsElement = document.getElementById("instructionsPaiementMerci");
-    if(!instructionsElement){
-      const divInstructions = document.createElement("div");
-      divInstructions.id = "instructionsPaiementMerci";
-
-      divInstructions.style.cssText = `
-        background: #ffffff;
-        border: 1px solid #e5e7eb;
-        border-radius: 16px;
-        padding: 20px;
-        margin: 16px 0;
-        text-align: left;
-        font-size: 15px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        line-height: 1.6;
-      `;
-
-      // On récupère le montant affiché depuis le début de la fonction
-      const montantAffiche = typeof montantAffiche !== 'undefined' ? montantAffiche : "le montant";
-
-      divInstructions.innerHTML = `
-        <div style="background: #fef2f2; border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; border-left: 4px solid #dc2626;">
-          <strong style="color: #dc2626; display: block;">⚠️ Paiement Orange Money uniquement :</strong>
-          <span style="color: #991b1b; font-size: 14px;">N'envoyez PAS d'argent au livreur ! Payez simplement au numéro ci-dessous. Le bouton Retour se débloquera dans quelques secondes.</span>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <div style="font-weight: 700; font-size: 16px; margin-bottom: 8px; color: #1f2937;">💳 Paiement Orange Money</div>
-          <ol style="margin: 0; padding-left: 20px; color: #374151;">
-            <li style="margin-bottom: 6px;">Composez <strong>#144#</strong> sur votre téléphone.</li>
-            <li style="margin-bottom: 6px;">Suivez le menu <strong>Transfert d'argent</strong>.</li>
-            <li style="margin-bottom: 6px;">Entrez le numéro <strong style="color: #2563eb;">94 13 44 08</strong> et le montant de <strong style="color: #16a34a;">${montantAffiche}</strong>.</li>
-            <li>Validez avec votre code secret Orange Money.</li>
-          </ol>
-        </div>
-
-        <div style="border-top: 1px solid #e5e7eb; padding-top: 14px; margin-top: 8px;">
-          <div style="font-weight: 600; font-size: 14px; color: #374151; margin-bottom: 4px;">🏪 Alternative Kiosque Orange Money :</div>
-          <div style="color: #4b5563; font-size: 14px;">
-            Donnez le numéro <strong style="color: #2563eb;">94 13 44 08</strong> et <strong style="color: #16a34a;">${montantAffiche}</strong> au vendeur. Il fera le transfert pour vous (frais minimes).
-          </div>
-        </div>
-      `;
-
-      // On ajoute le bloc à la page
-      document.querySelector(".bloc-paiement").after(divInstructions);
-      instructionsElement = document.getElementById("instructionsPaiementMerci");
-    }
-
-  let secondesRestantes = delaiAttente;
-
   const mettreAJourCompteur = () => {
     if(compteurElement) {
-      compteurElement.textContent = `⏳ Le bouton "Retour" et le panier se débloqueront dans ${secondesRestantes} secondes...`;
+      compteurElement.textContent = `⏳ Le bouton "Retour" se débloquera dans ${secondesRestantes} secondes...`;
     }
   };
+  mettreAJourCompteur();
+
+  const intervalleCompteur = setInterval(() => {
+    secondesRestantes--;
+    if(secondesRestantes > 0) {
+      mettreAJourCompteur();
+      if(btnRetourAccueil){
+        btnRetourAccueil.textContent = `⏳ Patientez ${secondesRestantes}s avant de quitter`;
+      }
+    } else {
+      clearInterval(intervalleCompteur);
+      if(compteurElement) {
+        compteurElement.textContent = "✅ Vous pouvez maintenant quitter cette page !";
+        compteurElement.style.color = "#16a34a";
+      }
+      if(btnRetourAccueil){
+        btnRetourAccueil.disabled = false;
+        btnRetourAccueil.style.opacity = "1";
+        btnRetourAccueil.style.cursor = "pointer";
+        btnRetourAccueil.textContent = "Retour à l'accueil";
+      }
+    }
+  }, 1000);
+
+  // --- DÉBLOQUER LES BOUTONS APRÈS 90 SECONDES ---
+  setTimeout(() => {
+    if(logoHeader) logoHeader.style.pointerEvents = 'auto';
+    if(btnPanier) { btnPanier.style.pointerEvents = 'auto'; btnPanier.style.opacity = '1'; }
+    if(btnOptions) { btnOptions.style.pointerEvents = 'auto'; btnOptions.style.opacity = '1'; }
+  }, delaiAttente * 1000);
+
+  document.getElementById("btnRetour").style.display = "none";
+
+  // --- BLOQUER LE BOUTON PRÉCÉDENT DU NAVIGATEUR ---
+  const bloquerNavigation = (e) => {
+    e.preventDefault();
+    history.pushState(null, "", window.location.href);
+    if(secondesRestantes > 0){
+      alert(`⏳ Veuillez patienter encore ${secondesRestantes} secondes.\n\nProfitez-en pour noter le numéro Orange Money et effectuer votre paiement ! Une fois payé, vous pourrez quitter la page.`);
+    }
+  };
+
+  history.pushState(null, "", window.location.href);
+  window.addEventListener("popstate", bloquerNavigation);
+
+  setTimeout(() => {
+    window.removeEventListener("popstate", bloquerNavigation);
+  }, delaiAttente * 1000);
+
+  history.replaceState({ vue: "merci" }, "");
+}
+
   mettreAJourCompteur(); // Affichage initial
 
   const intervalleCompteur = setInterval(() => {
