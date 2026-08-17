@@ -989,15 +989,21 @@ let compteurPhoto = 0;
 async function ajouterPhoto(event){
   const fichierOriginal = event.target.files[0];
   if(!fichierOriginal) return;
-  event.target.value = ""; // permet de resélectionner le même fichier si besoin
+  event.target.value = ""; 
 
   compteurPhoto++;
   const id = compteurPhoto;
+
+  // ✅ ALERTE UNIQUEMENT POUR LA PREMIÈRE PHOTO
+  if(compteurPhoto === 1){
+    alert("📸 IMPORTANT : La première photo va prendre 30 à 60 secondes car le téléphone doit télécharger le modèle IA. Les photos suivantes seront instantanées. Patientez !");
+  }
+
   photosAjoutees.push({
     id,
     fichier: fichierOriginal,
     apercuUrl: URL.createObjectURL(fichierOriginal),
-    traitement: true, // affiche "fond blanc en cours..." le temps du calcul
+    traitement: true,
   });
   redessinerPhotos();
 
@@ -1009,9 +1015,6 @@ async function ajouterPhoto(event){
       entree.apercuUrl = URL.createObjectURL(fichierBlanchi);
     }
   } catch(erreur){
-    // Réseau trop faible pour télécharger le modèle IA, ou photo trop
-    // complexe : on garde la photo originale plutôt que de bloquer le
-    // boutiquier — mieux vaut un fond non blanchi qu'aucun article publié.
     console.error("Fond blanc automatique impossible, photo originale conservée :", erreur);
   } finally {
     const entree = photosAjoutees.find(p => p.id === id);
