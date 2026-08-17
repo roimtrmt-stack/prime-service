@@ -1481,11 +1481,15 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 const CONFIG = {
   // 🛡️ Le webhook Discord est maintenant caché côté serveur (Edge Function)
   // Plus besoin de l'exposer ici. Il est stocké dans les variables d'environnement Supabase.
-  DISCORD_WEBHOOK_URL: "", // Laisser vide - plus utilisé
+const CONFIG = {
+  DISCORD_WEBHOOK_URL: "",
   SUPABASE_URL: "https://kfxalpvbtbvkncztjwzc.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
   NUMERO_PAIEMENT: "94134408",
   EMAIL_ADMIN_AUTORISE: "roimtrmt@gmail.com",
+  // 👇 C'EST ICI QU'ON AJOUTE LES CLÉS
+  ONE_SIGNAL_APP_ID: "b6a99481-d17e-4c6a-8a5c-259763471e63", 
+  ONE_SIGNAL_REST_KEY: "a6hrh5m7yughfypajob5wlxon" 
 };
 
 // Sécurité : tout texte venant d'un boutiquier ou d'un client (nom
