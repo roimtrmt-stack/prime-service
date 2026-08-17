@@ -2473,7 +2473,7 @@ async function envoyerCommande(event){
 
   let discordOk = false;
   try{
-    console.log("Envoi Discord en cours...", corpsRequete);
+    console.log("Envoi Discord en cours...");
 
     const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-commande`, {
       method: "POST",
@@ -2481,11 +2481,15 @@ async function envoyerCommande(event){
         "Content-Type": "application/json",
         "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
       },
-      body: JSON.stringify({
-        content: texte,
-        embeds: embeds
+            body: JSON.stringify({
+        nom: nom,
+        tel: tel,
+        adresseClientLisible: adresseClientLisible,
+        lienPositionClient: lienPositionClient,
+        totalCommande: totalCommande,
+        panier: panier,
+        boutiquesUniques: boutiquesUniques
       })
-    });
 
     console.log("Réponse Discord:", reponse.status, reponse.statusText);
 
@@ -2699,15 +2703,20 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
   // Affichage des instructions de paiement directement sur la page (sous le numéro)
   let instructionsElement = document.getElementById("instructionsPaiementMerci");
   if(!instructionsElement){
-    const divInstructions = document.createElement("div");
+       const divInstructions = document.createElement("div");
     divInstructions.id = "instructionsPaiementMerci";
     divInstructions.style.cssText = "background:#fff7ed;border:1px solid var(--orange);border-radius:12px;padding:14px;margin:12px 0;text-align:left;font-size:14px;";
     divInstructions.innerHTML = `
+      <strong style="color:#dc2626; display:block; margin-bottom:8px;">⚠️ Le bouton Retour se débloque dans quelques secondes. Ne quittez pas avant d'avoir payé !</strong>
+
       <strong>💳 Comment payer ?</strong><br>
       1. Composez <strong>#144#</strong> sur votre téléphone.<br>
       2. Suivez le menu <strong>Transfert d'argent</strong>.<br>
       3. Entrez le numéro <strong>94 13 44 08</strong> et le montant affiché ci-dessus.<br>
-      4. Validez avec votre code secret Orange Money.
+      4. Validez avec votre code secret Orange Money.<br><br>
+
+      <strong>🏪 Ou allez directement chez un kiosque Orange Money :</strong><br>
+      Donnez le numéro <strong>94 13 44 08</strong> et le montant au vendeur. Il fera le transfert pour vous (frais minimes).
     `;
     document.querySelector(".bloc-paiement").after(divInstructions);
     // On met à jour l'élément
