@@ -1650,10 +1650,10 @@ if("serviceWorker" in navigator){
     // Vérifie tout de suite s'il existe une version plus récente du site.
     enregistrement.update();
 
-    // Revérifie régulièrement (toutes les 5 minutes) pour les sessions
-    // laissées ouvertes longtemps, afin que la mise à jour reste
-    // automatique même sans fermer/rouvrir l'appli.
-    setInterval(() => enregistrement.update(), 5 * 60 * 1000);
+    // Vérifie toutes les 15 secondes s'il y a une mise à jour (pour GitHub Pages)
+  setInterval(() => {
+    enregistrement.update();
+  }, 15000); // 15 secondes pour que tu voies le bandeau rapidement
 
     // Si une nouvelle version est prête, elle s'applique automatiquement
     // après un court délai (voir afficherBandeauMiseAJour).
