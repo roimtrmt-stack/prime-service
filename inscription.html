@@ -1104,6 +1104,10 @@ function recupererPositionInscription(){
    ===================================================================== */
 async function envoyerSoumission(event){
   event.preventDefault();
+      // À coller juste après event.preventDefault(); au début de la fonction ajouterPhoto(event)
+    if(photosAjoutees.length === 0){
+      alert("📸 IMPORTANT : La première photo va prendre 30 à 60 secondes car le téléphone doit télécharger le modèle IA. Les photos suivantes seront instantanées. Patientez !");
+    }
 
   const nom = document.getElementById("nomSoumissionnaire").value.trim();
   const nomBoutique = document.getElementById("nomBoutiqueSoumissionnaire").value.trim();
