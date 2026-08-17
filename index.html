@@ -1465,9 +1465,6 @@ const CONFIG = {
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
   NUMERO_PAIEMENT: "94134408",
   EMAIL_ADMIN_AUTORISE: "roimtrmt@gmail.com",
-  // 👇 C'EST ICI QU'ON AJOUTE LES CLÉS
-  ONE_SIGNAL_APP_ID: "b6a99481-d17e-4c6a-8a5c-259763471e63", 
-  ONE_SIGNAL_REST_KEY: "a6hrh5m7yughfypajob5wlxon" 
 };
 
 // Sécurité : tout texte venant d'un boutiquier ou d'un client (nom
@@ -1493,7 +1490,6 @@ function echapperHtml(texte){
 function echapperPourOnclick(texte){
   return echapperHtml(JSON.stringify(String(texte ?? "")));
 }
-
 
 /* =====================================================================
    TEST DU WEBHOOK DISCORD (pour déboguer)
@@ -2707,10 +2703,10 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
       // Si tu as déjà une variable qui s'appelle montantAffiche, on l'utilise.
       // Sinon, je l'ai mis en sécurité avec une valeur par défaut.
 
-      divInstructions.innerHTML = `
+            divInstructions.innerHTML = `
         <div style="background: #fef2f2; border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; border-left: 4px solid #dc2626;">
-          <strong style="color: #dc2626; display: block;">⚠️ IMPORTANT :</strong>
-          <span style="color: #991b1b; font-size: 14px;">Ne quittez pas cette page avant d'avoir payé ! Le bouton Retour se débloquera dans quelques secondes.</span>
+          <strong style="color: #dc2626; display: block;">⚠️ Paiement Orange Money uniquement :</strong>
+          <span style="color: #991b1b; font-size: 14px;">N'envoyez PAS d'argent au livreur ! Payez simplement au numéro ci-dessous. Le bouton Retour se débloquera dans quelques secondes.</span>
         </div>
 
         <div style="margin-bottom: 16px;">
@@ -2718,23 +2714,18 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
           <ol style="margin: 0; padding-left: 20px; color: #374151;">
             <li style="margin-bottom: 6px;">Composez <strong>#144#</strong> sur votre téléphone.</li>
             <li style="margin-bottom: 6px;">Suivez le menu <strong>Transfert d'argent</strong>.</li>
-            <li style="margin-bottom: 6px;">Entrez le numéro <strong style="color: #2563eb;">94 13 44 08</strong> et le montant de <strong style="color: #16a34a;">${montantAffiche}</strong>.</li>
+            <li style="margin-bottom: 6px;">Entrez le numéro <strong style="color: #2563eb;">94 13 44 08</strong> et le montant de <strong style="color: #16a34a;">${typeof montantAffiche !== 'undefined' ? montantAffiche : "le montant"}</strong>.</li>
             <li>Validez avec votre code secret Orange Money.</li>
           </ol>
         </div>
 
         <div style="border-top: 1px solid #e5e7eb; padding-top: 14px; margin-top: 8px;">
-          <div style="font-weight: 600; font-size: 14px; color: #374151; margin-bottom: 4px;">🏪 Ou chez un kiosque Orange Money :</div>
+          <div style="font-weight: 600; font-size: 14px; color: #374151; margin-bottom: 4px;">🏪 Alternative Kiosque Orange Money :</div>
           <div style="color: #4b5563; font-size: 14px;">
-            Donnez le numéro <strong style="color: #2563eb;">94 13 44 08</strong> et <strong style="color: #16a34a;">${montantAffiche}</strong> au vendeur. Il fera le transfert pour vous (frais minimes).
+            Donnez le numéro <strong style="color: #2563eb;">94 13 44 08</strong> et <strong style="color: #16a34a;">${typeof montantAffiche !== 'undefined' ? montantAffiche : "le montant"}</strong> au vendeur. Il fera le transfert pour vous (frais minimes).
           </div>
         </div>
-      `;
-
-      document.querySelector(".bloc-paiement").after(divInstructions);
-      instructionsElement = document.getElementById("instructionsPaiementMerci");
-      if(instructionsElement) instructionsElement.style.display = "block";
-    }
+      `;} // <-- IL MANQUE CETTE ACCOLADE POUR FERMER LE if(!instructionsElement)
 
   let secondesRestantes = delaiAttente;
 
@@ -2778,13 +2769,7 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
   const numero = CONFIG.NUMERO_PAIEMENT.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
   document.getElementById("numeroPaiementAffiche").textContent = numero;
   document.getElementById("modePaiementAffiche").textContent = "Orange Money";
-
-  // --- PARTIE ORANGE MONEY (Instructions longues existantes) ---
-  document.getElementById("instructionsOrange").style.display = "none";
-  document.getElementById("numeroOrangeInstruction").textContent = CONFIG.NUMERO_PAIEMENT;
-  document.getElementById("montantOrangeInstruction").textContent = montantAffiche;
-  document.getElementById("numeroOrangeInstructionKiosque").textContent = CONFIG.NUMERO_PAIEMENT;
-  document.getElementById("montantOrangeInstructionKiosque").textContent = montantAffiche;
+  
 
   // --- BLOQUER LE BOUTON "RETOUR A L'ACCUEIL" PENDANT 90s ---
   const btnRetourAccueil = document.querySelector('#vue-merci .btn-principal');
