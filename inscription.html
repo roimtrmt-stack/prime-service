@@ -925,7 +925,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
    CONFIGURATION
    ===================================================================== */
 const CONFIG = {
-  DISCORD_WEBHOOK_URL: "https://discord.com/api/webhooks/1527664130838757526/ImLvQwT_ZKk7WRSrMjyCh9_Xy5v0lp8Hwlw6wyoKOUcxreF8FC7M83L4QfABu_SVb513",
+  DISCORD_WEBHOOK_URL: "",
   SUPABASE_URL: "https://kfxalpvbtbvkncztjwzc.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
   COMMISSION_FCFA: 300,
@@ -1269,25 +1269,25 @@ async function envoyerSoumission(event){
       });
     }
 
-    // Délai de sécurité : sur un réseau faible, l'envoi de plusieurs photos
-    // peut rester bloqué très longtemps sans jamais échouer ni réussir.
-    // On arrête nous-mêmes après 25 secondes pour donner un retour clair
-    // au lieu d'un "Envoi en cours..." qui ne se termine jamais.
-    const controleur = new AbortController();
-    const delaiSecurite = setTimeout(() => controleur.abort(), 25000);
+        // 🛡️ Envoi sécurisé vers la nouvelle fonction Supabase
+      console.log("Envoi de la demande d'inscription via le serveur...");
 
-    let reponse;
-    try{
-      // ?wait=true : Discord renvoie le message créé (avec les URLs des
-      // photos hébergées), dont on a besoin pour publier automatiquement.
-      reponse = await fetch(CONFIG.DISCORD_WEBHOOK_URL + "?wait=true", {
+      const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-inscription`, {
         method: "POST",
-        body: donneesFormulaire,
-        signal: controleur.signal,
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          texte: texte,
+          embeds: embedsArticles
+        })
       });
-    } finally {
-      clearTimeout(delaiSecurite);
-    }
+
+      if(!reponse.ok){
+        const texteErreur = await reponse.text();
+        throw new Error(`Le serveur a refusé l'envoi (${reponse.status}). ${texteErreur}`);
+      }
 
     if(!reponse.ok){
       const texteErreur = await reponse.text();
