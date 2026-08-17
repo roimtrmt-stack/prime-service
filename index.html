@@ -1465,7 +1465,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
     <div class="icone-pause">⏸️</div>
     <h2>Désolé, le site est en pause</h2>
     <p>Prime Service ne prend pas de commande pour le moment.</p>
-    <div class="raison-pause" id="raisonPauseAffichee">Raison non précisée</div>
+    f<div class="raison-pause" id="raisonPauseAffichee">Raison non précisée</div>
     <p>Merci de revenir un peu plus tard 🙏</p>
     <hr style="border:none;border-top:1px solid var(--gris-bordure);margin:20px 0;">
     <p style="font-weight:700;margin-bottom:10px;">🏪 Vous êtes boutiquier ?</p>
@@ -1478,7 +1478,6 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 /* =====================================================================
    CONFIGURATION
    ===================================================================== */
-const CONFIG = {
   // 🛡️ Le webhook Discord est maintenant caché côté serveur (Edge Function)
   // Plus besoin de l'exposer ici. Il est stocké dans les variables d'environnement Supabase.
 const CONFIG = {
@@ -2485,7 +2484,7 @@ async function envoyerCommande(event){
         "Content-Type": "application/json",
         "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
       },
-            body: JSON.stringify({
+                body: JSON.stringify({
         nom: nom,
         tel: tel,
         adresseClientLisible: adresseClientLisible,
@@ -2493,7 +2492,8 @@ async function envoyerCommande(event){
         totalCommande: totalCommande,
         panier: panier,
         boutiquesUniques: boutiquesUniques
-      })
+      }) // <-- IL MANQUAIT L'ACCOLADE FERMANTE
+    }); // <-- ET LA PARENTHÈSE FERMANTE DU FETCHER
 
     console.log("Réponse Discord:", reponse.status, reponse.statusText);
 
