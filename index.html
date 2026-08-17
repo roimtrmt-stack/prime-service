@@ -2673,22 +2673,80 @@ async function envoyerCommandesEnAttente(){
 function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
   cacherToutesLesVues();
   document.getElementById("vue-merci").style.display = "block";
-    // 🔒 BLOQUER LE LOGO, LE PANIER ET LES OPTIONS
+
+  // 🔒 BLOQUER LE LOGO, LE PANIER ET LES OPTIONS
   const logoHeader = document.querySelector('.header-left');
   const btnPanier = document.querySelector('.btn-panier');
   const btnOptions = document.querySelector('.btn-options');
   
   if(logoHeader) logoHeader.style.pointerEvents = 'none';
   if(btnPanier) { btnPanier.style.pointerEvents = 'none'; btnPanier.style.opacity = '0.5'; }
-  if(btnOptions) { btnOptions.style.pointerEvents = 'none'; btnOptions.style.opacity = '0.5';   // 🔓 RÉACTIVER LES BOUTONS APRÈS 90 SECONDES
+  if(btnOptions) { btnOptions.style.pointerEvents = 'none'; btnOptions.style.opacity = '0.5'; }
+
+  // Initialiser le délai ici (pour corriger l'erreur de la console)
+  const delaiAttente = 90; // secondes (1m30)
+
+  // AFFICHER LE COMPTE À REBOURS ET LES INSTRUCTIONS SUR LA PAGE
+  // Ajout d'un conteneur pour le compte à rebours
+  let compteurElement = document.getElementById("compteurPageMerci");
+  if(!compteurElement){
+    compteurElement = document.createElement("p");
+    compteurElement.id = "compteurPageMerci";
+    compteurElement.style.cssText = "font-weight:700;color:#dc2626;font-size:16px;margin:10px 0;";
+    document.querySelector(".bloc-paiement").after(compteurElement);
+  }
+
+  // Affichage des instructions de paiement directement sur la page (sous le numéro)
+  let instructionsElement = document.getElementById("instructionsPaiementMerci");
+  if(!instructionsElement){
+    const divInstructions = document.createElement("div");
+    divInstructions.id = "instructionsPaiementMerci";
+    divInstructions.style.cssText = "background:#fff7ed;border:1px solid var(--orange);border-radius:12px;padding:14px;margin:12px 0;text-align:left;font-size:14px;";
+    divInstructions.innerHTML = `
+      <strong>💳 Comment payer ?</strong><br>
+      1. Composez <strong>#144#</strong> sur votre téléphone.<br>
+      2. Suivez le menu <strong>Transfert d'argent</strong>.<br>
+      3. Entrez le numéro <strong>94 13 44 08</strong> et le montant affiché ci-dessus.<br>
+      4. Validez avec votre code secret Orange Money.
+    `;
+    document.querySelector(".bloc-paiement").after(divInstructions);
+    // On met à jour l'élément
+    instructionsElement = document.getElementById("instructionsPaiementMerci");
+    if(instructionsElement) instructionsElement.style.display = "block";
+  }
+
+  let secondesRestantes = delaiAttente;
+
+  const mettreAJourCompteur = () => {
+    if(compteurElement) {
+      compteurElement.textContent = `⏳ Le bouton "Retour" et le panier se débloqueront dans ${secondesRestantes} secondes...`;
+    }
+  };
+  mettreAJourCompteur(); // Affichage initial
+
+  const intervalleCompteur = setInterval(() => {
+    secondesRestantes--;
+    if(secondesRestantes > 0) {
+      mettreAJourCompteur();
+    } else {
+      clearInterval(intervalleCompteur);
+      if(compteurElement) {
+        compteurElement.textContent = "✅ Vous pouvez maintenant quitter cette page !";
+        compteurElement.style.color = "#16a34a";
+      }
+    }
+  }, 1000);
+
+  // 🔓 RÉACTIVER LES BOUTONS APRÈS 90 SECONDES
   setTimeout(() => {
     if(logoHeader) logoHeader.style.pointerEvents = 'auto';
     if(btnPanier) { btnPanier.style.pointerEvents = 'auto'; btnPanier.style.opacity = '1'; }
     if(btnOptions) { btnOptions.style.pointerEvents = 'auto'; btnOptions.style.opacity = '1'; }
   }, delaiAttente * 1000);
-  }
+
   document.getElementById("btnRetour").style.display = "none";
 
+  // --- ANCIENNE PARTIE (Affichage du prix et du numéro) ---
   const montantReel = Number(montant) || 0;
   const montantAffiche = montantReel.toLocaleString("fr-FR") + " FCFA";
 
@@ -2700,41 +2758,47 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
   document.getElementById("numeroPaiementAffiche").textContent = numero;
   document.getElementById("modePaiementAffiche").textContent = "Orange Money";
 
+  // --- PARTIE ORANGE MONEY (Instructions longues existantes) ---
   document.getElementById("instructionsOrange").style.display = "none";
-
   document.getElementById("numeroOrangeInstruction").textContent = CONFIG.NUMERO_PAIEMENT;
   document.getElementById("montantOrangeInstruction").textContent = montantAffiche;
   document.getElementById("numeroOrangeInstructionKiosque").textContent = CONFIG.NUMERO_PAIEMENT;
   document.getElementById("montantOrangeInstructionKiosque").textContent = montantAffiche;
   document.getElementById("instructionsOrange").style.display = "block";
 
-  // ⏱️ BLOCAGE 1 MINUTE : empêche le client de quitter la page de remerciement
-  // trop vite sans avoir vu les instructions de paiement
+  // --- BLOQUER LE BOUTON "RETOUR A L'ACCUEIL" PENDANT 90s ---
   const btnRetourAccueil = document.querySelector('#vue-merci .btn-principal');
-  const delaiAttente = 90; // secondes (1m30)
-  let secondesRestantes = delaiAttente;
-
   if(btnRetourAccueil){
     btnRetourAccueil.disabled = true;
     btnRetourAccueil.style.opacity = "0.5";
     btnRetourAccueil.style.cursor = "not-allowed";
-    btnRetourAccueil.textContent = `⏳ Patientez ${secondesRestantes}s avant de quitter`;
+    btnRetourAccueil.textContent = `⏳ Patientez ${delaiAttente}s avant de quitter`;
 
-    const compteurInterval = setInterval(() => {
-      secondesRestantes--;
+    // Mettre à jour le texte du bouton en fonction du temps restant
+    const majBouton = () => {
       if(secondesRestantes > 0){
         btnRetourAccueil.textContent = `⏳ Patientez ${secondesRestantes}s avant de quitter`;
       } else {
-        clearInterval(compteurInterval);
         btnRetourAccueil.disabled = false;
         btnRetourAccueil.style.opacity = "1";
         btnRetourAccueil.style.cursor = "pointer";
         btnRetourAccueil.textContent = "Retour à l'accueil";
       }
+    };
+
+    // On réutilise l'intervalle existant pour mettre à jour le bouton
+    const intervalleBouton = setInterval(() => {
+      secondesRestantes--;
+      if(secondesRestantes > 0) {
+        majBouton();
+      } else {
+        clearInterval(intervalleBouton);
+        majBouton();
+      }
     }, 1000);
   }
 
-  // Bloque aussi le bouton "précédent" du navigateur pendant 1 minute 
+  // Bloque le bouton "précédent" du navigateur
   const bloquerNavigation = (e) => {
     e.preventDefault();
     history.pushState(null, "", window.location.href);
@@ -2746,7 +2810,6 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
   history.pushState(null, "", window.location.href);
   window.addEventListener("popstate", bloquerNavigation);
 
-  // Débloque après 1 minute
   setTimeout(() => {
     window.removeEventListener("popstate", bloquerNavigation);
   }, delaiAttente * 1000);
