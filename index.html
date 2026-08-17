@@ -4068,16 +4068,14 @@ async function envoyerNotificationAuxBoutiquiers(nomClient, telClient, adresseCl
     const telephones = Object.keys(boutiques);
     if(telephones.length === 0) return;
 
-    // Construire le message pour chaque boutiquier
+    // 🛡️ NOUVEAU CODE SÉCURISÉ (appel à la fonction serveur)
     for(const tel of telephones){
       const b = boutiques[tel];
-
       let articlesText = "";
       let imagePrincipale = null;
       
       b.articles.forEach((art, index) => {
         articlesText += `\n📦 ${art.nom} x${art.quantite}`;
-        // On prend la première image pour l'afficher en grand dans la notif
         if(art.image && index === 0){
           imagePrincipale = art.image;
         }
@@ -4092,36 +4090,28 @@ async function envoyerNotificationAuxBoutiquiers(nomClient, telClient, adresseCl
         `📋 Articles:${articlesText}\n\n` +
         `💰 Montant à recevoir: ${Math.round(b.total).toLocaleString("fr-FR")} FCFA`;
 
-      const payload = {
-        app_id: CONFIG.ONE_SIGNAL_APP_ID, // On utilise la clé de ton CONFIG
-        headings: { "fr": "Nouvelle commande Prime Service 🚀" },
-        contents: { "fr": message },
-        include_external_user_ids: [tel],
-        url: window.location.origin + window.location.pathname
-      };
-
-      // Si une image est trouvée, on l'ajoute en "big_picture"
-      if(imagePrincipale){
-        payload.big_picture = imagePrincipale; // C'est ce qui affiche l'image !
-      }
-
-      // Envoi vers OneSignal
-      await fetch("https://onesignal.com/api/v1/notifications", {
+      // Appel sécurisé vers la fonction Edge (sans exposer la clé)
+      await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-notification-boutique`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Key ${CONFIG.ONE_SIGNAL_REST_KEY}` // On utilise la clé REST
+          "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          telephones: [tel],
+          message: message,
+          titre: `Nouvelle commande chez ${b.nomBoutique}`,
+          imageUrl: imagePrincipale,
+          url: window.location.origin + window.location.pathname
+        })
       });
     }
 
-    console.log("✅ Notifications boutiquiers envoyées avec images !");
+    console.log("✅ Notifications boutiquiers envoyées via le serveur !");
   } catch(e){
     console.error("Erreur envoi notification boutiquier:", e);
   }
 }
-
 verifierEtatPause();
 
 /* =====================================================================
