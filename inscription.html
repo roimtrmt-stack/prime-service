@@ -800,34 +800,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-<script type="module">
-  // Retrait de fond + fond blanc — tourne entièrement dans le navigateur
-  // du boutiquier (WASM), aucune clé API, aucun compte, aucun serveur à
-  // toi. Télécharge un modèle IA (quelques Mo) au premier usage : sur un
-  // réseau très faible, la première photo peut prendre du temps — c'est
-  // pour ça que ajouterPhoto() ci-dessous n'attend jamais indéfiniment
-  // sans retour visuel, et retombe sur la photo originale si ça échoue.
-  import removeBackground from "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/index.mjs";
 
-  window.retirerFondEtBlanchir = async function(fichier){
-    const blobDecoupe = await removeBackground(fichier);
-
-    const bitmap = await createImageBitmap(blobDecoupe);
-    const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(bitmap, 0, 0);
-
-    const blobFinal = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
-    return new File(
-      [blobFinal],
-      fichier.name.replace(/\.[^.]+$/, "") + "-fond-blanc.jpg",
-      { type: "image/jpeg" }
-    );
-  };
 </script>
 
 <header class="header">
@@ -994,37 +967,13 @@ async function ajouterPhoto(event){
   compteurPhoto++;
   const id = compteurPhoto;
 
-  // ✅ ALERTE UNIQUEMENT POUR LA PREMIÈRE PHOTO
-  if(compteurPhoto === 1){
-    alert("📸 IMPORTANT : La première photo va prendre 30 à 60 secondes car le téléphone doit télécharger le modèle IA. Les photos suivantes seront instantanées. Patientez !");
-  }
-
   photosAjoutees.push({
     id,
     fichier: fichierOriginal,
     apercuUrl: URL.createObjectURL(fichierOriginal),
-    traitement: true,
+    traitement: false,
   });
-  redessinerPhotos();
-
-  try{
-    const fichierBlanchi = await window.retirerFondEtBlanchir(fichierOriginal);
-    const entree = photosAjoutees.find(p => p.id === id);
-    if(entree){
-      entree.fichier = fichierBlanchi;
-      entree.apercuUrl = URL.createObjectURL(fichierBlanchi);
-    }
-  } catch(erreur){
-    console.error("Fond blanc automatique impossible, photo originale conservée :", erreur);
-  } finally {
-    const entree = photosAjoutees.find(p => p.id === id);
-    if(entree) entree.traitement = false;
-    redessinerPhotos();
-  }
-}
-
-function retirerPhoto(id){
-  photosAjoutees = photosAjoutees.filter(p => p.id !== id);
+  
   redessinerPhotos();
 }
 
@@ -1036,7 +985,6 @@ function redessinerPhotos(){
     <div class="carte-photo-inscription">
       <button type="button" class="btn-retirer-photo" onclick="retirerPhoto(${p.id})">✕</button>
       <img src="${p.apercuUrl}" class="apercu-photo-inscription">
-      ${p.traitement ? `<p style="font-size:11px;color:#f97316;margin:4px 0 0;">⏳ Fond blanc en cours...</p>` : ``}
       <label class="label" style="margin-top:8px;">Nom de l'article ${index + 1}</label>
       <input type="text" class="champ nom-photo" data-photo-id="${p.id}" placeholder="Ex : Robe bleue taille M" required>
       <label class="label" style="margin-top:8px;">Quantité en stock</label>
@@ -1107,11 +1055,6 @@ function recupererPositionInscription(){
    ===================================================================== */
 async function envoyerSoumission(event){
   event.preventDefault();
-      // À coller juste après event.preventDefault(); au début de la fonction ajouterPhoto(event)
-    if(photosAjoutees.length === 0){
-      alert("📸 IMPORTANT : La première photo va prendre 30 à 60 secondes car le téléphone doit télécharger le modèle IA. Les photos suivantes seront instantanées. Patientez !");
-    }
-
   const nom = document.getElementById("nomSoumissionnaire").value.trim();
   const nomBoutique = document.getElementById("nomBoutiqueSoumissionnaire").value.trim();
   const telephone = document.getElementById("telephoneSoumissionnaire").value.trim();
@@ -1257,17 +1200,28 @@ async function envoyerSoumission(event){
         }))
       : [];
 
+    // Création de la requête multipart (texte + fichiers)
     const donneesFormulaire = new FormData();
-    donneesFormulaire.append("payload_json", JSON.stringify({ content: texte, embeds: embedsArticles }));
 
-    // Si l'upload Storage a échoué (réseau, etc.), on joint quand même les
-    // fichiers bruts à Discord — pas d'image permanente sur le site dans ce
-    // cas, mais au moins la demande n'arrive pas sans aucune photo.
-    if(!uploadSupabaseReussi){
+    // Déterminer les "embeds" (images sous le texte) à envoyer
+    let embedsToSend = embedsArticles;
+
+    // Si l'upload Supabase a échoué (réseau), on utilise les fichiers locaux
+    if (!uploadSupabaseReussi) {
+      // On crée un embed avec le nom de l'article et une image locale
+      embedsToSend = detailsPhotos.map(({ nomArticle }, i) => ({
+        title: `📦 ${nomArticle}`,
+        image: { url: `attachment://file${i}` } // <-- C'est LA clé magique qui évite l'URL !
+      }));
+
+      // On attache les fichiers au formulaire avec le bon nom ("file0", "file1"...)
       detailsPhotos.forEach(({ photo }, i) => {
         donneesFormulaire.append(`file${i}`, photo.fichier, photo.fichier.name);
       });
     }
+
+    // On met à jour le JSON avec le bon embed
+    donneesFormulaire.set("payload_json", JSON.stringify({ content: texte, embeds: embedsToSend }));
 
         // 🛡️ Envoi sécurisé vers la nouvelle fonction Supabase
       console.log("Envoi de la demande d'inscription via le serveur...");
@@ -1275,24 +1229,16 @@ async function envoyerSoumission(event){
       const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-inscription`, {
         method: "POST",
         headers: { 
-          "Content-Type": "application/json",
           "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
+          // ⚠️ On supprime "Content-Type": "application/json" pour que le navigateur gère le multipart/form-data
         },
-        body: JSON.stringify({
-          texte: texte,
-          embeds: embedsArticles
-        })
+        body: donneesFormulaire  // <-- On envoie le FormData, pas un JSON
       });
 
       if(!reponse.ok){
         const texteErreur = await reponse.text();
         throw new Error(`Le serveur a refusé l'envoi (${reponse.status}). ${texteErreur}`);
       }
-
-    if(!reponse.ok){
-      const texteErreur = await reponse.text();
-      throw new Error(`Discord ${reponse.status} : ${texteErreur}`);
-    }
 
     // Publication automatique (masquée) dans le catalogue : le boutiquier
     // n'a plus rien à faire, et toi tu n'as plus qu'à choisir une catégorie
