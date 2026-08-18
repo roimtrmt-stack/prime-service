@@ -2228,13 +2228,31 @@ function construireLienItineraire(latDep, lngDep, latArr, lngArr){
 async function envoyerCommande(event){
   event.preventDefault();
 
-  const nom = document.getElementById("nomClient").value.trim();
-  const tel = document.getElementById("telClient").value.trim();
-  const paiement = document.getElementById("paiementClient").value;
-  const lat = Number(document.getElementById("latClient").value);
-  const lng = Number(document.getElementById("lngClient").value);
-  const statutEnvoi = document.getElementById("statutEnvoi");
-  const btnEnvoyer = document.getElementById("btnEnvoyer");
+    // 🔴 BLOQUER LA COMMANDE SI LE CLIENT EST HORS LIGNE
+    if(!navigator.onLine){
+        const statutEnvoi = document.getElementById("statutEnvoi");
+        statutEnvoi.style.color = "#dc2626";
+        statutEnvoi.textContent = "⚠️ Vous êtes hors ligne. Connectez-vous à Internet pour commander.";
+        
+        // Désactiver le bouton pour éviter de cliquer encore
+        document.getElementById("btnEnvoyer").disabled = true;
+
+        // ✅ Dès que la connexion revient, la page se recharge automatiquement
+        window.addEventListener("online", function rechargerPage() {
+            window.removeEventListener("online", rechargerPage); // pour éviter de recharger plusieurs fois
+            location.reload();
+        });
+
+        return false; // On arrête tout ici, la commande ne part pas.
+    }
+
+    const nom = document.getElementById("nomClient").value.trim();
+    const tel = document.getElementById("telClient").value.trim();
+    const paiement = document.getElementById("paiementClient").value;
+    const lat = Number(document.getElementById("latClient").value);
+    const lng = Number(document.getElementById("lngClient").value);
+    const statutEnvoi = document.getElementById("statutEnvoi");
+    const btnEnvoyer = document.getElementById("btnEnvoyer");
 
   if(!/^[0-9+ ]{8,15}$/.test(tel)){
     statutEnvoi.style.color = "#dc2626";
@@ -2621,57 +2639,6 @@ async function envoyerCommande(event){
 
   btnEnvoyer.disabled = false;
   return false;
-}
-/* =====================================================================
-   FILE D'ATTENTE DES COMMANDES HORS-LIGNE
-   ===================================================================== */
-const CLE_COMMANDES_EN_ATTENTE = "primeservice_commandes_en_attente";
-
-function mettreCommandeEnAttente(commande){
-  try{
-    const enAttente = JSON.parse(localStorage.getItem(CLE_COMMANDES_EN_ATTENTE) || "[]");
-    enAttente.push(commande);
-    localStorage.setItem(CLE_COMMANDES_EN_ATTENTE, JSON.stringify(enAttente));
-  } catch(e){
-    console.error("Impossible d'enregistrer la commande hors-ligne :", e);
-  }
-}
-
-async function envoyerCommandesEnAttente(){
-  let enAttente;
-  try{
-    enAttente = JSON.parse(localStorage.getItem(CLE_COMMANDES_EN_ATTENTE) || "[]");
-  } catch(e){ return; }
-
-  if(enAttente.length === 0) return;
-
-  const commandesEncoreEnEchec = [];
-
-  for(const commande of enAttente){
-    try{
-      const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-commande`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
-        },
-        body: JSON.stringify(commande.corpsRequete)
-      });
-
-      if(reponse.ok){
-        for(const article of commande.articlesPourStock){
-          try{ await supabaseClient.rpc("diminuer_stock", { p_id: article.id, p_quantite: article.quantite }); }
-          catch(e){ console.error("Erreur de mise à jour du stock :", e); }
-        }
-      } else {
-        commandesEncoreEnEchec.push(commande);
-      }
-    } catch(e){
-      commandesEncoreEnEchec.push(commande);
-    }
-  }
-
-  localStorage.setItem(CLE_COMMANDES_EN_ATTENTE, JSON.stringify(commandesEncoreEnEchec));
 }
 
 function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
