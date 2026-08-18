@@ -1066,6 +1066,27 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   .grille-produits{ grid-template-columns:repeat(2, 1fr); gap:10px; }
 }
 
+/* ===================== MODE PAYSAGE : 5 ARTICLES ===================== */
+@media (orientation: landscape) and (min-width: 480px) {
+  .grille-produits {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+  }
+  .carte-produit {
+    padding: 10px;
+  }
+  .carte-produit h4 {
+    font-size: 13px;
+    min-height: 30px;
+  }
+  .carte-produit .prix {
+    font-size: 13px;
+  }
+  .btn-ajouter {
+    font-size: 12px;
+    padding: 6px 4px;
+  }
+}
 
 </style>
 <link rel="manifest" href="manifest.json">
