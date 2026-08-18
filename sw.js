@@ -12,9 +12,7 @@ const RESSOURCES_ESSENTIELLES = [
   "./index.html",
   "./manifest.json",
   "./icon-192.png",
-  "./icon-512.png",
-  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
-  "https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"
+  "./icon-512.png"
 ];
 
 self.addEventListener("install", (event) => {
