@@ -1066,10 +1066,10 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   .grille-produits{ grid-template-columns:repeat(2, 1fr); gap:10px; }
 }
 
-/* ===================== MODE PAYSAGE : 5 ARTICLES ===================== */
-@media (orientation: landscape) and (min-width: 480px) {
+/* ===================== MODE PAYSAGE : 5 ARTICLES (CORRIGÉ) ===================== */
+@media (orientation: landscape) {
   .grille-produits {
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(5, 1fr) !important;
     gap: 12px;
   }
   .carte-produit {
@@ -1119,6 +1119,17 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       "<button onclick=\"window.location.reload()\" style=\"margin-top:10px;background:#f97316;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:15px;\">Recharger la page</button>";
     document.body.appendChild(bandeau);
   }, 12000);
+  // ================================================================
+// FORCER LE RAFRAÎCHISSEMENT EN MODE PAYSAGE
+// ================================================================
+window.addEventListener('orientationchange', function() {
+    setTimeout(function() {
+        // Si on est en train de regarder une catégorie, on redessine la grille proprement
+        if(vueEnCours.nom === "produits"){
+            afficherProduits(vueEnCours.idCategorie, vueEnCours.idSousCategorie, false, false);
+        }
+    }, 300); // 300ms est le temps que met le navigateur à finir la rotation
+});
 </script>
 
 
@@ -1803,28 +1814,29 @@ function cleSousCategorie(idCategorie, idSousCategorie){
 const CLE_CACHE_PRODUITS = "primeservice_produits_cache";
 
 async function chargerProduits(tentative = 1){
+  // 1. AFFICHER IMMÉDIATEMENT LE CATALOGUE ENREGISTRÉ (pour éviter l'écran blanc)
+  const aReussiDepuisLeCache = chargerProduitsDepuisCache();
+  
+  // 2. Essayer de charger depuis le réseau en arrière-plan
   try{
     const { data, error } = await supabaseClient.from("produits").select("*").order("created_at");
     if(error) throw error;
 
     repartirProduitsParCle(data);
-
-    try{ localStorage.setItem(CLE_CACHE_PRODUITS, JSON.stringify(data)); } catch(e){ /* stockage plein, tant pis */ }
-
+    try{ localStorage.setItem(CLE_CACHE_PRODUITS, JSON.stringify(data)); } catch(e){}
     rafraichirVueEnCoursSiBesoin();
+    cacherBandeauHorsLigne();
   } catch(erreur){
-    console.error("Erreur de chargement des produits, tentative hors-ligne :", erreur);
-
-    const aReussiDepuisLeCache = chargerProduitsDepuisCache();
-    if(aReussiDepuisLeCache) return;
-
-    // Pas de cache (premher chargement sur cet appareil) : le réseau mobile
-    // est parfois juste temporairement lent — on retente automatiquement
-    // 2 fois avant d'afficher un bouton "Réessayer" au client.
-    if(tentative < 3){
-      setTimeout(() => chargerProduits(tentative + 1), 2000 * tentative);
+    console.error("Erreur réseau, on garde le cache :", erreur);
+    // On essaie une deuxième fois au bout de 3 secondes
+    if(tentative < 2){
+      setTimeout(() => chargerProduits(tentative + 1), 3000);
     } else {
-      afficherEchecChargementCatalogue();
+      afficherBandeauHorsLigne();
+      // Si c'est la première visite et qu'il n'y a pas de cache, on affiche le message d'échec
+      if(!aReussiDepuisLeCache){
+        afficherEchecChargementCatalogue();
+      }
     }
   }
 }
@@ -1863,7 +1875,6 @@ function repartirProduitsParCle(data){
   });
   construireCategories();
 }
-
 function rafraichirVueEnCoursSiBesoin(){
   // Si le client est en train de regarder une sous-catégorie, on rafraîchit sa vue
   if(vueEnCours.nom === "produits"){
@@ -1891,7 +1902,6 @@ function cacherBandeauHorsLigne(){
 window.addEventListener("online", () => {
   cacherBandeauHorsLigne();
   chargerProduits();
-  envoyerCommandesEnAttente();
 });
 window.addEventListener("offline", afficherBandeauHorsLigne);
 
@@ -2435,16 +2445,7 @@ async function envoyerCommande(event){
     articlesPourStock: panier.map(a => ({ id: a.id, quantite: a.quantite })),
     total: totalCommande 
   };
-
-  // Hors-ligne
-  if(!navigator.onLine){
-    mettreCommandeEnAttente(commandeAEnvoyer);
-    panier = [];
-    mettreAJourCompteur();
-    afficherPageMerci(paiement, totalCommande, true);
-    return false;
-  }
-
+  
   // Enregistrement Supabase commande
   let commandeEnregistree = null;
   try{
@@ -4141,6 +4142,37 @@ if(navigateurIntegre){
 construireCategories();
 chargerProduits();
 
+// ================================================================
+// PRÉCHARGEMENT DES IMAGES HORS LIGNE (après 5 secondes)
+// ================================================================
+setTimeout(() => {
+  if(navigator.onLine){
+    const toutesLesCles = Object.keys(produitsParCle);
+    toutesLesCles.forEach(cle => {
+      const produits = produitsParCle[cle];
+      if(produits && produits.length > 0){
+        produits.forEach(p => {
+          if(p.image_url && p.image_url.trim() !== ""){
+            const img = new Image();
+            img.src = p.image_url;
+          }
+        });
+      }
+    });
+    console.log("✅ Préchargement des images terminé !");
+  }
+}, 5000);
+
+// ================================================================
+// FORCER LE RAFRAÎCHISSEMENT EN MODE PAYSAGE
+// ================================================================
+window.addEventListener('orientationchange', function() {
+    setTimeout(function() {
+        if(vueEnCours.nom === "produits"){
+            afficherProduits(vueEnCours.idCategorie, vueEnCours.idSousCategorie, false, false);
+        }
+    }, 300);
+});
 </script>
 </body>
 </html>
