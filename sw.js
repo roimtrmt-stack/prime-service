@@ -13,6 +13,8 @@ const RESSOURCES_ESSENTIELLES = [
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
+  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
+  "https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"
 ];
 
 self.addEventListener("install", (event) => {
@@ -39,6 +41,15 @@ self.addEventListener("message", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  // 0. NE PAS METTRE EN CACHE LES APPELS API (Supabase)
+  const url = new URL(event.request.url);
+  if (url.pathname.includes("/functions/v1/") || url.pathname.includes("/rest/v1/")) {
+    // Pour les API, on va toujours sur le réseau, pas de cache.
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // 1. Pour les pages HTML (navigation) : réseau d'abord, cache en secours
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request, { cache: "no-store" })
@@ -51,5 +62,22 @@ self.addEventListener("fetch", (event) => {
           caches.match(event.request).then((correspondance) => correspondance || caches.match("./index.html"))
         )
     );
+    return;
   }
+
+  // 2. Pour les images, les scripts CDN et autres fichiers : cache d'abord, réseau en secours
+  event.respondWith(
+    caches.match(event.request).then((reponseEnCache) => {
+      if (reponseEnCache) {
+        return reponseEnCache;
+      }
+      return fetch(event.request).then((reponseReseau) => {
+        if (reponseReseau && reponseReseau.status === 200) {
+          const copie = reponseReseau.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copie));
+        }
+        return reponseReseau;
+      });
+    })
+  );
 });
