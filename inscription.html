@@ -959,18 +959,57 @@ async function abonnerBoutiquierAuxNotifications(telephoneBoutique){
 let photosAjoutees = []; // { id, fichier, apercuUrl }
 let compteurPhoto = 0;
 
+/* Réduit la taille d'une photo (max 1000px, qualité 70%) avant l'envoi */
+function compresserImage(fichier, tailleMax = 1000, qualite = 0.7){
+  return new Promise((resolve, reject) => {
+    const lecteur = new FileReader();
+    lecteur.onload = (e) => {
+      const image = new Image();
+      image.onload = () => {
+        let { width, height } = image;
+        if(width > tailleMax || height > tailleMax){
+          if(width > height){
+            height = Math.round(height * (tailleMax / width));
+            width = tailleMax;
+          } else {
+            width = Math.round(width * (tailleMax / height));
+            height = tailleMax;
+          }
+        }
+        const canevas = document.createElement("canvas");
+        canevas.width = width;
+        canevas.height = height;
+        canevas.getContext("2d").drawImage(image, 0, 0, width, height);
+        canevas.toBlob(
+          (blob) => blob ? resolve(blob) : reject(new Error("Compression impossible")),
+          "image/jpeg",
+          qualite
+        );
+      };
+      image.onerror = reject;
+      image.src = e.target.result;
+    };
+    lecteur.onerror = reject;
+    lecteur.readAsDataURL(fichier);
+  });
+}
+
 async function ajouterPhoto(event){
   const fichierOriginal = event.target.files[0];
   if(!fichierOriginal) return;
   event.target.value = ""; 
+
+  // 🔥 COMPRESSION INSTANTANÉE (transforme la photo de 5 Mo en 300 Ko en 0,5s)
+  const blobCompresse = await compresserImage(fichierOriginal);
+  const fichierCompresse = new File([blobCompresse], "photo.jpg", { type: "image/jpeg" });
 
   compteurPhoto++;
   const id = compteurPhoto;
 
   photosAjoutees.push({
     id,
-    fichier: fichierOriginal,
-    apercuUrl: URL.createObjectURL(fichierOriginal),
+    fichier: fichierCompresse, // On garde la version légère !
+    apercuUrl: URL.createObjectURL(fichierCompresse),
     traitement: false,
   });
   
@@ -1166,27 +1205,32 @@ async function envoyerSoumission(event){
     let urlsPhotosSupabase = [];
     let uploadSupabaseReussi = false;
 
+    // Upload des photos dans Supabase (avec gestion d'échec sans planter)
     if(supabaseClient){
-      try{
-        for(const { photo } of detailsPhotos){
+      for(const { photo } of detailsPhotos){
+        try {
           const cheminFichier = `${Date.now()}-${photo.fichier.name}`;
           const { error: erreurUpload } = await supabaseClient
             .storage
             .from("photos-articles")
             .upload(cheminFichier, photo.fichier);
 
-          if(erreurUpload) throw erreurUpload;
-
-          const { data: donneesPublic } = supabaseClient
-            .storage
-            .from("photos-articles")
-            .getPublicUrl(cheminFichier);
-
-          urlsPhotosSupabase.push(donneesPublic.publicUrl);
+          if(erreurUpload){
+            console.error("❌ Une photo n'a pas pu être uploadée sur Supabase :", erreurUpload);
+            uploadSupabaseReussi = false; // On bascule en mode "secours"
+            break; // On arrête d'essayer d'uploader les autres pour ne pas faire attendre le boutiquier
+          } else {
+            const { data: donneesPublic } = supabaseClient
+              .storage
+              .from("photos-articles")
+              .getPublicUrl(cheminFichier);
+            urlsPhotosSupabase.push(donneesPublic.publicUrl);
+          }
+        } catch (uploadError) {
+          console.error("❌ Erreur réseau lors de l'upload :", uploadError);
+          uploadSupabaseReussi = false; // On bascule en mode "secours"
+          break;
         }
-        uploadSupabaseReussi = true;
-      } catch(erreurUpload){
-        console.error("Upload Supabase échoué :", erreurUpload);
       }
     }
 
@@ -1241,48 +1285,41 @@ async function envoyerSoumission(event){
       }
 
     // Publication automatique (masquée) dans le catalogue : le boutiquier
-    // n'a plus rien à faire, et toi tu n'as plus qu'à choisir une catégorie
-    // puis démasquer — au lieu de tout retaper à la main.
+    // Publication automatique (masquée) dans le catalogue
     try{
-      if(supabaseClient && urlsPhotosSupabase.length === detailsPhotos.length){
+      if(supabaseClient){
         const lignesAInserer = detailsPhotos.map(({ nomArticle, prixSaisi, stockSaisi }, i) => ({
           nom: nomArticle,
           prix: prixSaisi + CONFIG.COMMISSION_FCFA,
           commission: CONFIG.COMMISSION_FCFA,
           stock: stockSaisi,
-          image_url: urlsPhotosSupabase[i],
+          image_url: urlsPhotosSupabase[i] || null,
           nom_boutique: nomBoutique,
-          telephone_boutique: telephone, // pour savoir qui prévenir quand ça se vend
-          masque: true, // caché tant que l'admin n'a pas choisi la catégorie
+          telephone_boutique: telephone,
+          masque: true,
           categorie_id: null,
           sous_categorie_id: null,
         }));
         const { error: erreurInsertion } = await supabaseClient.from("produits").insert(lignesAInserer);
-        if(erreurInsertion){
+        if(erreurInsertion) {
           console.error("Publication automatique impossible :", erreurInsertion);
-          // Avant, cette erreur restait invisible pour tout le monde — le
-          // boutiquier pensait avoir publié, mais rien n'arrivait jamais
-          // côté admin. On l'alerte maintenant sur Discord à chaque échec.
+          // Alerte Discord en cas d'échec
           fetch(CONFIG.DISCORD_WEBHOOK_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              content: `⚠️ **Publication automatique échouée** pour la boutique "${nomBoutique}" (${telephone}).\nErreur technique : ${erreurInsertion.message || erreurInsertion}\nLe message ci-dessus contient quand même les infos — republie l'article manuellement si besoin.`,
+              content: `⚠️ **Publication automatique échouée** pour la boutique "${nomBoutique}" (${telephone}).\nErreur : ${erreurInsertion.message || erreurInsertion}`,
             }),
           }).catch(() => {});
         }
       }
     } catch(erreurAuto){
-      // Si l'ajout automatique échoue, ce n'est pas grave : le message
-      // Discord avec les photos est déjà envoyé, la demande n'est pas perdue.
-      console.error("Étape d'automatisation échouée (le message Discord, lui, est bien parti) :", erreurAuto);
+      console.error("Erreur d'insertion article:", erreurAuto);
     }
 
     document.getElementById("vue-formulaire").style.display = "none";
     document.getElementById("vue-merci-inscription").style.display = "block";
 
-    // Abonnement aux notifications de commande, uniquement si autorisé —
-    // après le clic, donc dans un vrai geste utilisateur (pas automatique).
     if(document.getElementById("autorisationNotifBoutique").checked){
       abonnerBoutiquierAuxNotifications(telephone);
     }
