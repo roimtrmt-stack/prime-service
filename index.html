@@ -4183,17 +4183,22 @@ window.addEventListener('orientationchange', function() {
 // AGENT IA : REMPLIR TOUT LE FORMULAIRE AUTOMATIQUEMENT
 // ================================================================
 async function remplirAvecIA() {
-  const id = articleEnEdition;
-  if (!id) return alert("❌ Veuillez d'abord sélectionner un article à modifier.");
-
-  // 1. Récupérer la photo de l'article (depuis la base de données OU depuis l'aperçu du formulaire)
-  const article = articlesUniques().find(a => a.id === id);
-  let imageUrl = article?.image_url;
-
-  // Si la base de données n'a pas d'image, on regarde si l'utilisateur a chargé une photo dans le formulaire
+  // 1. On récupère la photo D'ABORD. On regarde l'aperçu (pour les nouveaux articles) ou la base (pour les modifs).
   const apercuPhoto = document.getElementById("apercuPhoto");
-  if (!imageUrl && apercuPhoto && apercuPhoto.src && apercuPhoto.src !== "") {
-      imageUrl = apercuPhoto.src; // Utilise l'image fraîchement chargée dans le cadre photo
+  let imageUrl = null;
+
+  // Si une photo est chargée dans le cadre photo (même en mode Ajout), on la prend en priorité
+  if (apercuPhoto && apercuPhoto.src && apercuPhoto.src !== "") {
+      imageUrl = apercuPhoto.src;
+  } else {
+      // Si pas de photo dans le cadre, on cherche dans la base de données (mode Modification)
+      const id = articleEnEdition;
+      if (id) {
+          const article = articlesUniques().find(a => a.id === id);
+          if (article && article.image_url) {
+              imageUrl = article.image_url;
+          }
+      }
   }
 
   // Si vraiment aucune image n'est trouvée, on alerte
