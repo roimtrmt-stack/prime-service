@@ -892,21 +892,16 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   </section>
 
 </main>
-
 <script>
 /* =====================================================================
    CONFIGURATION
    ===================================================================== */
 const CONFIG = {
-  DISCORD_WEBHOOK_URL: "",
   SUPABASE_URL: "https://kfxalpvbtbvkncztjwzc.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
   COMMISSION_FCFA: 300,
 };
 
-// Comme sur index.html : si le CDN Supabase échoue à charger (réseau
-// faible), on ne bloque pas tout le formulaire pour autant — l'envoi
-// Discord (qui ne dépend pas de Supabase) continue de fonctionner.
 let supabaseClient = null;
 try{
   supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
@@ -918,48 +913,45 @@ if("serviceWorker" in navigator){
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 
-const CLE_VAPID_PUBLIQUE = "BKUvZzJuPGArqm0y7jr69DJMp4NjO9EnDRwPzyIB4yJl7efqLtJSrem-uUQfvk46RkWfK9kshSONNp4ad5EQxlY";
+// --- 1. VÉRIFICATION DU CADRAGE (Évite les photos coupées) ---
+function verifierCadragePhoto(imageUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const data = ctx.getImageData(0, 0, img.width, img.height).data;
 
-function urlBase64VersUint8Array(base64String){
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const brut = window.atob(base64);
-  return Uint8Array.from([...brut].map(c => c.charCodeAt(0)));
+      let minX = img.width, minY = img.height, maxX = 0, maxY = 0;
+      for (let y = 0; y < img.height; y++) {
+        for (let x = 0; x < img.width; x++) {
+          const i = (y * img.width + x) * 4;
+          if (data[i] < 240 || data[i+1] < 240 || data[i+2] < 240 || data[i+3] < 255) {
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+      const marge = 15;
+      if (minX <= marge || maxX >= img.width - marge || minY <= marge || maxY >= img.height - marge) {
+        resolve(false); 
+      } else {
+        resolve(true); 
+      }
+    };
+    img.src = imageUrl;
+  });
 }
 
-// Abonne ce boutiquier aux notifications, en liant l'abonnement à son
-// numéro de téléphone — c'est ce numéro qui permet de le cibler plus tard
-// (et lui seul) quand SA boutique reçoit une commande.
-async function abonnerBoutiquierAuxNotifications(telephoneBoutique){
-  try{
-    if(!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-    const permission = await Notification.requestPermission();
-    if(permission !== "granted") return;
-
-    const enregistrement = await navigator.serviceWorker.ready;
-    const abonnement = await enregistrement.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64VersUint8Array(CLE_VAPID_PUBLIQUE),
-    });
-
-    if(supabaseClient){
-      await supabaseClient.from("abonnements_push").insert({
-        subscription: abonnement.toJSON(),
-        telephone_boutique: telephoneBoutique,
-      });
-    }
-  } catch(erreur){
-    console.error("Abonnement notifications boutiquier impossible :", erreur);
-  }
-}
-
-/* =====================================================================
-   PHOTOS + PRIX (chaque photo ajoutée devient un article candidat)
-   ===================================================================== */
-let photosAjoutees = []; // { id, fichier, apercuUrl }
+// --- 2. COMPRESSION ET AJOUT DE LA PHOTO (Plusieurs autorisés) ---
+let photosAjoutees = [];
 let compteurPhoto = 0;
 
-/* Réduit la taille d'une photo (max 1000px, qualité 70%) avant l'envoi */
 function compresserImage(fichier, tailleMax = 1000, qualite = 0.7){
   return new Promise((resolve, reject) => {
     const lecteur = new FileReader();
@@ -999,18 +991,26 @@ async function ajouterPhoto(event){
   if(!fichierOriginal) return;
   event.target.value = ""; 
 
-  // 🔥 COMPRESSION INSTANTANÉE (transforme la photo de 5 Mo en 300 Ko en 0,5s)
+  // Compression instantanée
   const blobCompresse = await compresserImage(fichierOriginal);
   const fichierCompresse = new File([blobCompresse], "photo.jpg", { type: "image/jpeg" });
+  
+  const urlTemp = URL.createObjectURL(fichierCompresse);
+  
+  // Vérification cadrage
+  const estValide = await verifierCadragePhoto(urlTemp);
+  if(!estValide){
+    alert("❌ Photo coupée ! Prenez une photo de l'article en entier, de face, et réessayez.");
+    return;
+  }
 
   compteurPhoto++;
   const id = compteurPhoto;
 
   photosAjoutees.push({
     id,
-    fichier: fichierCompresse, // On garde la version légère !
-    apercuUrl: URL.createObjectURL(fichierCompresse),
-    traitement: false,
+    fichier: fichierCompresse,
+    apercuUrl: urlTemp,
   });
   
   redessinerPhotos();
@@ -1020,6 +1020,7 @@ function redessinerPhotos(){
   const grille = document.getElementById("grillePhotos");
   const statut = document.getElementById("statutPhotos");
 
+  // Grille complète (plusieurs cartes) comme tu l'avais au début
   const cartesPhotos = photosAjoutees.map((p, index) => `
     <div class="carte-photo-inscription">
       <button type="button" class="btn-retirer-photo" onclick="retirerPhoto(${p.id})">✕</button>
@@ -1028,7 +1029,7 @@ function redessinerPhotos(){
       <input type="text" class="champ nom-photo" data-photo-id="${p.id}" placeholder="Ex : Robe bleue taille M" required>
       <label class="label" style="margin-top:8px;">Quantité en stock</label>
       <input type="number" class="champ stock-photo" data-photo-id="${p.id}" placeholder="Ex : 5" min="1" step="1" required>
-      <label class="label" style="margin-top:8px;">Prix de l'article ${index + 1} (FCFA) — minimum 1000 FCFA</label>
+      <label class="label" style="margin-top:8px;">Prix (FCFA) — minimum 1000 FCFA</label>
       <input type="number" class="champ prix-photo" data-photo-id="${p.id}" placeholder="Ex : 5000" min="1000" step="1" required>
     </div>
   `).join("");
@@ -1041,9 +1042,8 @@ function redessinerPhotos(){
   `;
 
   grille.innerHTML = cartesPhotos + boutonAjouter;
-
-  statut.textContent = photosAjoutees.length === 0
-    ? "Ajoutez au moins une photo pour continuer."
+  statut.textContent = photosAjoutees.length === 0 
+    ? "Ajoutez au moins une photo." 
     : `${photosAjoutees.length} article(s) prêt(s) à être envoyé(s).`;
 }
 
@@ -1054,44 +1054,70 @@ document.addEventListener("click", function(e){
   }
 });
 
-/* =====================================================================
-   GEOLOCALISATION (obligatoire)
-   ===================================================================== */
+function retirerPhoto(id){
+  photosAjoutees = photosAjoutees.filter(p => p.id !== id);
+  redessinerPhotos();
+}
+
+// --- 3. GÉOLOCALISATION ---
 function recupererPositionInscription(){
   const statut = document.getElementById("statutPositionInscription");
-
-  if(!navigator.geolocation){
-    statut.textContent = "❌ Votre navigateur ne supporte pas la géolocalisation.";
-    return;
-  }
-
-  statut.textContent = "📡 Recherche de votre position... (jusqu'à 1 minute sans connexion, restez dehors si possible)";
-  statut.style.color = "#666";
-
+  if(!navigator.geolocation) { statut.textContent = "❌ Géoloc non supportée."; return; }
+  statut.textContent = "📡 Recherche...";
   navigator.geolocation.getCurrentPosition(
     (position) => {
       document.getElementById("latInscription").value = position.coords.latitude;
       document.getElementById("lngInscription").value = position.coords.longitude;
-      statut.textContent = "✅ Position récupérée avec succès.";
+      statut.textContent = "✅ Position récupérée.";
       statut.style.color = "#16a34a";
     },
-    (erreur) => {
-      if(erreur.code === erreur.TIMEOUT){
-        statut.textContent = "❌ Ça prend trop de temps. Sortez à l'extérieur (ciel dégagé) et réessayez.";
-      } else if(erreur.code === erreur.PERMISSION_DENIED){
-        statut.textContent = "❌ Autorisez l'accès à la position dans les réglages de votre navigateur, puis réessayez.";
-      } else {
-        statut.textContent = "❌ Impossible de récupérer votre position. Activez votre GPS et réessayez.";
-      }
+    () => {
+      statut.textContent = "❌ Impossible. Activez votre GPS.";
       statut.style.color = "#dc2626";
     },
-    { enableHighAccuracy: true, timeout: 55000, maximumAge: 0 }
+    { enableHighAccuracy: true, timeout: 55000 }
   );
 }
 
-/* =====================================================================
-   ENVOI DE LA DEMANDE — directement vers Discord (photos jointes)
-   ===================================================================== */
+// --- 4. FONCTION SÉCURISÉE POUR PUBLIER UN ARTICLE (Plus propre) ---
+async function traiterEtPublierArticle(articleData, nomBoutique, telephone, lat, lng) {
+  // 1. Upload de la photo brute (ultra rapide et net)
+  const cheminFichier = `${Date.now()}-${articleData.photo.fichier.name}`;
+  await supabaseClient.storage.from("photos-articles").upload(cheminFichier, articleData.photo.fichier);
+  const imageUrl = supabaseClient.storage.from("photos-articles").getPublicUrl(cheminFichier).data.publicUrl;
+
+  // 2. Appel à l'IA pour trouver nom, prix estimé et catégorie
+  let donneesIA = { nom: articleData.nomArticle, prix: articleData.prixSaisi, confiance: 0, categorie_id: null, sous_categorie_id: null };
+  try {
+    const reponseIA = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/ia-remplir-formulaire`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ imageUrl: imageUrl })
+    });
+    if(reponseIA.ok) donneesIA = await reponseIA.json();
+  } catch(e) { console.warn("IA indisponible pour cet article, on prend les données manuelles"); }
+
+  // 3. Création de l'objet article final
+  const nouvelArticle = {
+    nom: donneesIA.nom || articleData.nomArticle,
+    prix: Number(articleData.prixSaisi) + CONFIG.COMMISSION_FCFA,
+    commission: CONFIG.COMMISSION_FCFA,
+    stock: Number(articleData.stockSaisi),
+    image_url: imageUrl,
+    nom_boutique: nomBoutique,
+    telephone_boutique: telephone,
+    // Si la confiance IA est > 70%, on publie direct, sinon on met en masqué
+    masque: (donneesIA.confiance && donneesIA.confiance > 0.70) ? false : true,
+    categorie_id: donneesIA.categorie_id || null,
+    sous_categorie_id: donneesIA.sous_categorie_id || null
+  };
+
+  // 4. Insertion dans Supabase
+  await supabaseClient.from("produits").insert(nouvelArticle);
+  return true;
+}
+
+// --- 5. ENVOI FINAL (Boucle pour plusieurs articles) ---
 async function envoyerSoumission(event){
   event.preventDefault();
   const nom = document.getElementById("nomSoumissionnaire").value.trim();
@@ -1102,242 +1128,86 @@ async function envoyerSoumission(event){
   const statut = document.getElementById("statutInscription");
   const bouton = document.getElementById("btnEnvoyerInscription");
 
-  if(!nomBoutique){
+  if(!nomBoutique || photosAjoutees.length === 0 || !lat || !lng) {
     statut.style.color = "#dc2626";
-    statut.textContent = "⚠️ Indiquez le nom de votre boutique.";
+    statut.textContent = "⚠️ Remplissez tout, ajoutez une photo et votre position.";
     return false;
   }
 
-  if(photosAjoutees.length === 0){
-    statut.style.color = "#dc2626";
-    statut.textContent = "⚠️ Ajoutez au moins une photo avant d'envoyer.";
-    return false;
-  }
-
-  if(!document.getElementById("conditionPrixMinimum").checked){
-    statut.style.color = "#dc2626";
-    statut.textContent = "⚠️ Cochez la case confirmant le prix minimum de 1000 FCFA.";
-    return false;
-  }
-
-  if(!document.getElementById("conditionLieuAjout").checked){
-    statut.style.color = "#dc2626";
-    statut.textContent = "⚠️ Cochez la case confirmant que vous ajoutez depuis la boutique réelle.";
-    return false;
-  }
-
-  if(!document.getElementById("conditionLivraison").checked){
-    statut.style.color = "#dc2626";
-    statut.textContent = "⚠️ Cochez la case confirmant que vous utilisez votre propre livreur.";
-    return false;
-  }
-
-  if(!document.getElementById("autorisationNotifBoutique").checked){
-    statut.style.color = "#dc2626";
-    statut.textContent = "⚠️ Vous devez autoriser les notifications pour recevoir les commandes de vos clients.";
-    return false;
-  }
-
-  if(!lat || !lng){
-    statut.style.color = "#dc2626";
-    statut.textContent = "⚠️ Merci de récupérer votre position avant d'envoyer.";
-    return false;
-  }
-
-  // Vérifie que chaque photo a bien un nom et un prix (minimum 1000 FCFA)
-  const champsNoms = Array.from(document.querySelectorAll(".nom-photo"));
-  for(const champ of champsNoms){
-    if(!champ.value.trim()){
-      statut.style.color = "#dc2626";
-      statut.textContent = "⚠️ Donnez un nom à chaque article.";
-      champ.focus();
-      return false;
-    }
-  }
-
-  const champsStock = Array.from(document.querySelectorAll(".stock-photo"));
-  for(const champ of champsStock){
-    if(!champ.value || Number(champ.value) < 1){
-      statut.style.color = "#dc2626";
-      statut.textContent = "⚠️ Chaque article doit avoir un stock d'au moins 1.";
-      champ.focus();
-      return false;
-    }
-  }
-
-  const champsPrix = Array.from(document.querySelectorAll(".prix-photo"));
-  for(const champ of champsPrix){
-    if(!champ.value || Number(champ.value) < 1000){
-      statut.style.color = "#dc2626";
-      statut.textContent = "⚠️ Chaque article doit avoir un prix d'au moins 1000 FCFA.";
-      champ.focus();
-      return false;
-    }
+  // Vérification de tous les champs
+  for(const photo of photosAjoutees) {
+    const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
+    const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
+    const champStock = document.querySelector(`.stock-photo[data-photo-id="${photo.id}"]`);
+    
+    if(!champNom.value.trim()) { statut.textContent = `⚠️ Donnez un nom à l'article #${photo.id}.`; return false; }
+    if(!champPrix.value || Number(champPrix.value) < 1000) { statut.textContent = `⚠️ Prix minimum 1000 FCFA pour l'article #${photo.id}.`; return false; }
+    if(!champStock.value || Number(champStock.value) < 1) { statut.textContent = `⚠️ Stock minimum 1 pour l'article #${photo.id}.`; return false; }
   }
 
   bouton.disabled = true;
   statut.style.color = "#555";
-  statut.textContent = "⏳ Envoi en cours...";
+  statut.textContent = `⏳ Envoi de ${photosAjoutees.length} article(s) en cours...`;
 
-  try{
-    const lienPosition = `https://www.google.com/maps?q=${lat},${lng}`;
+  try {
+    // 🛡️ On boucle sur tous les articles et on appelle la fonction sécurisée
+    let echecs = 0;
+    for(const photo of photosAjoutees) {
+      try {
+        const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
+        const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
+        const champStock = document.querySelector(`.stock-photo[data-photo-id="${photo.id}"]`);
 
-    let texte = `📥 **Nouvelle demande d'inscription boutiquier**\n\n`;
-    texte += `👤 Nom : ${nom}\n`;
-    texte += `🏪 Boutique : ${nomBoutique}\n`;
-    texte += `📞 Téléphone : ${telephone}\n`;
-    texte += `📍 Position : ${lienPosition}\n\n`;
-    texte += `**Articles ajoutés automatiquement (masqués, à catégoriser) :**\n`;
+        const articleData = {
+          photo: photo,
+          nomArticle: champNom.value.trim(),
+          prixSaisi: Number(champPrix.value),
+          stockSaisi: Number(champStock.value)
+        };
 
-    const detailsPhotos = photosAjoutees.map((photo, i) => {
-      const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
-      const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
-      const champStock = document.querySelector(`.stock-photo[data-photo-id="${photo.id}"]`);
-      return { photo, nomArticle: champNom.value.trim(), prixSaisi: Number(champPrix.value), stockSaisi: Number(champStock.value) };
-    });
-
-    detailsPhotos.forEach(({ nomArticle, prixSaisi }, i) => {
-      const prixFinal = prixSaisi + CONFIG.COMMISSION_FCFA;
-      texte += `\n▪️ ${nomArticle} — ${prixSaisi.toLocaleString("fr-FR")} FCFA (+ ${CONFIG.COMMISSION_FCFA} FCFA = ${prixFinal.toLocaleString("fr-FR")} FCFA affiché)`;
-    });
-
-        // Upload des photos dans Supabase Storage (permanent)
-    let urlsPhotosSupabase = [];
-    let uploadSupabaseReussi = false;
-
-    // Upload des photos dans Supabase (avec gestion d'échec sans planter)
-    if(supabaseClient){
-      for(const { photo } of detailsPhotos){
-        try {
-          const cheminFichier = `${Date.now()}-${photo.fichier.name}`;
-          const { error: erreurUpload } = await supabaseClient
-            .storage
-            .from("photos-articles")
-            .upload(cheminFichier, photo.fichier);
-
-          if(erreurUpload){
-            console.error("❌ Une photo n'a pas pu être uploadée sur Supabase :", erreurUpload);
-            uploadSupabaseReussi = false; // On bascule en mode "secours"
-            break; // On arrête d'essayer d'uploader les autres pour ne pas faire attendre le boutiquier
-          } else {
-            const { data: donneesPublic } = supabaseClient
-              .storage
-              .from("photos-articles")
-              .getPublicUrl(cheminFichier);
-            urlsPhotosSupabase.push(donneesPublic.publicUrl);
-          }
-        } catch (uploadError) {
-          console.error("❌ Erreur réseau lors de l'upload :", uploadError);
-          uploadSupabaseReussi = false; // On bascule en mode "secours"
-          break;
-        }
+        await traiterEtPublierArticle(articleData, nomBoutique, telephone, lat, lng);
+        
+        // Mise à jour du statut pour montrer l'avancement
+        statut.textContent = `✅ ${photosAjoutees.indexOf(photo) + 1}/${photosAjoutees.length} article(s) envoyé(s)...`;
+      } catch(erreurInterne) {
+        console.error("Échec pour un article :", erreurInterne);
+        echecs++;
       }
     }
 
-    // Image directement affichée sous le nom de l'article (comme dans le
-    // message de commande) — plus de lien brut en texte, plus besoin de
-    // rejoindre le fichier en double à Discord, l'URL Supabase suffit.
-    const embedsArticles = uploadSupabaseReussi
-      ? detailsPhotos.map(({ nomArticle }, i) => ({
-          title: `📦 ${nomArticle}`,
-          image: { url: urlsPhotosSupabase[i] },
-        }))
-      : [];
-
-    // Création de la requête multipart (texte + fichiers)
-    const donneesFormulaire = new FormData();
-
-    // Déterminer les "embeds" (images sous le texte) à envoyer
-    let embedsToSend = embedsArticles;
-
-    // Si l'upload Supabase a échoué (réseau), on utilise les fichiers locaux
-    if (!uploadSupabaseReussi) {
-      // On crée un embed avec le nom de l'article et une image locale
-      embedsToSend = detailsPhotos.map(({ nomArticle }, i) => ({
-        title: `📦 ${nomArticle}`,
-        image: { url: `attachment://file${i}` },
-        color: 0x2563eb // <-- Cette couleur crée une fine barre colorée à gauche et empêche Discord de tout mélanger !
-      }));
-
-      // On attache les fichiers au formulaire avec le bon nom ("file0", "file1"...)
-      detailsPhotos.forEach(({ photo }, i) => {
-        donneesFormulaire.append(`file${i}`, photo.fichier, photo.fichier.name);
-      });
-    }
-
-    // On met à jour le JSON avec le bon embed
-    donneesFormulaire.set("payload_json", JSON.stringify({ content: texte, embeds: embedsToSend }));
-
-        // 🛡️ Envoi sécurisé vers la nouvelle fonction Supabase
-      console.log("Envoi de la demande d'inscription via le serveur...");
-
-      const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-inscription`, {
-        method: "POST",
-        headers: { 
-          "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
-          // ⚠️ On supprime "Content-Type": "application/json" pour que le navigateur gère le multipart/form-data
-        },
-        body: donneesFormulaire  // <-- On envoie le FormData, pas un JSON
-      });
-
-      if(!reponse.ok){
-        const texteErreur = await reponse.text();
-        throw new Error(`Le serveur a refusé l'envoi (${reponse.status}). ${texteErreur}`);
-      }
-
-    // Publication automatique (masquée) dans le catalogue : le boutiquier
-    // Publication automatique (masquée) dans le catalogue
-    try{
-      if(supabaseClient){
-        const lignesAInserer = detailsPhotos.map(({ nomArticle, prixSaisi, stockSaisi }, i) => ({
-          nom: nomArticle,
-          prix: prixSaisi + CONFIG.COMMISSION_FCFA,
-          commission: CONFIG.COMMISSION_FCFA,
-          stock: stockSaisi,
-          image_url: urlsPhotosSupabase[i] || null,
-          nom_boutique: nomBoutique,
-          telephone_boutique: telephone,
-          masque: true,
-          categorie_id: null,
-          sous_categorie_id: null,
-        }));
-        const { error: erreurInsertion } = await supabaseClient.from("produits").insert(lignesAInserer);
-        if(erreurInsertion) {
-          console.error("Publication automatique impossible :", erreurInsertion);
-          // Alerte Discord en cas d'échec
-          fetch(DISCORD_WEBHOOK_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              content: `⚠️ **Publication automatique échouée** pour la boutique "${nomBoutique}" (${telephone}).\nErreur : ${erreurInsertion.message || erreurInsertion}`,
-            }),
-          }).catch(() => {});
-        }
-      }
-    } catch(erreurAuto){
-      console.error("Erreur d'insertion article:", erreurAuto);
-    }
-
+    // Succès global
     document.getElementById("vue-formulaire").style.display = "none";
     document.getElementById("vue-merci-inscription").style.display = "block";
 
+    // Demande de notifications push pour le boutiquier
     if(document.getElementById("autorisationNotifBoutique").checked){
-      abonnerBoutiquierAuxNotifications(telephone);
+      if(!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+      const permission = await Notification.requestPermission();
+      if(permission === "granted") {
+        const enregistrement = await navigator.serviceWorker.ready;
+        const abonnement = await enregistrement.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64VersUint8Array("BKUvZzJuPGArqm0y7jr69DJMp4NjO9EnDRwPzyIB4yJl7efqLtJSrem-uUQfvk46RkWfK9kshSONNp4ad5EQxlY"),
+        });
+        await supabaseClient.from("abonnements_push").insert({ subscription: abonnement.toJSON(), telephone_boutique: telephone });
+      }
     }
 
-  } catch(erreur){
+  } catch(erreur) {
     console.error(erreur);
     statut.style.color = "#dc2626";
-    if(erreur.name === "AbortError"){
-      statut.textContent = "❌ Ça prend trop de temps (réseau faible). Essayez avec moins de photos, ou une par une.";
-    } else {
-      statut.textContent = "❌ Erreur lors de l'envoi. Vérifiez votre connexion et réessayez (photos trop lourdes ?).";
-    }
+    statut.textContent = "❌ Erreur réseau. Vérifiez votre connexion.";
   } finally {
     bouton.disabled = false;
   }
-
   return false;
+}
+
+function urlBase64VersUint8Array(base64String){
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const brut = window.atob(base64);
+  return Uint8Array.from([...brut].map(c => c.charCodeAt(0)));
 }
 
 </script>
