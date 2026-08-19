@@ -4183,15 +4183,13 @@ window.addEventListener('orientationchange', function() {
 // AGENT IA : REMPLIR TOUT LE FORMULAIRE AUTOMATIQUEMENT
 // ================================================================
 async function remplirAvecIA() {
-  // 1. On récupère la photo D'ABORD. On regarde l'aperçu (pour les nouveaux articles) ou la base (pour les modifs).
+  // 1. On récupère la photo D'ABORD
   const apercuPhoto = document.getElementById("apercuPhoto");
   let imageUrl = null;
 
-  // Si une photo est chargée dans le cadre photo (même en mode Ajout), on la prend en priorité
   if (apercuPhoto && apercuPhoto.src && apercuPhoto.src !== "") {
       imageUrl = apercuPhoto.src;
   } else {
-      // Si pas de photo dans le cadre, on cherche dans la base de données (mode Modification)
       const id = articleEnEdition;
       if (id) {
           const article = articlesUniques().find(a => a.id === id);
@@ -4201,16 +4199,14 @@ async function remplirAvecIA() {
       }
   }
 
-  // Si vraiment aucune image n'est trouvée, on alerte
   if (!imageUrl) {
-    return alert("❌ Aucune photo trouvée. Cliquez sur le cadre photo pour en ajouter une, puis cliquez sur le bouton.");
+    return alert("❌ Aucune photo trouvée. Cliquez sur le cadre photo pour en ajouter une.");
   }
 
   const statutPublication = document.getElementById("statutPublication");
   statutPublication.style.color = "#555";
   statutPublication.textContent = "🧠 L'IA analyse la photo et remplit le formulaire...";
 
-  // 2. Envoyer à la fonction Supabase
   try {
     const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/ia-remplir-formulaire`, {
       method: "POST",
@@ -4226,17 +4222,24 @@ async function remplirAvecIA() {
     const donnees = await reponse.json();
     
     if (donnees.nom) {
-      // On remplit les champs !
       document.getElementById("nomArticleAdmin").value = donnees.nom;
       document.getElementById("prixArticleAdmin").value = donnees.prix || 1000;
       document.getElementById("stockArticleAdmin").value = donnees.stock || 1;
-      
-      // On laisse vide la boutique et le téléphone (tu les remplis toi-même si tu veux)
       document.getElementById("nomBoutiqueAdmin").value = "";
       document.getElementById("telephoneArticleAdmin").value = "";
 
       statutPublication.style.color = "#16a34a";
-      statutPublication.textContent = `✅ Formulaire rempli avec succès ! Vérifie et modifie ce que tu veux.`;
+      statutPublication.textContent = `✅ Formulaire rempli !`;
+
+      // RETOURNER LES DONNÉES POUR LE BOUTIQUIER (Catégorie & Confiance)
+      return { 
+        nom: donnees.nom,
+        prix: donnees.prix || 1000,
+        stock: donnees.stock || 1,
+        categorie_id: donnees.categorie_id || null,
+        sous_categorie_id: donnees.sous_categorie_id || null,
+        confiance: donnees.confiance || 0
+      };
     } else {
       throw new Error("L'IA n'a rien trouvé.");
     }
@@ -4244,6 +4247,7 @@ async function remplirAvecIA() {
     statutPublication.style.color = "#dc2626";
     statutPublication.textContent = `❌ Erreur : ${erreur.message}`;
     console.error(erreur);
+    return null;
   }
 }
 
