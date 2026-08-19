@@ -937,7 +937,7 @@ function verifierCadragePhoto(imageUrl) {
           }
         }
       }
-      const marge = 15;
+      const marge = 5;
       if (minX <= marge || maxX >= img.width - marge || minY <= marge || maxY >= img.height - marge) {
         resolve(false); 
       } else {
@@ -1020,7 +1020,7 @@ function redessinerPhotos(){
   const grille = document.getElementById("grillePhotos");
   const statut = document.getElementById("statutPhotos");
 
-  // Grille complète (plusieurs cartes) comme tu l'avais au début
+  // Grille complète (plusieurs cartes)
   const cartesPhotos = photosAjoutees.map((p, index) => `
     <div class="carte-photo-inscription">
       <button type="button" class="btn-retirer-photo" onclick="retirerPhoto(${p.id})">✕</button>
@@ -1042,17 +1042,24 @@ function redessinerPhotos(){
   `;
 
   grille.innerHTML = cartesPhotos + boutonAjouter;
+  
+  // ✅ CORRECTION ICI : Attacher l'événement directement sur le label du bouton
+  const boutonLabel = document.getElementById("boutonAjouterPhoto");
+  if(boutonLabel) {
+      // On enlève les anciens écouteurs pour éviter les doublons
+      const newLabel = boutonLabel.cloneNode(true);
+      boutonLabel.parentNode.replaceChild(newLabel, boutonLabel);
+      
+      newLabel.addEventListener("click", function(e){
+          const input = document.getElementById("inputPhoto");
+          if(input) input.click();
+      });
+  }
+
   statut.textContent = photosAjoutees.length === 0 
     ? "Ajoutez au moins une photo." 
     : `${photosAjoutees.length} article(s) prêt(s) à être envoyé(s).`;
 }
-
-document.addEventListener("click", function(e){
-  if(e.target.id === "boutonAjouterPhoto" || e.target.id === "signePlusInscription" || e.target.closest("#boutonAjouterPhoto")){
-    const input = document.getElementById("inputPhoto");
-    if(input) input.click();
-  }
-});
 
 function retirerPhoto(id){
   photosAjoutees = photosAjoutees.filter(p => p.id !== id);
