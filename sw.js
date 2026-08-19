@@ -47,6 +47,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // [!] AJOUT CRUCIAL : Ici on dit "Si ce n'est pas une page normale (GET), ne touche à rien".
+  // Ce petit bloc empêche le site de planter quand quelqu'un valide un formulaire (commande ou ajout d'article).
+  if (event.request.method !== "GET") {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   // 1. Pour les pages HTML (navigation) : réseau d'abord, cache en secours
   if (event.request.mode === "navigate") {
     event.respondWith(
