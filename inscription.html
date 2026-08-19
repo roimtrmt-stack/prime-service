@@ -1255,7 +1255,8 @@ async function envoyerSoumission(event){
       // On crée un embed avec le nom de l'article et une image locale
       embedsToSend = detailsPhotos.map(({ nomArticle }, i) => ({
         title: `📦 ${nomArticle}`,
-        image: { url: `attachment://file${i}` } // <-- C'est LA clé magique qui évite l'URL !
+        image: { url: `attachment://file${i}` },
+        color: 0x2563eb // <-- Cette couleur crée une fine barre colorée à gauche et empêche Discord de tout mélanger !
       }));
 
       // On attache les fichiers au formulaire avec le bon nom ("file0", "file1"...)
@@ -1304,7 +1305,7 @@ async function envoyerSoumission(event){
         if(erreurInsertion) {
           console.error("Publication automatique impossible :", erreurInsertion);
           // Alerte Discord en cas d'échec
-          fetch(CONFIG.DISCORD_WEBHOOK_URL, {
+          fetch(DISCORD_WEBHOOK_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
