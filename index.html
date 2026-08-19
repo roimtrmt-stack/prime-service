@@ -1419,8 +1419,13 @@ window.addEventListener('orientationchange', function() {
         <input type="file" accept="image/*" id="photoArticle" style="display:none;" onchange="previsualiserPhoto(event)">
       </label>
 
-      <label class="label">Nom complet de l'article</label>
-      <input type="text" id="nomArticleAdmin" class="champ" placeholder="Ex : Téléphone Samsung Galaxy A15" required>
+           <label class="label">Nom complet de l'article</label>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input type="text" id="nomArticleAdmin" class="champ" placeholder="Ex : Téléphone Samsung Galaxy A15" required style="flex:1; min-width:180px;">
+        <button type="button" id="btnRemplirIA" onclick="remplirAvecIA()" style="background:var(--orange);color:#fff;border:none;padding:10px 14px;border-radius:var(--rayon);cursor:pointer;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:6px;">
+          🤖 Remplir tout
+        </button>
+      </div>
 
       <label class="label">Nom de la boutique</label>
       <input type="text" id="nomBoutiqueAdmin" class="champ" placeholder="Ex : Boutique Kadi Mode" required>
@@ -4173,6 +4178,61 @@ window.addEventListener('orientationchange', function() {
         }
     }, 300);
 });
+
+// ================================================================
+// AGENT IA : REMPLIR TOUT LE FORMULAIRE AUTOMATIQUEMENT
+// ================================================================
+async function remplirAvecIA() {
+  const id = articleEnEdition;
+  if (!id) return alert("❌ Veuillez d'abord sélectionner un article à modifier.");
+
+  // 1. Récupérer la photo de l'article
+  const article = articlesUniques().find(a => a.id === id);
+  if (!article || !article.image_url) {
+    return alert("❌ Cet article n'a pas de photo. Ajoutez-en une pour que l'IA puisse l'analyser.");
+  }
+
+  const statutPublication = document.getElementById("statutPublication");
+  statutPublication.style.color = "#555";
+  statutPublication.textContent = "🧠 L'IA analyse la photo et remplit le formulaire...";
+
+  // 2. Envoyer à la fonction Supabase
+  try {
+    const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/ia-remplir-formulaire`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ imageUrl: article.image_url })
+    });
+
+    if (!reponse.ok) {
+      const erreurTexte = await reponse.text();
+      throw new Error(erreurTexte || "L'IA n'a pas pu répondre.");
+    }
+
+    const donnees = await reponse.json();
+    
+    if (donnees.nom) {
+      // On remplit les champs !
+      document.getElementById("nomArticleAdmin").value = donnees.nom;
+      document.getElementById("prixArticleAdmin").value = donnees.prix || 1000;
+      document.getElementById("stockArticleAdmin").value = donnees.stock || 1;
+      
+      // On laisse vide la boutique et le téléphone (tu les remplis toi-même si tu veux)
+      document.getElementById("nomBoutiqueAdmin").value = "";
+      document.getElementById("telephoneArticleAdmin").value = "";
+
+      statutPublication.style.color = "#16a34a";
+      statutPublication.textContent = `✅ Formulaire rempli avec succès ! Vérifie et modifie ce que tu veux.`;
+    } else {
+      throw new Error("L'IA n'a rien trouvé.");
+    }
+  } catch (erreur) {
+    statutPublication.style.color = "#dc2626";
+    statutPublication.textContent = `❌ Erreur : ${erreur.message}`;
+    console.error(erreur);
+  }
+}
+
 </script>
 </body>
 </html>
