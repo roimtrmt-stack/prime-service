@@ -997,13 +997,6 @@ async function ajouterPhoto(event){
   
   const urlTemp = URL.createObjectURL(fichierCompresse);
   
-  // Vérification cadrage
-  const estValide = await verifierCadragePhoto(urlTemp);
-  if(!estValide){
-    alert("❌ Photo coupée ! Prenez une photo de l'article en entier, de face, et réessayez.");
-    return;
-  }
-
   compteurPhoto++;
   const id = compteurPhoto;
 
