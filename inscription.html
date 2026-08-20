@@ -1193,6 +1193,60 @@ async function envoyerSoumission(event){
       }
     }
 
+    // ================================================================
+    // AJOUT : ENVOYER LA NOTIFICATION DISCORD VIA LA FONCTION BACKEND
+    // ================================================================
+    try {
+      // 1. Préparer le texte et les informations pour Discord
+      let discordTexte = `📥 **NOUVELLE DEMANDE D'INSCRIPTION BOUTIQUIER**\n\n`;
+      discordTexte += `👤 **Nom :** ${nom}\n`;
+      discordTexte += `🏪 **Boutique :** ${nomBoutique}\n`;
+      discordTexte += `📞 **Téléphone :** ${telephone}\n`;
+      discordTexte += `📍 **Position :** https://www.google.com/maps?q=${lat},${lng}\n\n`;
+      discordTexte += `📦 **${photosAjoutees.length} article(s) déposé(s) :**\n`;
+
+      // 2. Créer le FormData pour l'envoi multipart (texte + photos)
+      const formDataDiscord = new FormData();
+      const embedsPayload = [];
+
+      // On récupère les détails de chaque article pour le message
+      photosAjoutees.forEach((photo, index) => {
+          const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
+          const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
+          const nomArticle = champNom ? champNom.value.trim() : "Article";
+          const prixSaisi = Number(champPrix?.value) || 0;
+          const prixFinal = prixSaisi + CONFIG.COMMISSION_FCFA;
+
+          discordTexte += `\n▪️ **${nomArticle}** — ${prixFinal.toLocaleString("fr-FR")} FCFA`;
+
+          // Préparer l'embed pour Discord (Le titre de l'article)
+          embedsPayload.push({
+              title: `📦 ${nomArticle}`,
+              description: `Prix affiché : ${prixFinal.toLocaleString("fr-FR")} FCFA`,
+              color: 0x2563eb // Bleu
+          });
+
+          // Attacher la photo pour qu'elle s'affiche dans le message Discord
+          const file = new File([photo.fichier], `photo${index}.jpg`, { type: "image/jpeg" });
+          formDataDiscord.append(`file${index}`, file);
+      });
+
+      // 3. Ajouter le JSON de configuration au FormData
+      const payload = { content: discordTexte, embeds: embedsPayload };
+      formDataDiscord.append("payload_json", JSON.stringify(payload));
+
+      // 4. Envoyer la requête vers votre Edge Function `envoyer-inscription`
+      await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-inscription`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}` },
+          body: formDataDiscord
+      });
+
+    } catch (errDiscord) {
+      console.error("⚠️ Erreur lors de l'envoi Discord (mais l'article est bien publié) :", errDiscord);
+    }
+    // ================================================================
+
   } catch(erreur) {
     console.error(erreur);
     statut.style.color = "#dc2626";
