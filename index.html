@@ -1088,6 +1088,12 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   }
 }
 
+/* ===================== RECHERCHE RAPIDE ===================== */
+.search-container { display:flex; justify-content:center; gap:10px; margin:18px 0 10px 0; flex-wrap:wrap; }
+.search-input { flex:1; max-width:400px; min-width:200px; padding:12px 16px; border:2px solid var(--gris-bordure); border-radius:var(--rayon); font-size:16px; outline:none; background:var(--blanc); transition:border-color 0.2s ease; }
+.search-input:focus { border-color:var(--bleu); }
+.search-btn { background:var(--bleu); color:var(--blanc); border:none; padding:12px 20px; border-radius:var(--rayon); font-size:16px; font-weight:700; cursor:pointer; transition:background 0.2s ease; }
+.search-btn:hover { background:var(--bleu-hover); }
 </style>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
@@ -1162,6 +1168,10 @@ window.addEventListener('orientationchange', function() {
     <div class="hero">
       <h1>Prime<span class="logo-accent">Service</span></h1>
       <p class="hero-baseline">Prime Service livre votre quotidien à domicile</p>
+      <div class="search-container">
+        <input type="text" id="champRecherche" class="search-input" placeholder="Rechercher une boutique ou un article..." onkeypress="if(event.key === 'Enter') lancerRecherche()">
+        <button class="search-btn" onclick="lancerRecherche()">🔍 Rechercher</button>
+      </div>
     </div>
 
     <div class="grille-categories" id="grilleCategories">
@@ -1201,6 +1211,14 @@ window.addEventListener('orientationchange', function() {
   <section id="vue-produits" class="vue" style="display:none;">
     <h2 id="titreProduits" class="titre-section"></h2>
     <div class="grille-produits" id="grilleProduits">
+      <!-- injecté par JS -->
+    </div>
+  </section>
+
+  <!-- ===================== PAGE DE RECHERCHE ===================== -->
+  <section id="vue-recherche" class="vue" style="display:none;">
+    <h2 id="titreRecherche" class="titre-section"></h2>
+    <div class="grille-produits" id="grilleRecherche">
       <!-- injecté par JS -->
     </div>
   </section>
@@ -1918,7 +1936,35 @@ if(supabaseClient){
     .on("postgres_changes", { event: "*", schema: "public", table: "produits" }, chargerProduits)
     .subscribe();
 }
+/* Trouve un article par son ID unique (sert pour la recherche) */
+function trouverProduitParId(id) {
+  return Object.values(produitsParCle).flat().find(p => p.id === id);
+}
+/* Ajoute au panier depuis la page de recherche (en utilisant l'ID) */
+function ajouterAuPanierDepuisRecherche(id, event){
+  const produit = trouverProduitParId(id);
+  if(!produit) {
+    alert("Article introuvable.");
+    return;
+  }
 
+  const existant = panier.find(a => a.id === produit.id);
+  if(existant){
+    if(existant.quantite >= produit.stock){
+      alert(`Stock maximum atteint pour "${produit.nom}" (${produit.stock} disponible(s)).`);
+      return;
+    }
+    existant.quantite += 1;
+  } else {
+    if(!produit.stock || produit.stock < 1){
+      alert("Cet article n'est plus disponible.");
+      return;
+    }
+    panier.push({ ...produit, quantite: 1 });
+  }
+  mettreAJourCompteur();
+  animerAjoutPanier(event);
+}
 /* =====================================================================
    NAVIGATION
    ===================================================================== */
@@ -1926,121 +1972,52 @@ function cacherToutesLesVues(){
   document.querySelectorAll(".vue").forEach(v => v.style.display = "none");
 }
 
-function afficherAccueil(pousserHistorique = true){
-  vueEnCours = { nom: "accueil", idCategorie: null, idSousCategorie: null };
-  cacherToutesLesVues();
-  document.getElementById("vue-accueil").style.display = "block";
-  document.getElementById("btnRetour").style.display = "none";
-  if(pousserHistorique) history.pushState({ vue: "accueil" }, "");
+/* =====================================================================
+   RECHERCHE RAPIDE ET INSTANTANÉE
+   ===================================================================== */
+function lancerRecherche() {
+  const query = document.getElementById("champRecherche").value.trim();
+  if(!query) {
+    alert("Veuillez entrer un mot-clé (nom de boutique ou d'article).");
+    return;
+  }
+  afficherRecherche(query);
 }
 
-function afficherSousCategories(idCategorie, changerVue = true, pousserHistorique = true){
-  const categorie = CATEGORIES.find(c => c.id === idCategorie);
-  if(!categorie) return;
-  if(changerVue) vueEnCours = { nom: "souscategories", idCategorie, idSousCategorie: null };
-
+function afficherRecherche(query, pousserHistorique = true) {
+  vueEnCours = { nom: "recherche", query: query };
   cacherToutesLesVues();
-  document.getElementById("vue-souscategories").style.display = "block";
-  document.getElementById("titreSousCategories").textContent = categorie.nom;
-
+  document.getElementById("vue-recherche").style.display = "block";
+  document.getElementById("titreRecherche").textContent = `🔍 Résultats pour "${query}"`;
   const btnRetour = document.getElementById("btnRetour");
   btnRetour.style.display = "inline-block";
   btnRetour.onclick = () => afficherAccueil();
 
-  const grille = document.getElementById("grilleSousCategories");
-  grille.innerHTML = categorie.sousCategories
-    .filter(sc => !categoriesMasquees.includes(`${categorie.id}|${sc.id}`))
-    .map(sc => {
-    const nbProduits = (produitsParCle[cleSousCategorie(categorie.id, sc.id)] || []).filter(p => !p.masque).length;
-    return `
-    <div class="carte-categorie" onclick="afficherProduits('${categorie.id}', '${sc.id}')">
-      <span class="badge-icone badge-${categorie.id}"><span class="icone">${sc.icone}</span></span>
-      <h3>${sc.nom}</h3>
-      <p>${nbProduits} article(s)</p>
-    </div>`;
-  }).join("");
-
-  if(pousserHistorique) history.pushState({ vue: "souscategories", idCategorie }, "");
-}
-
-function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pousserHistorique = true){
-  const categorie = CATEGORIES.find(c => c.id === idCategorie);
-  const sousCategorie = categorie.sousCategories.find(sc => sc.id === idSousCategorie);
-  if(!sousCategorie) return;
-  if(changerVue) vueEnCours = { nom: "produits", idCategorie, idSousCategorie };
-
-  cacherToutesLesVues();
-  document.getElementById("vue-produits").style.display = "block";
-  document.getElementById("titreProduits").textContent = sousCategorie.nom;
-
-  const btnRetour = document.getElementById("btnRetour");
-  btnRetour.style.display = "inline-block";
-  btnRetour.onclick = () => afficherSousCategories(idCategorie);
-
-  const produits = (produitsParCle[cleSousCategorie(idCategorie, idSousCategorie)] || []).filter(p => !p.masque);
-  const grille = document.getElementById("grilleProduits");
-
-  if(produits.length === 0){
-    grille.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:#666;">Aucun article ici pour le moment.</p>`;
+  const tousLesProduits = Object.values(produitsParCle).flat().filter(p => !p.masque);
+  const q = query.toLowerCase();
+  const resultats = tousLesProduits.filter(p => 
+    (p.nom_boutique && p.nom_boutique.toLowerCase().includes(q)) || 
+    p.nom.toLowerCase().includes(q)
+  );
+  const grille = document.getElementById("grilleRecherche");
+  if(resultats.length === 0){
+    grille.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:#666;padding:30px 0;">Aucun article ou boutique ne correspond à votre recherche.</p>`;
   } else {
-    grille.innerHTML = produits.map((p, index) => `
+    grille.innerHTML = resultats.map((p) => `
       <div class="carte-produit">
         <div class="zone-image" ${p.image_url ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(p.image_url)}, ${echapperPourOnclick(p.nom)})"` : ""}>
-          ${p.image_url
-            ? `<img src="${p.image_url}" alt="${echapperHtml(p.nom)}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
-            : `<span class="icone-produit">📦</span>`}
+          ${p.image_url ? `<img src="${p.image_url}" alt="${echapperHtml(p.nom)}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">` : `<span class="icone-produit">📦</span>`}
         </div>
         <h4>${echapperHtml(p.nom)}</h4>
         ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(p.nom_boutique)}</p>` : ""}
         <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
         <p class="stock-produit">📦 ${p.stock} en stock</p>
-        <button class="btn-ajouter" onclick="ajouterAuPanier('${idCategorie}', '${idSousCategorie}', ${index}, event)">
-          Ajouter au panier
-        </button>
+        <button class="btn-ajouter" onclick="ajouterAuPanierDepuisRecherche(${p.id}, event)">Ajouter au panier</button>
       </div>
     `).join("");
   }
-
-  if(pousserHistorique) history.pushState({ vue: "produits", idCategorie, idSousCategorie }, "");
+  if(pousserHistorique) history.pushState({ vue: "recherche", query: query }, "");
 }
-
-function afficherPanier(pousserHistorique = true){
-  cacherToutesLesVues();
-  document.getElementById("vue-panier").style.display = "block";
-  const btnRetour = document.getElementById("btnRetour");
-  btnRetour.style.display = "inline-block";
-  btnRetour.onclick = () => afficherAccueil();
-  dessinerPanier();
-  if(pousserHistorique) history.pushState({ vue: "panier" }, "");
-}
-
-function afficherCheckout(pousserHistorique = true){
-  if(panier.length === 0) return;
-  cacherToutesLesVues();
-  document.getElementById("vue-checkout").style.display = "block";
-  const btnRetour = document.getElementById("btnRetour");
-  btnRetour.style.display = "inline-block";
-  btnRetour.onclick = () => afficherPanier();
-  document.getElementById("totalCheckout").textContent = calculerTotal().toLocaleString("fr-FR") + " FCFA";
-  if(pousserHistorique) history.pushState({ vue: "checkout" }, "");
-}
-
-function construireCategories(){
-  const grille = document.getElementById("grilleCategories");
-  grille.innerHTML = CATEGORIES
-    .filter(cat => !categoriesMasquees.includes(cat.id))
-    .map(cat => {
-    const nbArticles = cat.sousCategories.reduce((n, sc) => n + (produitsParCle[cleSousCategorie(cat.id, sc.id)] || []).length, 0);
-    return `
-    <div class="carte-categorie" onclick="afficherSousCategories('${cat.id}')">
-      <span class="badge-icone badge-${cat.id}"><span class="icone">${cat.icone}</span></span>
-      <h3>${cat.nom}</h3>
-      <p>${nbArticles} article(s)</p>
-    </div>`;
-  }).join("");
-  window.primeServiceAppReady = true;
-}
-
 /* =====================================================================
    PANIER
    ===================================================================== */
@@ -2149,6 +2126,35 @@ function supprimerArticle(index){
   mettreAJourCompteur();
 }
 
+/* Trouve un article par son ID unique (sert pour la recherche) */
+function trouverProduitParId(id) {
+  return Object.values(produitsParCle).flat().find(p => p.id === id);
+}
+/* Ajoute au panier depuis la page de recherche (en utilisant l'ID) */
+function ajouterAuPanierDepuisRecherche(id, event){
+  const produit = trouverProduitParId(id);
+  if(!produit) {
+    alert("Article introuvable.");
+    return;
+  }
+
+  const existant = panier.find(a => a.id === produit.id);
+  if(existant){
+    if(existant.quantite >= produit.stock){
+      alert(`Stock maximum atteint pour "${produit.nom}" (${produit.stock} disponible(s)).`);
+      return;
+    }
+    existant.quantite += 1;
+  } else {
+    if(!produit.stock || produit.stock < 1){
+      alert("Cet article n'est plus disponible.");
+      return;
+    }
+    panier.push({ ...produit, quantite: 1 });
+  }
+  mettreAJourCompteur();
+  animerAjoutPanier(event);
+}
 function calculerTotal(){
   return panier.reduce((total, a) => {
     const prix = Number(a.prix);
@@ -3189,7 +3195,30 @@ async function publierArticle(event){
     }
 
     fichierPhotoSelectionne = null;
-    setTimeout(fermerFormulaireArticle, 1800);
+
+    if(articleEnEdition){
+      // Si c'est une modification, on ferme le formulaire pour retourner à la liste
+      setTimeout(fermerFormulaireArticle, 1500);
+    } else {
+      // Si c'est un NOUVEL AJOUT, on reste sur le formulaire pour en ajouter un autre !
+      setTimeout(() => {
+        // Réinitialiser le formulaire mais rester dessus
+        const formArticle = document.getElementById("formArticle");
+        formArticle.reset();
+        document.getElementById("apercuPhoto").style.display = "none";
+        document.getElementById("signePlus").style.display = "block";
+        document.getElementById("statutPositionAdmin").textContent = "Position boutique non enregistrée";
+        document.getElementById("statutPublication").textContent = "";
+        document.getElementById("statutPublication").style.color = "#16a34a";
+        document.getElementById("statutPublication").textContent = "✅ Article publié ! Vous pouvez en ajouter un autre.";
+        fichierPhotoSelectionne = null;
+        articleEnEdition = null;
+        document.getElementById("titreFormArticle").textContent = "➕ Ajouter un article";
+        document.querySelector("#formArticle button[type=submit]").textContent = "Publier l'article";
+        // Vider les cases à cocher
+        document.querySelectorAll("#caseACocherSousCategories input:checked").forEach(c => c.checked = false);
+      }, 1000);
+    }
 
   } catch(erreur){
     console.error(erreur);
@@ -4095,6 +4124,9 @@ window.addEventListener("popstate", (event) => {
       break;
     case "produits":
       afficherProduits(etat.idCategorie, etat.idSousCategorie, true, false);
+      break;
+    case "recherche":
+      afficherRecherche(etat.query, false);
       break;
     case "panier":
       afficherPanier(false);
