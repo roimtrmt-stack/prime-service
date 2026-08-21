@@ -1,7 +1,7 @@
 const PROJECT_REF = "kfxalpvbtbvkncztjwzc";
 const ALLOWED_ORIGIN = "https://roimtrmt-stack.github.io";
 const REQUEST_TIMEOUT_MS = 12_000;
-const DEFAULT_MODEL = "@cf/llava-hf/llava-1.5-7b-hf";
+const DEFAULT_MODEL = "@cf/meta/llama-3.2-11b-vision-instruct";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 const corsHeaders = {
@@ -124,8 +124,12 @@ Deno.serve(async (request) => {
           .replace(/[^a-zA-Z0-9_.-]/g, "")
           .slice(0, 64);
       } catch { /* code HTTP only */ }
-      const code = response.status === 401 || response.status === 403
-        ? "cloudflare_key_rejected"
+      const code = providerCode === "5016"
+        ? "cloudflare_model_agreement_required"
+        : providerCode === "3023"
+          ? "cloudflare_account_blocked"
+          : response.status === 401 || response.status === 403
+            ? "cloudflare_key_rejected"
         : response.status === 404
           ? "cloudflare_model_unavailable"
           : response.status === 400
