@@ -1214,52 +1214,16 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
   const imageUrl = urlPublique?.publicUrl;
   if(!imageUrl) throw new Error("URL publique de photo introuvable");
 
-  // 2. Cloudflare Workers AI est le moteur principal si le vendeur laisse le nom vide.
-  // Les identifiants restent côté Edge Function ; aucun secret n’est envoyé depuis GitHub Pages.
-  let donneesIA = { nom: articleData.nomArticle, prix: articleData.prixSaisi, confiance: 0, categorie_id: null, sous_categorie_id: null };
-  let analyseCloudflare = null;
-  if(!articleData.nomArticle) {
-    try {
-      const reponseCloudflare = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/analyser-article-cloudflare`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: imageUrl })
-      });
-      if(reponseCloudflare.ok) analyseCloudflare = await reponseCloudflare.json();
-      else console.warn("Cloudflare AI indisponible ou quota atteint : repli automatique activé");
-    } catch(error) {
-      console.warn("Cloudflare AI indisponible : repli automatique activé", error);
-    }
+  // 2. Moteur local gratuit : aucune clé, aucun quota externe et aucun appel réseau.
+  // Il analyse la photo dans le navigateur (couleur, luminosité et cadrage).
+  const aspects = !articleData.nomArticle
+    ? await analyserAspectsPhotoGratuite(articleData.photo.fichier)
+    : null;
 
-    // Conservation de l’ancien endpoint s’il est disponible, sans bloquer la publication.
-    if(!analyseCloudflare?.ok) {
-      try {
-        const reponseIA = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/ia-remplir-formulaire`, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ imageUrl: imageUrl })
-        });
-        if(reponseIA.ok) donneesIA = await reponseIA.json();
-      } catch(error) {
-        console.warn("Ancien moteur IA indisponible : repli local activé", error);
-      }
-    }
-  }
-
-  // 3. Nom final : Cloudflare AI est prioritaire ; le moteur local gratuit prend la relève
-  // dès que Cloudflare AI est absent, limité, trop lent ou renvoie un résultat inutilisable.
-  let nomFinal = articleData.nomArticle
+  // 3. Nom final : nom saisi par le vendeur, sinon nom généré localement.
+  const nomFinal = articleData.nomArticle
     ? styliserNomArticle(articleData.nomArticle)
-    : analyseCloudflare?.ok && analyseCloudflare.nom
-      ? styliserNomArticle(analyseCloudflare.nom)
-      : "";
-  if(!nomFinal) {
-    const aspects = await analyserAspectsPhotoGratuite(articleData.photo.fichier);
-    const nomIAFiable = donneesIA.nom && !nomIAEstGenerique(donneesIA.nom) && Number(donneesIA.confiance) > 0.70;
-    nomFinal = nomIAFiable
-      ? styliserNomArticle(donneesIA.nom)
-      : genererNomArticleGratuit(articleData, aspects);
-  }
+    : genererNomArticleGratuit(articleData, aspects);
 
   const nouvelArticle = {
     nom: nomFinal,
