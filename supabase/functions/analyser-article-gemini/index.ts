@@ -55,9 +55,34 @@ function clampConfidence(value: unknown) {
 }
 
 function extractJsonText(payload: any) {
-  const parts = payload?.candidates?.[0]?.content?.parts;
-  if(!Array.isArray(parts)) return "";
-  return parts.map((part) => typeof part?.text === "string" ? part.text : "").join("").trim();
+  const texts = [];
+  const visit = (value: any, depth = 0) => {
+    if(depth > 6 || value === null || value === undefined) return;
+    if(typeof value === "string") return;
+    if(Array.isArray(value)) {
+      for(const item of value) visit(item, depth + 1);
+      return;
+    }
+    if(typeof value !== "object") return;
+    if(typeof value.text === "string") texts.push(value.text);
+    if(typeof value.output_text === "string") texts.push(value.output_text);
+    for(const [key, child] of Object.entries(value)) {
+      if(key !== "text" && key !== "output_text") visit(child, depth + 1);
+    }
+  };
+  visit(payload);
+  return texts.filter(Boolean).join("\n").trim();
+}
+
+function parseJsonObject(text: string) {
+  const cleaned = String(text || "")
+    .replace(/```(?:json)?/gi, "")
+    .replace(/```/g, "")
+    .trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if(start < 0 || end <= start) return null;
+  try { return JSON.parse(cleaned.slice(start, end + 1)); } catch { return null; }
 }
 
 async function fetchImageAsInlineData(imageUrl: string, signal: AbortSignal) {
@@ -131,16 +156,21 @@ Deno.serve(async (request) => {
     });
 
     if(!geminiResponse.ok) {
-      return jsonResponse({ ok: false, configured: true, code: geminiResponse.status === 429 ? "gemini_quota_or_rate_limit" : "gemini_unavailable" }, 502);
+      const code = geminiResponse.status === 401 || geminiResponse.status === 403
+        ? "gemini_key_rejected"
+        : geminiResponse.status === 404
+          ? "gemini_model_unavailable"
+          : geminiResponse.status === 400
+            ? "gemini_request_rejected"
+            : geminiResponse.status === 429
+              ? "gemini_quota_or_rate_limit"
+              : "gemini_unavailable";
+      return jsonResponse({ ok: false, configured: true, code }, 502);
     }
     const payload = await geminiResponse.json();
-    const rawText = extractJsonText(payload).replace(/^```json\s*|^```|```$/gi, "").trim();
-    let result: any;
-    try {
-      result = JSON.parse(rawText);
-    } catch {
-      return jsonResponse({ ok: false, configured: true, code: "gemini_invalid_output" }, 502);
-    }
+    const rawText = extractJsonText(payload);
+    const result = parseJsonObject(rawText);
+    if(!result) return jsonResponse({ ok: false, configured: true, code: "gemini_invalid_output" }, 502);
     const nom = cleanModelName(result?.nom);
     const confiance = clampConfidence(result?.confiance);
     if(nom.length < 2) return jsonResponse({ ok: false, configured: true, code: "gemini_empty_name" }, 502);
