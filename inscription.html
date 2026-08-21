@@ -1082,7 +1082,38 @@ function recupererPositionInscription(){
   );
 }
 
-// --- 4. FONCTION SÉCURISÉE POUR PUBLIER UN ARTICLE (Plus propre) ---
+// --- 4. AGENT DE NOMMAGE STYLÉ (automatique, sans coût ni clé API) ---
+function styliserNomArticle(source, fallback = "Article") {
+  const brut = String(source || fallback)
+    .replace(/\.(jpg|jpeg|png|webp)$/i, "")
+    .replace(/\b(photo|image|article|produit|nouveau|new)\b/gi, " ")
+    .replace(/[0-9a-f]{8,}/gi, " ")
+    .replace(/[-_]+/g, " ")
+    .replace(/[^\p{L}\p{N}\s&'’.-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const titre = (brut || fallback || "Sélection Prime Service")
+    .split(" ")
+    .filter(Boolean)
+    .map((mot) => mot.charAt(0).toLocaleUpperCase("fr-FR") + mot.slice(1).toLocaleLowerCase("fr-FR"))
+    .join(" ")
+    .slice(0, 110);
+  const lower = titre.toLocaleLowerCase("fr-FR");
+  let prefix = "Sélection Signature";
+  if (/robe|pantalon|chemise|jupe|vêtement|chaussure|sac|bijou|mode/.test(lower)) prefix = "Élégance";
+  else if (/parfum|crème|beauté|cheveux|maquillage|cosmétique/.test(lower)) prefix = "Éclat";
+  else if (/téléphone|smartphone|chargeur|écouteur|ordinateur|électronique/.test(lower)) prefix = "Essentiel Tech";
+  else if (/maison|cuisine|meuble|décoration|matelas|rideau/.test(lower)) prefix = "Harmonie Maison";
+  else if (/nourriture|aliment|riz|huile|boisson|gâteau|épice/.test(lower)) prefix = "Saveur Authentique";
+  return `${prefix} — ${titre}`.slice(0, 140);
+}
+
+function nomIAEstGenerique(value) {
+  const nom = String(value || "").trim();
+  return !nom || /nouvel article|boutique prime|^photo$|^image$|^[0-9a-f-]{12,}$/i.test(nom) || /^\d{8,}/.test(nom);
+}
+
+// --- 5. FONCTION SÉCURISÉE POUR PUBLIER UN ARTICLE (Plus propre) ---
 async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adresse, lat, lng) {
   // 1. Upload sécurisé de la photo brute dans le bucket public modéré.
   const fichier = articleData.photo.fichier;
@@ -1115,7 +1146,10 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
 
   // 3. Création de l'objet article final
   const nouvelArticle = {
-    nom: donneesIA.nom || articleData.nomArticle,
+    nom: styliserNomArticle(
+      nomIAEstGenerique(donneesIA.nom) ? articleData.nomArticle : donneesIA.nom,
+      articleData.nomArticle,
+    ),
     prix: Number(articleData.prixSaisi) + CONFIG.COMMISSION_FCFA,
     commission: CONFIG.COMMISSION_FCFA,
     stock: Number(articleData.stockSaisi),

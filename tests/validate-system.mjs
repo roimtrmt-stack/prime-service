@@ -90,6 +90,9 @@ assert.match(index, /envoyerNotifBoutiquierPushDirect/);
 assert.match(index, /telephone_boutique: telephone/);
 assert.match(index, /Adresse boutique/);
 assert.match(index, /id="messageNotification"[^>]*maxlength="160"/);
+assert.doesNotMatch(index, /id="btnRemplirIA"/);
+assert.doesNotMatch(index, /Remplir tout/);
+assert.match(index, /styliserNomArticleAdmin/);
 
 assert.match(inscriptionFunction, /DISCORD_WEBHOOK_INSCRIPTION/);
 assert.match(inscriptionFunction, /recipient: "owner"/);
@@ -98,6 +101,8 @@ assert.match(inscriptionPage, /autorisationNotifBoutique/);
 assert.match(inscriptionPage, /id="autorisationNotifBoutique" required/);
 assert.match(inscriptionPage, /id="adresseInscription"[^>]*required/);
 assert.match(inscriptionPage, /adresse: adresse/);
+assert.match(inscriptionPage, /styliserNomArticle/);
+assert.match(inscriptionPage, /nomIAEstGenerique/);
 assert.match(inscriptionPage, /telephone_boutique: telephone/);
 assert.match(inscriptionPage, /lat: Number\(lat\)/);
 assert.match(inscriptionPage, /lng: Number\(lng\)/);

@@ -1440,12 +1440,9 @@ window.addEventListener('orientationchange', function() {
         <input type="file" accept="image/*" id="photoArticle" style="display:none;" onchange="previsualiserPhoto(event)">
       </label>
 
-           <label class="label">Nom complet de l'article</label>
+      <label class="label">Nom complet de l'article</label>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
         <input type="text" id="nomArticleAdmin" class="champ" placeholder="Ex : Téléphone Samsung Galaxy A15" required style="flex:1; min-width:180px;">
-        <button type="button" id="btnRemplirIA" onclick="remplirAvecIA()" style="background:var(--orange);color:#fff;border:none;padding:10px 14px;border-radius:var(--rayon);cursor:pointer;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:6px;">
-          🤖 Remplir tout
-        </button>
       </div>
 
       <label class="label">Nom de la boutique</label>
@@ -2808,6 +2805,29 @@ function compresserImage(fichier, tailleMax = 1000, qualite = 0.7){
   });
 }
 
+function styliserNomArticleAdmin(source, fallback = "Article") {
+  const brut = String(source || fallback)
+    .replace(/\.(jpg|jpeg|png|webp)$/i, "")
+    .replace(/\b(photo|image|article|produit|nouveau|new)\b/gi, " ")
+    .replace(/[0-9a-f]{8,}/gi, " ")
+    .replace(/[-_]+/g, " ")
+    .replace(/[^\p{L}\p{N}\s&'’.-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const titre = (brut || fallback).split(" ").filter(Boolean)
+    .map((mot) => mot.charAt(0).toLocaleUpperCase("fr-FR") + mot.slice(1).toLocaleLowerCase("fr-FR"))
+    .join(" ").slice(0, 110);
+  if (/^(Élégance|Éclat|Essentiel Tech|Harmonie Maison|Saveur Authentique|Sélection Signature)\s+—/i.test(titre)) return titre;
+  const lower = titre.toLocaleLowerCase("fr-FR");
+  let prefix = "Sélection Signature";
+  if (/robe|pantalon|chemise|jupe|vêtement|chaussure|sac|bijou|mode/.test(lower)) prefix = "Élégance";
+  else if (/parfum|crème|beauté|cheveux|maquillage|cosmétique/.test(lower)) prefix = "Éclat";
+  else if (/téléphone|smartphone|chargeur|écouteur|ordinateur|électronique/.test(lower)) prefix = "Essentiel Tech";
+  else if (/maison|cuisine|meuble|décoration|matelas|rideau/.test(lower)) prefix = "Harmonie Maison";
+  else if (/nourriture|aliment|riz|huile|boisson|gâteau|épice/.test(lower)) prefix = "Saveur Authentique";
+  return `${prefix} — ${titre}`.slice(0, 140);
+}
+
 async function previsualiserPhoto(event){
   const fichier = event.target.files[0];
   if(!fichier) return;
@@ -2872,7 +2892,8 @@ function construireCasesACocher(){
 async function publierArticle(event){
   event.preventDefault();
 
-  const nom = document.getElementById("nomArticleAdmin").value.trim();
+  const nomSaisi = document.getElementById("nomArticleAdmin").value.trim();
+  const nom = styliserNomArticleAdmin(nomSaisi, "Article Prime Service");
   const nomBoutique = document.getElementById("nomBoutiqueAdmin").value.trim();
   const telephone = document.getElementById("telephoneArticleAdmin").value.trim();
   const prix = parseInt(document.getElementById("prixArticleAdmin").value, 10);

@@ -11,12 +11,13 @@ Le système distingue l’enregistrement métier, les notifications, les relance
 | Agent 1B — `accuser-notification` / `lier-notification-push` | Clic du boutiquier ou lien d’activation SMS | Base de suivi uniquement | Enregistrer l’accusé et associer un abonnement push au numéro vérifié par jeton | Aucun détail financier supplémentaire |
 | Agent 2 — `envoyer-inscription` | Envoi du formulaire vendeur | Propriétaire uniquement | Valider le formulaire multipart, transmettre les informations et les photos au webhook d’inscription | Propriétaire : vendeur, boutique, position, articles et photos |
 | Agent 3 — GitHub Actions `Qualité Prime Service` | Push, pull request et contrôle planifié | Dépôt GitHub et mainteneur | Vérifier la syntaxe frontend, les appels publics attendus, l’absence d’écritures sensibles côté navigateur et les smoke tests HTTP invalides | Aucun client, vendeur ou montant réel |
+| Agent 4 — `styliserNomArticle` / `styliserNomArticleAdmin` | Après ajout ou validation d’un article | Catalogue et espace admin | Harmoniser le nom à partir du nom saisi et des indices textuels, avec un préfixe cohérent par famille d’article | Aucun secret ni donnée client |
 
 ## Agent 1 — commande
 
 L’agent reçoit une requête publique minimale. Il ne fait pas confiance aux prix envoyés par le navigateur : il recharge les produits depuis Supabase, vérifie la disponibilité, recalcule le total et détermine la commission à partir des données serveur. Il appelle `decrement_stock_batch`, insère la commande et restaure le stock si l’insertion échoue.
 
-Après l’enregistrement, l’agent répond au navigateur sans attendre Discord, SMS, push ou WhatsApp. `EdgeRuntime.waitUntil` poursuit la notification. Le propriétaire reçoit un Discord global avec les photos en pièces jointes et les montants internes. Chaque boutique reçoit un SMS indépendant sans commission, et un push si son navigateur est associé à son numéro par le lien opaque reçu dans le SMS. Le worker réessaie le push à +3, +6 et +9 minutes avec une intensité croissante et un bouton rouge `J’AI VU LA COMMANDE` à partir de la deuxième tentative. Après quatre échecs sans accusé, le propriétaire reçoit Discord avec le numéro à appeler manuellement. WhatsApp reste un canal visuel facultatif, activé uniquement avec les secrets Meta, un template approuvé et le consentement requis.
+Après l’enregistrement, l’agent répond au navigateur sans attendre Discord, SMS, push ou WhatsApp. `EdgeRuntime.waitUntil` poursuit la notification. Le propriétaire reçoit un Discord global avec les photos en pièces jointes et les montants internes. Chaque boutique reçoit un SMS indépendant sans commission, et un push si son navigateur est associé à son numéro par le lien opaque reçu dans le SMS. Le worker réessaie le push à +3, +6 et +9 minutes avec une intensité croissante et un bouton rouge `J’AI VU LA COMMANDE` à partir de la deuxième tentative. Après quatre échecs sans accusé, le propriétaire reçoit Discord avec le numéro à appeler manuellement. WhatsApp est abandonné et n’est plus utilisé.
 
 ## Agent 1A — relances
 
@@ -29,6 +30,10 @@ Après l’enregistrement, l’agent répond au navigateur sans attendre Discord
 ## Agent 2 — inscription
 
 L’agent accepte uniquement le formulaire multipart prévu, limite la taille et le nombre des photos, puis envoie le texte et les photos au webhook Discord propriétaire. Il ne récupère pas les numéros des boutiques et ne déclenche ni SMS ni WhatsApp. Cette séparation garantit qu’une inscription ne devient pas une notification de commande.
+
+## Agent 4 — nommage stylé
+
+`styliserNomArticle` et `styliserNomArticleAdmin` sont des règles de code locales et gratuites, pas un modèle d’intelligence artificielle : elles nettoient le nom fourni, retirent les noms de fichier techniques et ajoutent un préfixe cohérent comme `Élégance`, `Éclat`, `Essentiel Tech`, `Harmonie Maison` ou `Saveur Authentique`. Elles ne voient pas réellement les pixels de la photo et ne doivent pas être présentées comme une vision IA.
 
 ## Agent 3 — qualité et déploiement
 

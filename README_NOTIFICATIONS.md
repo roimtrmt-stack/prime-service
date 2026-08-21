@@ -43,7 +43,11 @@ curl -X POST https://api.textbee.dev/api/v1/gateway/send-sms \\
 
 Interprétez les réponses ainsi : `401` indique une clé invalide, `404` un appareil introuvable ou un Device ID incorrect, `429` une limite atteinte, et `200` une requête acceptée. Le forfait gratuit annoncé par TextBee comprend un appareil, 50 messages par jour et 300 messages par mois ; les SMS utilisent toutefois la SIM et le forfait mobile du téléphone Android [3] [4].
 
-## 3 bis. Ajouter Orange comme canal SMS supplémentaire
+## 3 bis. Nommage automatique des articles
+
+Après l’ajout d’un article, `styliserNomArticle` et `styliserNomArticleAdmin` nettoient le nom fourni et lui ajoutent un préfixe cohérent avec les mots-clés détectés : `Élégance`, `Éclat`, `Essentiel Tech`, `Harmonie Maison`, `Saveur Authentique` ou `Sélection Signature`. Le bouton admin **Remplir tout** a été retiré ; le nom stylé est appliqué automatiquement à la publication. Cette fonction est une automatisation locale gratuite, pas une vision artificielle : elle ne prétend pas identifier les pixels de la photo.
+
+## 3 ter. Ajouter Orange comme canal SMS supplémentaire
 
 Le code conserve TextBee, l’abonnement push et l’envoi général existant. Les données d’adresse de boutique sont désormais persistées dès l’inscription et propagées dans les messages de commande. Orange est ajouté comme canal SMS optionnel, sans remplacer le push : le bouton **Envoyer une notification** continue d’appeler `clever-processor`/OneSignal, puis appelle `envoyer-sms-orange` pour les boutiques enregistrées si Orange est activé. L’envoi manuel d’une notification liée à une commande utilise désormais `notifier-commande-manuellement`, qui réutilise la file `notifications_boutiquiers`, le worker `notifier-boutiquier`, les rappels à 3/6/9 minutes et l’accusé rouge ; son ancien push direct OneSignal reste conservé comme repli.
 
