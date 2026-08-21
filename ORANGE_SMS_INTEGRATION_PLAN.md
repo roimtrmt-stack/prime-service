@@ -82,3 +82,15 @@ La documentation publique confirme les routes OAuth et d’envoi, mais l’accè
 
 [1]: https://developer.orange.com/apis/sms-ml/api-reference "Orange Developer — SMS Mali 3.0 API reference"
 [2]: https://developer.orange.com/apis/sms/getting-started "Orange Developer — SMS Africa and Middle East getting started"
+
+## État d’implémentation
+
+L’implémentation a été ajoutée sans suppression des flux existants. La fonction `envoyer-commande` est maintenant en version 46 et conserve `verify_jwt=false`, Discord propriétaire avec photos, TextBee, création de la file push, le jeton opaque et les relances. Elle peut appeler Orange lorsque `SMS_PROVIDER=orange` ou `both`, et son SMS de commande conserve le lien d’activation complet dans la limite de 160 caractères.
+
+La nouvelle fonction `envoyer-sms-orange` est active en version 1 avec `verify_jwt=true`. Elle refuse les appels sans authentification administrateur, résout les numéros de commande depuis `commandes` côté serveur et les destinataires généraux depuis `produits` côté serveur. La fonction `clever-processor` reste active en version 36 et son envoi OneSignal existant a été conservé ; son CORS accepte désormais aussi GitHub Pages.
+
+Le bouton général de l’espace vendeur appelle toujours `clever-processor` pour le push, puis ajoute un appel séparé à `envoyer-sms-orange` pour les boutiques enregistrées. Le bouton manuel associé à une commande conserve également l’envoi push ciblé et ajoute le SMS Orange résolu par `commande_id`. Une panne Orange ne fait pas échouer le push ni la commande.
+
+La configuration d’envoi réel reste désactivée tant que les secrets Orange ne sont pas ajoutés. Pour activer Orange seul après validation, ajouter dans Supabase `ORANGE_CLIENT_ID`, `ORANGE_CLIENT_SECRET`, `ORANGE_SENDER_ADDRESS` validé par Orange, `ORANGE_SMS_ENABLED=true` et `SMS_PROVIDER=orange`. Pour une transition avec TextBee, utiliser `SMS_PROVIDER=both`. Ne jamais activer le canal avant d’avoir obtenu l’approbation Orange Mali, un bundle de crédits et un test HTTP 201 suivi d’une réception réelle.
+
+Validations réalisées : tests Node, `git diff --check`, compilation esbuild des fonctions, appels publics sans authentification refusés en HTTP 401 pour Orange et `clever-processor`, et corps de commande invalide refusé en HTTP 400. Aucun SMS réel n’a été déclenché pendant ces vérifications.

@@ -39,6 +39,28 @@ curl -X POST https://api.textbee.dev/api/v1/gateway/send-sms \\
 
 Interprétez les réponses ainsi : `401` indique une clé invalide, `404` un appareil introuvable ou un Device ID incorrect, `429` une limite atteinte, et `200` une requête acceptée. Le forfait gratuit annoncé par TextBee comprend un appareil, 50 messages par jour et 300 messages par mois ; les SMS utilisent toutefois la SIM et le forfait mobile du téléphone Android [3] [4].
 
+## 3 bis. Ajouter Orange comme canal SMS supplémentaire
+
+Le code conserve TextBee, l’abonnement push et l’envoi général existant. Orange est ajouté comme canal SMS optionnel, sans remplacer le push : le bouton **Envoyer une notification** continue d’appeler `clever-processor`/OneSignal, puis appelle `envoyer-sms-orange` pour les boutiques enregistrées si Orange est activé. L’envoi manuel d’une notification liée à une commande conserve aussi son push ciblé et ajoute un SMS Orange résolu côté serveur à partir de l’identifiant de commande.
+
+L’envoi automatique de commande utilise le même principe. `envoyer-commande` crée toujours la file de relances push et envoie le Discord propriétaire ; selon le fournisseur activé, il envoie ensuite TextBee, Orange, ou les deux. Le SMS Orange de commande est volontairement court et conserve le lien opaque `boutique_token` en entier. Il ne contient jamais la commission, le prix client ou les données d’une autre boutique.
+
+Dans **Supabase → Edge Functions → Secrets**, ajoutez les paramètres Orange seulement après approbation de l’application SMS Mali par Orange Developer :
+
+| Nom du secret | Valeur | Utilisé par |
+|---|---|---|
+| `ORANGE_CLIENT_ID` | Identifiant de l’application Orange Developer | Token OAuth côté serveur |
+| `ORANGE_CLIENT_SECRET` | Secret de l’application Orange Developer | Token OAuth côté serveur |
+| `ORANGE_SENDER_ADDRESS` | Adresse `tel:+223...` validée par Orange | URL et corps de l’envoi |
+| `ORANGE_SMS_ENABLED` | `true` après test, sinon `false` | Interrupteur Orange |
+| `SMS_PROVIDER` | `textbee`, `orange` ou `both` | Choix du canal des commandes |
+
+`SMS_PROVIDER=textbee` conserve le comportement actuel TextBee. `SMS_PROVIDER=orange` utilise Orange seul pour les commandes. `SMS_PROVIDER=both` envoie les deux canaux, et permet une transition contrôlée. Pour le bouton général, `ORANGE_SMS_ENABLED=true` active le SMS Orange aux boutiques ; le push général OneSignal reste envoyé dans tous les cas.
+
+L’API Orange utilise OAuth 2.0 v3 sur `https://api.orange.com/oauth/v3/token`, avec `grant_type=client_credentials`, puis `POST https://api.orange.com/smsmessaging/v1/outbound/{senderAddress}/requests`. Le token est conservé côté Edge Function et renouvelé avant expiration. Orange exige un contrat/bundle actif, un solde positif et peut imposer la validation d’un sender name ou d’une adresse d’envoi par l’équipe locale [11] [12].
+
+La fonction `envoyer-sms-orange` accepte uniquement un administrateur authentifié. Pour une commande, elle reçoit l’identifiant de commande et relit les numéros depuis `commandes` côté serveur. Pour un message général, elle lit les numéros uniques depuis `produits` côté serveur et n’accepte pas une liste arbitraire de numéros envoyée par le navigateur. Une erreur Orange n’annule jamais une commande et ne masque pas le résultat du push.
+
 ## 4. Ajouter les secrets dans Supabase
 
 Ouvrez le [projet Supabase Prime Service](https://supabase.com/dashboard/project/kfxalpvbtbvkncztjwzc), puis allez dans **Edge Functions → Secrets**. Cliquez sur **Add new secret** et ajoutez les entrées suivantes. La clé `SUPABASE_SERVICE_ROLE_KEY` est normalement fournie automatiquement par Supabase ; si elle n’apparaît pas, utilisez la clé secrète du projet uniquement dans les secrets Edge Functions, jamais dans le frontend.
@@ -48,7 +70,12 @@ Ouvrez le [projet Supabase Prime Service](https://supabase.com/dashboard/project
 | `DISCORD_WEBHOOK_URL` | URL du webhook Discord pour les commandes | Propriétaire |
 | `DISCORD_WEBHOOK_INSCRIPTION` | URL du webhook Discord pour les inscriptions | Propriétaire uniquement |
 | `TEXTBEE_API_KEY` | Clé API TextBee | SMS des boutiques concernées |
-| `TEXTBEE_DEVICE_ID` | Device ID du téléphone Android TextBee | SMS des boutiques concernées |
+| `TEXTBEE_DEVICE_ID` | Device ID du téléphone Android TextBee | SMS des boutiques concernées si TextBee est activé |
+| `ORANGE_CLIENT_ID` | Identifiant Orange Developer | SMS Orange côté serveur |
+| `ORANGE_CLIENT_SECRET` | Secret Orange Developer | Token SMS Orange côté serveur |
+| `ORANGE_SENDER_ADDRESS` | Adresse d’envoi validée par Orange | SMS Orange côté serveur |
+| `ORANGE_SMS_ENABLED` | `true` ou `false` | Activation du bouton SMS général |
+| `SMS_PROVIDER` | `textbee`, `orange` ou `both` | SMS automatique de commande |
 | `SUPABASE_SERVICE_ROLE_KEY` | Clé secrète Supabase, si absente des secrets par défaut | Enregistrement serveur et stock |
 | `VAPID_PUBLIC_KEY` | Clé publique correspondant au frontend | Push boutique |
 | `VAPID_PRIVATE_KEY` | Clé privée correspondante | Push boutique côté serveur |
@@ -62,7 +89,7 @@ Le dépôt contient les fonctions versionnées dans `supabase/functions/`. La m�
 
 Dans GitHub, ouvrez le dépôt `roimtrmt-stack/prime-service`, puis **Settings → Secrets and variables → Actions → New repository secret**. Ajoutez `SUPABASE_ACCESS_TOKEN` avec un jeton personnel Supabase autorisé à déployer les fonctions, et `SUPABASE_PROJECT_REF` avec la valeur `kfxalpvbtbvkncztjwzc`. Ne mettez jamais ces valeurs dans un fichier commité.
 
-Ensuite, ouvrez **Actions → Déploiement des fonctions Supabase → Run workflow → Run workflow**. Le workflow publie `envoyer-commande`, `envoyer-inscription`, `notifier-boutiquier`, `accuser-notification` et `lier-notification-push`. Il ne publie aucun secret dans les logs.
+Ensuite, ouvrez **Actions → Déploiement des fonctions Supabase → Run workflow → Run workflow**. Le workflow publie `envoyer-commande`, `envoyer-sms-orange`, `clever-processor`, `envoyer-inscription`, `notifier-boutiquier`, `accuser-notification` et `lier-notification-push`. Il ne publie aucun secret dans les logs.
 
 La migration `supabase/migrations/202608210001_secure_order_writes.sql` doit être appliquée une seule fois. Elle supprime les insertions anonymes directes dans `commandes` et `notifications_boutiquiers`, car ces deux écritures sont maintenant faites par `envoyer-commande` côté serveur. Avant de l’appliquer, vérifiez que la nouvelle fonction est bien déployée.
 
@@ -74,7 +101,7 @@ GitHub documente une allocation GitHub Free de 2 000 minutes mensuelles et la gr
 
 ## 7. Tests à effectuer
 
-Le test local est lancé depuis la racine du dépôt avec `node tests/validate-system.mjs`. Il vérifie la syntaxe des pages, l’absence d’insertion publique de commande et de numéro boutique dans le navigateur, la présence de TextBee côté serveur, la séparation du webhook d’inscription, la liaison push par jeton et la migration RLS.
+Le test local est lancé depuis la racine du dépôt avec `node tests/validate-system.mjs`. Il vérifie la syntaxe des pages, l’absence d’insertion publique de commande et de numéro boutique dans le navigateur, la présence de TextBee et Orange côté serveur, la conservation de `clever-processor`, la séparation du webhook d’inscription, la liaison push par jeton et la migration RLS.
 
 Pour le test réel, créez d’abord une commande avec un seul article de test et un numéro de boutique de test. Vérifiez que la confirmation apparaît sans attendre la réception du SMS. Vérifiez ensuite que le propriétaire reçoit le message Discord et que seul le boutiquier lié à l’article reçoit le SMS. Avec une commande composée d’articles de deux boutiques, chaque boutique doit recevoir uniquement son propre montant et ses propres articles.
 
@@ -82,11 +109,11 @@ Pour l’inscription, envoyez deux articles avec deux photos. Le formulaire peut
 
 Le workflow distant envoie uniquement des corps JSON invalides (`{}`) aux deux endpoints. Une réponse `400`, `401`, `403` ou `429` est considérée comme un refus correct ; aucune commande, aucun stock et aucune notification réelle ne sont créés par ce contrôle.
 
-Après un test TextBee, vérifier dans les logs le statut `sms` par boutique et la réponse HTTP TextBee. Un échec SMS doit rester un échec de notification, jamais un échec d’enregistrement de commande.
+Après un test TextBee ou Orange, vérifier dans les logs le statut SMS par boutique et le code HTTP du fournisseur. Une réponse Orange `201` signifie que la demande a été acceptée par l’API, pas nécessairement livrée au destinataire ; vérifier aussi la réception réelle. Un échec SMS doit rester un échec de notification, jamais un échec d’enregistrement de commande.
 
 ## 8. Architecture retenue
 
-GitHub Actions ne sert pas de serveur temps réel : un workflow ne peut pas garantir une confirmation inférieure à une seconde après chaque validation publique. Il sert à vérifier le code et à publier les fonctions. Supabase reçoit la commande et utilise une tâche d’arrière-plan Edge Function pour poursuivre Discord et TextBee après la réponse HTTP. Supabase documente précisément ce mécanisme avec `EdgeRuntime.waitUntil` [5].
+GitHub Actions ne sert pas de serveur temps réel : un workflow ne peut pas garantir une confirmation inférieure à une seconde après chaque validation publique. Il sert à vérifier le code et à publier les fonctions. Supabase reçoit la commande et utilise une tâche d’arrière-plan Edge Function pour poursuivre Discord, TextBee et Orange après la réponse HTTP. Supabase documente précisément ce mécanisme avec `EdgeRuntime.waitUntil` [5].
 
 Cette séparation préserve la fluidité du parcours client et garde les clés privées hors du navigateur. Le plan gratuit Supabase documente 500 000 invocations Edge Functions incluses et 500 Mo de base de données ; ces quotas doivent néanmoins être surveillés [6].
 
@@ -106,6 +133,8 @@ La page de remerciement affiche le numéro de paiement `94 13 44 08`, le montant
 [8]: https://textbee.dev/docs/faq "TextBee — FAQ et dépannage"
 [9]: https://api.textbee.dev/ "TextBee — API reference"
 [10]: https://www.orangemali.com/fr/transfert/transfert-national.html "Orange Mali — Transfert national"
+[11]: https://developer.orange.com/apis/sms-ml/api-reference "Orange Developer — SMS Mali API reference"
+[12]: https://developer.orange.com/apis/sms/getting-started "Orange Developer — SMS API getting started"
 
 ## 10. Relances automatiques des boutiquiers
 

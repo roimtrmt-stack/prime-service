@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { orangeSmsEnabled, sendOrangeSms } from "../_shared/orange-sms.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -125,11 +126,23 @@ function maliPhoneDigits(value: string): string {
 }
 
 function createAckToken(): string {
-  return `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, "");
+  // 128 bits aléatoires : suffisamment opaque et assez court pour conserver
+  // le lien d’activation complet dans un SMS limité à 160 caractères.
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function clip(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, Math.max(0, max - 1))}…`;
+}
+
+function clipWithSuffix(prefix: string, suffix: string, max: number): string {
+  const separator = " | ";
+  if (prefix.length + separator.length + suffix.length <= max) {
+    return `${prefix}${separator}${suffix}`;
+  }
+  const available = Math.max(0, max - separator.length - suffix.length - 1);
+  return `${prefix.slice(0, available)}…${separator}${suffix}`;
 }
 
 async function fetchWithTimeout(
@@ -231,6 +244,44 @@ async function sendTextBee(phone: string, message: string): Promise<DeliveryResu
       reason: error instanceof Error ? error.message.slice(0, 160) : "exception TextBee",
     };
   }
+}
+
+function orangeCommandMessage(
+  commandId: string,
+  shop: Shop,
+  clientName: string,
+  clientPhone: string,
+  mapUrl: string,
+  activationUrl: string,
+): string {
+  const articleSummary = shop.items
+    .map((item) => `${clip(item.nom, 42)} x${item.quantite}`)
+    .join(", ");
+  const prefix = [
+    `Prime Service commande #${commandId.slice(-8)}`,
+    `Articles: ${articleSummary}`,
+    `Net boutique: ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+    `Client: ${clip(clientName, 38)} ${clip(clientPhone, 18)}`,
+    `Carte: ${mapUrl}`,
+  ].join(" | ");
+  return clipWithSuffix(prefix, `Activer: ${activationUrl}`, 160);
+}
+
+async function sendBoutiqueSms(
+  phone: string,
+  textBeeMessage: string,
+  orangeMessage: string,
+): Promise<Record<string, DeliveryResult>> {
+  const provider = text(Deno.env.get("SMS_PROVIDER"), 20).toLowerCase() || "textbee";
+  const useOrange = orangeSmsEnabled();
+  const useTextBee = provider === "textbee" || provider === "both" || (!useOrange && provider !== "none");
+  const results: Record<string, DeliveryResult> = {};
+  if (useTextBee) results.textbee = await sendTextBee(phone, textBeeMessage);
+  if (useOrange) results.orange = await sendOrangeSms(phone, orangeMessage);
+  if (Object.keys(results).length === 0) {
+    results.sms = { target: phone, delivered: false, reason: "aucun fournisseur SMS activé" };
+  }
+  return results;
 }
 
 function groupByShop(items: CanonicalItem[]): Shop[] {
@@ -455,7 +506,16 @@ async function notifyInBackground(input: {
         `Carte client : ${mapUrl}`,
         `Activer les relances du site : ${activationByPhone.get(shop.phone) || `${SITE_ORIGIN}/`}`,
       ].join(" | ");
-      const sms = await sendTextBee(shop.phone, boutiqueText);
+      const activationUrl = activationByPhone.get(shop.phone) || `${SITE_ORIGIN}/`;
+      const orangeMessage = orangeCommandMessage(
+        input.commandId,
+        shop,
+        input.nom,
+        input.tel,
+        mapUrl,
+        activationUrl,
+      );
+      const sms = await sendBoutiqueSms(shop.phone, boutiqueText, orangeMessage);
       return { target: shop.name, sms };
     }));
     console.log("[notifications] commande traitée", JSON.stringify({

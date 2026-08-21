@@ -35,6 +35,18 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: supabase functions deploy envoyer-commande --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
 
+      - name: Déployer envoyer-sms-orange
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: supabase functions deploy envoyer-sms-orange --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Déployer clever-processor
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: supabase functions deploy clever-processor --project-ref "$SUPABASE_PROJECT_REF"
+
       - name: Déployer envoyer-inscription
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

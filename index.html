@@ -1399,7 +1399,8 @@ window.addEventListener('orientationchange', function() {
       </div>
 
       <label class="label" style="margin-top:14px;">Message</label>
-      <textarea id="messageNotification" class="champ" rows="3">Prime Service vient de publier de nouveaux articles ! Venez jeter un coup d'œil 👀</textarea>
+      <textarea id="messageNotification" class="champ" rows="3" maxlength="160">Prime Service vient de publier de nouveaux articles ! Venez jeter un coup d'œil 👀</textarea>
+      <p class="sous-titre-panneau">Le push général existant reste actif ; après configuration Orange, un SMS court peut aussi partir aux boutiques enregistrées.</p>
 
       <button class="btn-principal" style="margin-top:14px;" onclick="envoyerNotification()">📣 Envoyer la notification</button>
       <p id="statutEnvoiNotif" class="statut-envoi"></p>
@@ -3355,6 +3356,24 @@ function retirerArticleNotif(id){
   validerChoixArticlesNotif();
 }
 
+async function envoyerSmsOrange(message, options = {}){
+  const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-sms-orange`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${await obtenirTokenAdmin()}`,
+    },
+    body: JSON.stringify({
+      message,
+      cible: options.cible || "boutiques",
+      commande_id: options.commandeId || null,
+    }),
+  });
+  const resultat = await reponse.json().catch(() => ({}));
+  if(!reponse.ok) throw new Error(resultat.error || `SMS Orange HTTP ${reponse.status}`);
+  return resultat;
+}
+
 async function envoyerNotification(){
   const statut = document.getElementById("statutEnvoiNotif");
   const message = document.getElementById("messageNotification").value.trim();
@@ -3366,14 +3385,16 @@ async function envoyerNotification(){
   }
 
   statut.style.color = "#666";
-  statut.textContent = "Envoi en cours...";
+  statut.textContent = "Envoi push et préparation SMS...";
 
   try{
+    // Le canal push général existant est conservé tel quel.
+    const tokenAdmin = await obtenirTokenAdmin();
     const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/clever-processor`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${await obtenirTokenAdmin()}`,
+        "Authorization": `Bearer ${tokenAdmin}`,
       },
       body: JSON.stringify({
         titre: "Prime Service 🚀",
@@ -3383,25 +3404,39 @@ async function envoyerNotification(){
       }),
     });
 
-    if(!reponse.ok) throw new Error("Échec de l'envoi (" + reponse.status + ")");
+    if(!reponse.ok) throw new Error("Échec de l'envoi push (" + reponse.status + ")");
 
     const resultat = await reponse.json().catch(() => ({}));
     const nbEnvoyes = typeof resultat.envoyes === "number" ? resultat.envoyes : null;
+    let textePush = "Notification push traitée";
+    if(nbEnvoyes === 0){
+      textePush = "0 personne abonnée au push";
+    } else if(nbEnvoyes !== null){
+      textePush = `${nbEnvoyes} personne${nbEnvoyes > 1 ? "s" : ""} abonnée${nbEnvoyes > 1 ? "s" : ""}`;
+    }
+
+    // Canal SMS Orange additionnel : une panne SMS ne masque pas le succès push.
+    let texteSms = "SMS Orange désactivé";
+    try{
+      const sms = await envoyerSmsOrange(message, { cible: "boutiques" });
+      if(sms.enabled){
+        texteSms = `${sms.accepted || 0} SMS Orange accepté${sms.accepted === 1 ? "" : "s"}`;
+      } else if(sms.reason){
+        texteSms = sms.reason;
+      }
+    } catch(erreurSms){
+      console.warn("SMS Orange général indisponible :", erreurSms);
+      texteSms = "SMS Orange non envoyé";
+    }
 
     statut.style.color = "#16a34a";
-    if(nbEnvoyes === 0){
-      statut.textContent = "✅ Envoi réussi, mais 0 personne abonnée pour l'instant — personne n'a encore cliqué \"Autoriser\" sur le bandeau notifications.";
-    } else if(nbEnvoyes !== null){
-      statut.textContent = `✅ Notification envoyée à ${nbEnvoyes} personne${nbEnvoyes > 1 ? "s" : ""} abonnée${nbEnvoyes > 1 ? "s" : ""}.`;
-    } else {
-      statut.textContent = "✅ Notification envoyée à vos clients et boutiquiers !";
-    }
+    statut.textContent = `✅ Push : ${textePush}. ${texteSms}.`;
     articlesSelectionnesNotif = [];
     validerChoixArticlesNotif();
   } catch(erreur){
     console.error(erreur);
     statut.style.color = "#dc2626";
-    statut.textContent = "❌ Envoi impossible pour le moment. Réessayez.";
+    statut.textContent = "❌ Envoi push impossible pour le moment. Réessayez.";
   }
 }
 
@@ -3828,7 +3863,7 @@ async function envoyerNotifBoutiquier(){
   }
 
   statut.style.color = "#666";
-  statut.textContent = "Envoi en cours...";
+  statut.textContent = "Envoi push et SMS Orange...";
 
   try{
     const articles = commandeSelectionneeNotif.articles || [];
@@ -3840,11 +3875,13 @@ async function envoyerNotifBoutiquier(){
       return;
     }
 
+    const tokenAdmin = await obtenirTokenAdmin();
+    // L’envoi push ciblé existant est conservé tel quel.
     const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/clever-processor`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${await obtenirTokenAdmin()}`,
+        "Authorization": `Bearer ${tokenAdmin}`,
       },
       body: JSON.stringify({
         titre: "Nouvelle commande Prime Service 🚀",
@@ -3854,16 +3891,29 @@ async function envoyerNotifBoutiquier(){
       }),
     });
 
-    if(!reponse.ok) throw new Error("Échec");
+    if(!reponse.ok) throw new Error("Échec de l’envoi push");
+
+    let texteSms = "SMS Orange désactivé";
+    try{
+      const sms = await envoyerSmsOrange(message, {
+        commandeId: commandeSelectionneeNotif.id,
+        cible: "boutiques",
+      });
+      if(sms.enabled) texteSms = `${sms.accepted || 0} SMS Orange accepté${sms.accepted === 1 ? "" : "s"}`;
+      else if(sms.reason) texteSms = sms.reason;
+    } catch(erreurSms){
+      console.warn("SMS Orange commande manuelle indisponible :", erreurSms);
+      texteSms = "SMS Orange non envoyé";
+    }
 
     statut.style.color = "#16a34a";
-    statut.textContent = "✅ Notification envoyée !";
+    statut.textContent = `✅ Notification push envoyée. ${texteSms}.`;
     setTimeout(() => {
       document.getElementById("modaleNotifBoutiquier").style.display = "none";
     }, 1500);
   } catch(e){
     statut.style.color = "#dc2626";
-    statut.textContent = "❌ Envoi impossible. Vérifiez la connexion.";
+    statut.textContent = "❌ Envoi push impossible. Vérifiez la connexion.";
   }
 }
 
