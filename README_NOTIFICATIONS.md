@@ -6,6 +6,10 @@ Le site reste statique et léger. Lorsqu’un client valide une commande, le nav
 
 La notification Discord de commande est envoyée au propriétaire via `DISCORD_WEBHOOK_URL`. Les SMS sont envoyés uniquement aux numéros des boutiques réellement présentes dans la commande. Une inscription de vendeur utilise un webhook Discord séparé, `DISCORD_WEBHOOK_INSCRIPTION`, destiné uniquement au propriétaire. Les photos sont envoyées l’une après l’autre ; le délai de 10 à 30 secondes selon le nombre de photos est donc normal pour ce formulaire et ne bloque pas les commandes.
 
+### Correctif de l’adresse boutique
+
+L’adresse boutique doit venir de `produits.adresse`, tandis que la position GPS vient de `produits.lat` et `produits.lng`. Le formulaire d’inscription demande maintenant l’adresse textuelle et enregistre ces trois valeurs sur chaque article. Les créations et modifications faites dans l’espace vendeur enregistrent également `telephone_boutique`, tout en conservant la colonne historique `telephone` pour compatibilité. Le checkout utilise les deux noms de téléphone avec un repli serveur, puis recopie l’adresse dans la commande et dans le message envoyé à la boutique. Une adresse boutique ne doit jamais être confondue avec l’adresse ou la position GPS du client.
+
 > **Important :** une URL Discord, une clé TextBee et surtout la clé `service_role` ne doivent jamais être placées dans `index.html`, `inscription.html`, le dépôt GitHub ou un message. Supabase indique que la clé `service_role` contourne les politiques RLS et doit rester dans les fonctions serveur [1].
 
 ## 1. Préparer Discord
@@ -41,7 +45,7 @@ Interprétez les réponses ainsi : `401` indique une clé invalide, `404` un app
 
 ## 3 bis. Ajouter Orange comme canal SMS supplémentaire
 
-Le code conserve TextBee, l’abonnement push et l’envoi général existant. Orange est ajouté comme canal SMS optionnel, sans remplacer le push : le bouton **Envoyer une notification** continue d’appeler `clever-processor`/OneSignal, puis appelle `envoyer-sms-orange` pour les boutiques enregistrées si Orange est activé. L’envoi manuel d’une notification liée à une commande utilise désormais `notifier-commande-manuellement`, qui réutilise la file `notifications_boutiquiers`, le worker `notifier-boutiquier`, les rappels à 3/6/9 minutes et l’accusé rouge ; son ancien push direct OneSignal reste conservé comme repli.
+Le code conserve TextBee, l’abonnement push et l’envoi général existant. Les données d’adresse de boutique sont désormais persistées dès l’inscription et propagées dans les messages de commande. Orange est ajouté comme canal SMS optionnel, sans remplacer le push : le bouton **Envoyer une notification** continue d’appeler `clever-processor`/OneSignal, puis appelle `envoyer-sms-orange` pour les boutiques enregistrées si Orange est activé. L’envoi manuel d’une notification liée à une commande utilise désormais `notifier-commande-manuellement`, qui réutilise la file `notifications_boutiquiers`, le worker `notifier-boutiquier`, les rappels à 3/6/9 minutes et l’accusé rouge ; son ancien push direct OneSignal reste conservé comme repli.
 
 L’envoi automatique de commande utilise le même principe. `envoyer-commande` crée toujours la file de relances push et envoie le Discord propriétaire ; selon le fournisseur activé, il envoie ensuite TextBee, Orange, ou les deux. Le SMS Orange de commande est volontairement court et conserve le lien opaque `boutique_token` en entier. Il ne contient jamais la commission, le prix client ou les données d’une autre boutique.
 

@@ -108,6 +108,7 @@ Deno.serve(async (req: Request) => {
       phone: string;
       name: string;
       items: Array<{ name: string; quantity: number; net: number }>;
+      address: string;
       net: number;
     }>();
     const articles = Array.isArray(command.articles) ? command.articles : [];
@@ -122,6 +123,7 @@ Deno.serve(async (req: Request) => {
         phone,
         name: text(item.nom_boutique, 120) || "Boutique",
         items: [],
+        address: text(item.adresse, 240) || "Non renseignée",
         net: 0,
       };
       shop.items.push({
@@ -129,6 +131,9 @@ Deno.serve(async (req: Request) => {
         quantity,
         net: netPerItem * quantity,
       });
+      if (shop.address === "Non renseignée" && text(item.adresse, 240)) {
+        shop.address = text(item.adresse, 240);
+      }
       shop.net += netPerItem * quantity;
       grouped.set(phone, shop);
     }
@@ -142,6 +147,7 @@ Deno.serve(async (req: Request) => {
       const message = [
         `Prime Service — commande #${String(command.id).slice(-8)}`,
         `Boutique : ${shop.name}`,
+        `Adresse boutique : ${shop.address}`,
         "Articles à préparer :",
         ...shop.items.map((item) => `• ${item.name} x${item.quantity}`),
         `Montant NET à recevoir : ${Math.round(shop.net).toLocaleString("fr-FR")} FCFA`,

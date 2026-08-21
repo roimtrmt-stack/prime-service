@@ -840,6 +840,9 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       <label class="label">Votre numéro de téléphone</label>
       <input type="tel" id="telephoneSoumissionnaire" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" title="Entrez un vrai numéro de téléphone" required>
 
+      <label class="label">Adresse de votre boutique (obligatoire)</label>
+      <input type="text" id="adresseInscription" class="champ" placeholder="Ex : Badalabougou, près du marché" maxlength="240" required>
+
       <label class="label">Votre position (obligatoire)</label>
       <button type="button" class="btn-secondaire" onclick="recupererPositionInscription()">
         📍 Utiliser ma position actuelle
@@ -1080,7 +1083,7 @@ function recupererPositionInscription(){
 }
 
 // --- 4. FONCTION SÉCURISÉE POUR PUBLIER UN ARTICLE (Plus propre) ---
-async function traiterEtPublierArticle(articleData, nomBoutique, telephone, lat, lng) {
+async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adresse, lat, lng) {
   // 1. Upload sécurisé de la photo brute dans le bucket public modéré.
   const fichier = articleData.photo.fichier;
   const nomSecurise = fichier.name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(-120);
@@ -1119,6 +1122,9 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, lat,
     image_url: imageUrl,
     nom_boutique: nomBoutique,
     telephone_boutique: telephone,
+    adresse: adresse,
+    lat: Number(lat),
+    lng: Number(lng),
     // Si la confiance IA est > 70%, on publie direct, sinon on met en masqué
     masque: (donneesIA.confiance && donneesIA.confiance > 0.70) ? false : true,
     categorie_id: donneesIA.categorie_id || null,
@@ -1139,12 +1145,13 @@ async function envoyerSoumission(event){
   const nom = document.getElementById("nomSoumissionnaire").value.trim();
   const nomBoutique = document.getElementById("nomBoutiqueSoumissionnaire").value.trim();
   const telephone = document.getElementById("telephoneSoumissionnaire").value.trim();
+  const adresse = document.getElementById("adresseInscription").value.trim();
   const lat = document.getElementById("latInscription").value;
   const lng = document.getElementById("lngInscription").value;
   const statut = document.getElementById("statutInscription");
   const bouton = document.getElementById("btnEnvoyerInscription");
 
-  if(!nomBoutique || photosAjoutees.length === 0 || !lat || !lng) {
+  if(!nomBoutique || !telephone || !adresse || photosAjoutees.length === 0 || !lat || !lng) {
     statut.style.color = "#dc2626";
     statut.textContent = "⚠️ Remplissez tout, ajoutez une photo et votre position.";
     return false;
@@ -1181,7 +1188,7 @@ async function envoyerSoumission(event){
           stockSaisi: Number(champStock.value)
         };
 
-        await traiterEtPublierArticle(articleData, nomBoutique, telephone, lat, lng);
+        await traiterEtPublierArticle(articleData, nomBoutique, telephone, adresse, lat, lng);
         
         // Mise à jour du statut pour montrer l'avancement
         statut.textContent = `✅ ${photosAjoutees.indexOf(photo) + 1}/${photosAjoutees.length} article(s) envoyé(s)...`;
@@ -1219,6 +1226,7 @@ async function envoyerSoumission(event){
       discordTexte += `👤 **Nom :** ${nom}\n`;
       discordTexte += `🏪 **Boutique :** ${nomBoutique}\n`;
       discordTexte += `📞 **Téléphone :** ${telephone}\n`;
+      discordTexte += `📍 **Adresse boutique :** ${adresse}\n`;
       discordTexte += `📍 **Position :** https://www.google.com/maps?q=${lat},${lng}\n\n`;
       discordTexte += `📦 **${photosAjoutees.length} article(s) déposé(s) :**\n`;
 

@@ -2945,7 +2945,7 @@ async function publierArticle(event){
       const [categorie_id, sous_categorie_id] = casesCochees[0].value.split("|");
       const { error: erreurMaj } = await supabaseClient
         .from("produits")
-        .update({ nom, nom_boutique: nomBoutique, prix, commission, telephone, stock, categorie_id, sous_categorie_id, adresse, lat, lng, image_url: imageUrl })
+        .update({ nom, nom_boutique: nomBoutique, prix, commission, telephone, telephone_boutique: telephone, stock, categorie_id, sous_categorie_id, adresse, lat, lng, image_url: imageUrl })
         .eq("id", articleEnEdition);
 
       if(erreurMaj) throw erreurMaj;
@@ -2957,7 +2957,7 @@ async function publierArticle(event){
       // ===== MODE AJOUT : une ligne par rayon coché =====
       const lignesAInserer = casesCochees.map(caseCochee => {
         const [categorie_id, sous_categorie_id] = caseCochee.value.split("|");
-        return { nom, nom_boutique: nomBoutique, prix, commission, telephone, stock, categorie_id, sous_categorie_id, adresse, lat, lng, image_url: imageUrl };
+        return { nom, nom_boutique: nomBoutique, prix, commission, telephone, telephone_boutique: telephone, stock, categorie_id, sous_categorie_id, adresse, lat, lng, image_url: imageUrl };
       });
 
       const { error: erreurInsertion } = await supabaseClient.from("produits").insert(lignesAInserer);
@@ -3828,10 +3828,12 @@ function ouvrirNotifManuelle(){
 function preparerNotifBoutiquier(commande){
   commandeSelectionneeNotif = commande;
   const articles = commande.articles || [];
+  const adresseBoutique = articles.map(a => a?.adresse).find(Boolean) || "Non renseignée";
 
   let msg = `Nouvelle commande reçue !\n\n`;
   msg += `👤 Client: ${commande.nom_client || "—"}\n`;
   msg += `📞 Téléphone: ${commande.telephone_client || "—"}\n`;
+  msg += `📍 Adresse boutique: ${adresseBoutique}\n`;
   msg += `📍 Quartier: ${commande.lat_client ? "Voir carte ci-dessous" : "Non précisé"}\n\n`;
   msg += `📦 Articles:\n`;
 

@@ -33,6 +33,7 @@ type Product = {
   lng: number | null;
   nom_boutique: string | null;
   telephone_boutique: string | null;
+  telephone: string | null;
   commission: number | null;
 };
 type CanonicalItem = {
@@ -299,6 +300,7 @@ function groupByShop(items: CanonicalItem[]): Shop[] {
       commission: 0,
       lat: item.lat,
       lng: item.lng,
+      adresse: item.adresse,
     };
     existing.articles.push(`${item.nom} x${item.quantite}`);
     existing.items.push(item);
@@ -329,6 +331,7 @@ async function queueBoutiqueNotifications(
       message: [
         `Prime Service — commande #${commandId}`,
         `Boutique : ${clip(shop.name, 100)}`,
+        `Adresse boutique : ${clip(shop.adresse || "Non renseignée", 240)}`,
         "Articles à préparer :",
         ...shop.items.map((item) => `• ${clip(item.nom, 100)} x${item.quantite}`),
         `Montant NET à recevoir : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
@@ -414,6 +417,7 @@ async function notifyInBackground(input: {
     });
     const shopLines = shops.map((shop) => [
       `🏪 **${clip(shop.name, 80)}**`,
+      `   Adresse boutique : ${clip(shop.adresse || "Non renseignée", 240)}`,
       `   À remettre à la boutique : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
       `   Commission à garder : ${Math.round(shop.commission).toLocaleString("fr-FR")} FCFA`,
     ].join("\n"));
@@ -575,7 +579,7 @@ Deno.serve(async (req: Request) => {
     const ids = [...new Set(items.map((item) => item.id))];
     const { data: products, error: productError } = await supabaseAdmin
       .from("produits")
-      .select("id, nom, prix, stock, masque, image_url, adresse, lat, lng, nom_boutique, telephone_boutique, commission")
+      .select("id, nom, prix, stock, masque, image_url, adresse, lat, lng, nom_boutique, telephone_boutique, telephone, commission")
       .in("id", ids)
       .limit(MAX_PANIER_ITEMS);
     if (productError || !products || products.length !== ids.length) {
@@ -606,7 +610,7 @@ Deno.serve(async (req: Request) => {
         lat: numberOrNull(product.lat),
         lng: numberOrNull(product.lng),
         nom_boutique: text(product.nom_boutique, 120) || "Boutique",
-        telephone_boutique: text(product.telephone_boutique, 40) || null,
+        telephone_boutique: text(product.telephone_boutique || product.telephone, 40) || null,
         commission,
       });
     }
