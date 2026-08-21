@@ -1679,6 +1679,16 @@ try{
   console.error("Supabase indisponible (réseau ou CDN) :", erreur);
 }
 
+async function obtenirTokenAdmin(){
+  if(!supabaseClient) throw new Error("Connexion Supabase indisponible.");
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  const email = (session?.user?.email || "").toLowerCase();
+  if(!session?.access_token || email !== CONFIG.EMAIL_ADMIN_AUTORISE.toLowerCase()){
+    throw new Error("Session administrateur requise.");
+  }
+  return session.access_token;
+}
+
 // Nécessaire pour que le site soit "installable" comme une application.
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("sw.js").then((enregistrement) => {
@@ -3634,8 +3644,7 @@ async function envoyerNotification(){
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
-        "apikey": CONFIG.SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${await obtenirTokenAdmin()}`,
       },
       body: JSON.stringify({
         titre: "Prime Service 🚀",
@@ -4102,8 +4111,7 @@ async function envoyerNotifBoutiquier(){
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
-        "apikey": CONFIG.SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${await obtenirTokenAdmin()}`,
       },
       body: JSON.stringify({
         titre: "Nouvelle commande Prime Service 🚀",
@@ -4186,7 +4194,7 @@ async function envoyerNotificationAuxBoutiquiers(nomClient, telClient, adresseCl
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
+          "Authorization": `Bearer ${await obtenirTokenAdmin()}`
         },
         body: JSON.stringify({
           telephones: [tel],
