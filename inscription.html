@@ -1214,25 +1214,25 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
   const imageUrl = urlPublique?.publicUrl;
   if(!imageUrl) throw new Error("URL publique de photo introuvable");
 
-  // 2. OpenRouter Free Models Router est le moteur principal si le vendeur laisse le nom vide.
-  // La clé reste côté Edge Function ; aucun secret n’est envoyé depuis GitHub Pages.
+  // 2. Cloudflare Workers AI est le moteur principal si le vendeur laisse le nom vide.
+  // Les identifiants restent côté Edge Function ; aucun secret n’est envoyé depuis GitHub Pages.
   let donneesIA = { nom: articleData.nomArticle, prix: articleData.prixSaisi, confiance: 0, categorie_id: null, sous_categorie_id: null };
-  let analyseOpenRouter = null;
+  let analyseCloudflare = null;
   if(!articleData.nomArticle) {
     try {
-      const reponseOpenRouter = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/analyser-article-openrouter`, {
+      const reponseCloudflare = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/analyser-article-cloudflare`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ imageUrl: imageUrl })
       });
-      if(reponseOpenRouter.ok) analyseOpenRouter = await reponseOpenRouter.json();
-      else console.warn("OpenRouter indisponible ou quota atteint : repli automatique activé");
+      if(reponseCloudflare.ok) analyseCloudflare = await reponseCloudflare.json();
+      else console.warn("Cloudflare AI indisponible ou quota atteint : repli automatique activé");
     } catch(error) {
-      console.warn("OpenRouter indisponible : repli automatique activé", error);
+      console.warn("Cloudflare AI indisponible : repli automatique activé", error);
     }
 
     // Conservation de l’ancien endpoint s’il est disponible, sans bloquer la publication.
-    if(!analyseOpenRouter?.ok) {
+    if(!analyseCloudflare?.ok) {
       try {
         const reponseIA = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/ia-remplir-formulaire`, {
           method: "POST",
@@ -1246,12 +1246,12 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
     }
   }
 
-  // 3. Nom final : OpenRouter est prioritaire ; le moteur local gratuit prend la relève
-  // dès que OpenRouter est absent, limité, trop lent ou renvoie un résultat inutilisable.
+  // 3. Nom final : Cloudflare AI est prioritaire ; le moteur local gratuit prend la relève
+  // dès que Cloudflare AI est absent, limité, trop lent ou renvoie un résultat inutilisable.
   let nomFinal = articleData.nomArticle
     ? styliserNomArticle(articleData.nomArticle)
-    : analyseOpenRouter?.ok && analyseOpenRouter.nom
-      ? styliserNomArticle(analyseOpenRouter.nom)
+    : analyseCloudflare?.ok && analyseCloudflare.nom
+      ? styliserNomArticle(analyseCloudflare.nom)
       : "";
   if(!nomFinal) {
     const aspects = await analyserAspectsPhotoGratuite(articleData.photo.fichier);
