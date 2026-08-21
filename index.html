@@ -3211,8 +3211,11 @@ async function publierArticle(event){
     fichierPhotoSelectionne = null;
 
     if(articleEnEdition){
-      // Si c'est une modification, on ferme le formulaire pour retourner à la liste
-      setTimeout(fermerFormulaireArticle, 1500);
+      // Si c'est une modification, on ferme le formulaire ET on rouvre la grille des articles
+      setTimeout(() => {
+        fermerFormulaireArticle();
+        ouvrirGestionArticles(); // On reste sur la liste !
+      }, 1000);
     } else {
       // Si c'est un NOUVEL AJOUT, on reste sur le formulaire pour en ajouter un autre !
       setTimeout(() => {
@@ -3273,20 +3276,33 @@ function dessinerGestionArticles(){
     return;
   }
 
-  conteneur.innerHTML = articles.map(a => `
-    <div class="ligne-gestion ${a.masque ? "article-masque" : ""}">
-      ${a.image_url ? `<img src="${a.image_url}" class="miniature-gestion">` : `<span class="icone-produit">📦</span>`}
-      <div class="info-gestion">
-        <strong>${echapperHtml(a.nom)}</strong> ${a.masque ? `<span class="etiquette-masque">masqué</span>` : ""}
-        <div class="details-gestion">🏪 ${echapperHtml(a.nom_boutique) || "—"} · 📦 Stock : ${a.stock} · ${Number(a.prix).toLocaleString("fr-FR")} FCFA</div>
+  // Nouvelle grille identique au catalogue client, avec les boutons Admin
+  conteneur.innerHTML = `<div class="grille-produits">` + articles.map(a => `
+    <div class="carte-produit ${a.masque ? "article-masque" : ""}" style="position:relative;">
+      <div class="zone-image" ${a.image_url ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(a.image_url)}, ${echapperPourOnclick(a.nom)})"` : ""}>
+        ${a.image_url
+          ? `<img src="${a.image_url}" alt="${echapperHtml(a.nom)}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
+          : `<span class="icone-produit">📦</span>`}
       </div>
-      <div class="boutons-gestion">
-        <button class="btn-modifier" onclick="basculerVisibiliteArticle(${a.id}, ${!a.masque})" title="${a.masque ? "Réafficher" : "Masquer"}">${a.masque ? "🙈" : "👁️"}</button>
-        <button class="btn-modifier" onclick='modifierArticleDepuisGestion(${a.id})'>✏️</button>
-        <button class="btn-supprimer-gestion" onclick="supprimerArticleAdmin(${a.id}, ${echapperPourOnclick(a.nom)})">🗑️</button>
+      <h4>${echapperHtml(a.nom)} ${a.masque ? `<span class="etiquette-masque" style="font-size:10px;background:#666;color:#fff;padding:2px 6px;border-radius:4px;">masqué</span>` : ""}</h4>
+      ${a.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(a.nom_boutique)}</p>` : ""}
+      <div class="prix">${Number(a.prix).toLocaleString("fr-FR")} FCFA</div>
+      <p class="stock-produit">📦 ${a.stock} en stock</p>
+      
+      <!-- BOUTONS ADMIN INTÉGRÉS À LA CARTE -->
+      <div style="display:flex; gap:8px; justify-content:center; margin-top:8px; width:100%;">
+        <button class="btn-modifier" onclick="basculerVisibiliteArticle(${a.id}, ${!a.masque})" title="${a.masque ? "Réafficher" : "Masquer"}" style="padding:6px 10px; border-radius:6px; border:1px solid var(--gris-bordure); background:var(--blanc); cursor:pointer;">
+          ${a.masque ? "🙈" : "👁️"}
+        </button>
+        <button class="btn-modifier" onclick='modifierArticleDepuisGestion(${a.id})' style="padding:6px 10px; border-radius:6px; border:1px solid var(--gris-bordure); background:var(--blanc); cursor:pointer;">
+          ✏️
+        </button>
+        <button class="btn-supprimer-gestion" onclick="supprimerArticleAdmin(${a.id}, ${echapperPourOnclick(a.nom)})" style="padding:6px 10px; border-radius:6px; border:1px solid var(--gris-bordure); background:var(--blanc); color:#dc2626; cursor:pointer;">
+          🗑️
+        </button>
       </div>
     </div>
-  `).join("");
+  `).join("") + `</div>`;
 }
 
 async function basculerVisibiliteArticle(id, nouvelEtatMasque){
