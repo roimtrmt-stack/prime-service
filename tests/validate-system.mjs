@@ -9,6 +9,7 @@ const inscription = await read("inscription.html");
 const orderFunction = await read("supabase/functions/envoyer-commande/index.ts");
 const inscriptionFunction = await read("supabase/functions/envoyer-inscription/index.ts");
 const migration = await read("supabase/migrations/202608210001_secure_order_writes.sql");
+const photoMigration = await read("supabase/migrations/202608210002_fix_public_photo_uploads.sql");
 
 function inlineScripts(html) {
   return [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map((match) => match[1]);
@@ -17,7 +18,6 @@ function inlineScripts(html) {
 for (const [name, html] of [["index.html", index], ["inscription.html", inscription]]) {
   for (const [i, script] of inlineScripts(html).entries()) {
     try {
-      // Compilation only : aucun script frontend n’est exécuté dans ce test.
       Function(script); // eslint-disable-line no-new-func
     } catch (error) {
       throw new Error(`${name}, script inline #${i + 1}: ${error.message}`);
@@ -37,16 +37,24 @@ assert.match(orderFunction, /DISCORD_WEBHOOK_URL/);
 assert.match(orderFunction, /TEXTBEE_API_KEY/);
 assert.match(orderFunction, /EdgeRuntime/);
 assert.match(orderFunction, /allowed_mentions/);
+assert.match(orderFunction, /Promise\.all/);
+assert.match(orderFunction, /\[notifications\] commande traitée/);
 assert.match(orderFunction, /roimtrmt-stack\.github\.io/);
 assert.doesNotMatch(orderFunction, /SUPABASE_SERVICE_ROLE_KEY\s*=\s*["'][^"']+["']/);
 
 assert.match(inscriptionFunction, /DISCORD_WEBHOOK_INSCRIPTION/);
 assert.match(inscriptionFunction, /recipient: "owner"/);
+assert.match(inscriptionFunction, /multipart\/form-data/);
 assert.doesNotMatch(inscriptionFunction, /TEXTBEE_API_KEY/);
 assert.doesNotMatch(inscriptionFunction, /telephone_boutique/);
 
 assert.match(migration, /drop policy if exists "Insertion publique des commandes"/);
 assert.match(migration, /revoke insert on table public\.commandes/);
 assert.match(migration, /revoke insert on table public\.notifications_boutiquiers/);
+assert.match(photoMigration, /file_size_limit = 8000000/);
+assert.match(photoMigration, /Upload photos publics moderes/);
+assert.match(inscription, /erreurUpload/);
+assert.match(inscription, /getPublicUrl/);
+assert.match(inscription, /erreurInsertion/);
 
-console.log("OK: frontend syntax, secure order path, owner-only inscription path and RLS migration");
+console.log("OK: frontend syntax, secure order path, routed notifications, owner-only inscription path and Storage upload checks");

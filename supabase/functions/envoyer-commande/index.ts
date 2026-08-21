@@ -144,6 +144,12 @@ async function fetchSafeImage(url: string): Promise<Blob | null> {
   return blob.size <= MAX_IMAGE_BYTES ? blob : null;
 }
 
+type DeliveryResult = {
+  target: string;
+  delivered: boolean;
+  reason: string;
+};
+
 async function sendDiscord(webhookUrl: string, payload: Record<string, unknown>): Promise<boolean> {
   const response = await fetchWithTimeout(webhookUrl, {
     method: "POST",
@@ -153,24 +159,36 @@ async function sendDiscord(webhookUrl: string, payload: Record<string, unknown>)
   return response.ok;
 }
 
-async function sendTextBee(phone: string, message: string): Promise<boolean> {
+async function sendTextBee(phone: string, message: string): Promise<DeliveryResult> {
   const apiKey = Deno.env.get("TEXTBEE_API_KEY");
-  if (!apiKey) return false;
+  if (!apiKey) return { target: phone, delivered: false, reason: "TEXTBEE_API_KEY absent" };
   const payload: Record<string, unknown> = {
     recipients: [phone],
     message: clip(message, 1_000),
   };
   const deviceId = text(Deno.env.get("TEXTBEE_DEVICE_ID"), 120);
   if (deviceId) payload.deviceId = deviceId;
-  const response = await fetchWithTimeout("https://api.textbee.dev/api/v1/gateway/send-sms", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-    },
-    body: JSON.stringify(payload),
-  });
-  return response.ok;
+  try {
+    const response = await fetchWithTimeout("https://api.textbee.dev/api/v1/gateway/send-sms", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+      },
+      body: JSON.stringify(payload),
+    });
+    return {
+      target: phone,
+      delivered: response.ok,
+      reason: response.ok ? "accepted" : `TextBee HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      target: phone,
+      delivered: false,
+      reason: error instanceof Error ? error.message.slice(0, 160) : "exception TextBee",
+    };
+  }
 }
 
 function groupByShop(items: CanonicalItem[]): Shop[] {
@@ -246,47 +264,61 @@ async function notifyInBackground(input: {
       ...shopLines,
       `💰 **TOTAL :** ${input.total.toLocaleString("fr-FR")} FCFA`,
     ].join("\n"), 1_950);
-    const embeds = input.items
-      .filter((item) => item.image_url)
-      .slice(0, 10)
-      .map((item) => ({
-        title: `${clip(item.nom, 180)} x${item.quantite}`,
-        description: `${(item.prix * item.quantite).toLocaleString("fr-FR")} FCFA`,
-        image: { url: item.image_url },
-        color: 0x2563eb,
-      }));
+    const imageItems = (await Promise.all(
+      input.items
+        .filter((item) => item.image_url)
+        .slice(0, 10)
+        .map(async (item) => (await fetchSafeImage(item.image_url!)) ? item : null),
+    )).filter((item): item is CanonicalItem => item !== null);
+    const embeds = imageItems.map((item) => ({
+      title: `${clip(item.nom, 180)} x${item.quantite}`,
+      description: `${(item.prix * item.quantite).toLocaleString("fr-FR")} FCFA`,
+      image: { url: item.image_url },
+      color: 0x2563eb,
+    }));
 
     const ownerWebhook = Deno.env.get("DISCORD_WEBHOOK_URL");
+    let ownerResult: DeliveryResult = {
+      target: "owner-discord",
+      delivered: false,
+      reason: "DISCORD_WEBHOOK_URL absent",
+    };
     if (ownerWebhook) {
-      const discordOk = await sendDiscord(ownerWebhook, {
-        content,
-        embeds,
-        allowed_mentions: { parse: [] },
-      });
-      if (!discordOk) console.error("Discord propriétaire a refusé la commande", input.commandId);
-    } else {
-      console.error("DISCORD_WEBHOOK_URL manquant", input.commandId);
+      try {
+        const discordOk = await sendDiscord(ownerWebhook, {
+          content,
+          embeds,
+          allowed_mentions: { parse: [] },
+        });
+        ownerResult = {
+          target: "owner-discord",
+          delivered: discordOk,
+          reason: discordOk ? "accepted" : "Discord HTTP error",
+        };
+      } catch (error) {
+        ownerResult.reason = error instanceof Error ? error.message.slice(0, 160) : "exception Discord";
+      }
     }
 
-    for (const shop of shops) {
+    const shopResults = await Promise.all(shops.map(async (shop): Promise<DeliveryResult> => {
       if (!shop.phone) {
-        console.warn("Boutique sans numéro malien valide", shop.name);
-        continue;
+        return { target: shop.name, delivered: false, reason: "numéro malien invalide ou absent" };
       }
       const sms = [
-        `Prime Service commande #${input.commandId}`,
-        shop.articles.join(", "),
+        `Prime Service — nouvelle commande #${input.commandId}`,
+        `Boutique: ${shop.name}`,
+        `Articles: ${shop.articles.join(", ")}`,
         `Montant boutique: ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
-        `Client: ${clip(input.nom, 60)} ${clip(input.tel, 24)}`,
-        `Carte: ${mapUrl}`,
+        `Client: ${clip(input.nom, 60)} — ${clip(input.tel, 24)}`,
+        `Carte client: ${mapUrl}`,
       ].join(" | ");
-      try {
-        const smsOk = await sendTextBee(shop.phone, sms);
-        if (!smsOk) console.error("SMS boutique non envoyé", shop.name, input.commandId);
-      } catch (error) {
-        console.error("Erreur SMS boutique", shop.name, error);
-      }
-    }
+      return await sendTextBee(shop.phone, sms);
+    }));
+    console.log("[notifications] commande traitée", JSON.stringify({
+      commandId: input.commandId,
+      owner: ownerResult,
+      shops: shopResults,
+    }));
   } catch (error) {
     console.error("Erreur notifications commande", input.commandId, error);
   }

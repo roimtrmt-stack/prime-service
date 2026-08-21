@@ -1081,10 +1081,23 @@ function recupererPositionInscription(){
 
 // --- 4. FONCTION SÉCURISÉE POUR PUBLIER UN ARTICLE (Plus propre) ---
 async function traiterEtPublierArticle(articleData, nomBoutique, telephone, lat, lng) {
-  // 1. Upload de la photo brute (ultra rapide et net)
-  const cheminFichier = `${Date.now()}-${articleData.photo.fichier.name}`;
-  await supabaseClient.storage.from("photos-articles").upload(cheminFichier, articleData.photo.fichier);
-  const imageUrl = supabaseClient.storage.from("photos-articles").getPublicUrl(cheminFichier).data.publicUrl;
+  // 1. Upload sécurisé de la photo brute dans le bucket public modéré.
+  const fichier = articleData.photo.fichier;
+  const nomSecurise = fichier.name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(-120);
+  const cheminFichier = `${Date.now()}-${crypto.randomUUID()}-${nomSecurise || "article.jpg"}`;
+  const { error: erreurUpload } = await supabaseClient.storage
+    .from("photos-articles")
+    .upload(cheminFichier, fichier, {
+      contentType: fichier.type || "image/jpeg",
+      cacheControl: "31536000",
+      upsert: false,
+    });
+  if(erreurUpload) throw new Error(`Upload photo refusé : ${erreurUpload.message}`);
+  const { data: urlPublique } = supabaseClient.storage
+    .from("photos-articles")
+    .getPublicUrl(cheminFichier);
+  const imageUrl = urlPublique?.publicUrl;
+  if(!imageUrl) throw new Error("URL publique de photo introuvable");
 
   // 2. Appel à l'IA pour trouver nom, prix estimé et catégorie
   let donneesIA = { nom: articleData.nomArticle, prix: articleData.prixSaisi, confiance: 0, categorie_id: null, sous_categorie_id: null };
@@ -1113,7 +1126,10 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, lat,
   };
 
   // 4. Insertion dans Supabase
-  await supabaseClient.from("produits").insert(nouvelArticle);
+  const { error: erreurInsertion } = await supabaseClient
+    .from("produits")
+    .insert(nouvelArticle);
+  if(erreurInsertion) throw new Error(`Article non enregistré : ${erreurInsertion.message}`);
   return true;
 }
 
@@ -1173,6 +1189,13 @@ async function envoyerSoumission(event){
         console.error("Échec pour un article :", erreurInterne);
         echecs++;
       }
+    }
+
+    if(echecs > 0){
+      bouton.disabled = false;
+      statut.style.color = "#dc2626";
+      statut.textContent = `❌ ${echecs} article(s) n'ont pas pu être enregistré(s). Aucun message d'inscription ne sera envoyé.`;
+      return false;
     }
 
     // Succès global
@@ -1236,11 +1259,19 @@ async function envoyerSoumission(event){
       formDataDiscord.append("payload_json", JSON.stringify(payload));
 
       // 4. Envoyer la requête vers votre Edge Function `envoyer-inscription`
-      await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-inscription`, {
+      const reponseInscription = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-inscription`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}` },
           body: formDataDiscord
       });
+      if(!reponseInscription.ok){
+        let detail = "Réponse serveur inattendue";
+        try {
+          const bodyErreur = await reponseInscription.json();
+          detail = bodyErreur.error || detail;
+        } catch(e) {}
+        throw new Error(`Notification inscription refusée (${reponseInscription.status}) : ${detail}`);
+      }
 
     } catch (errDiscord) {
       console.error("⚠️ Erreur lors de l'envoi Discord (mais l'article est bien publié) :", errDiscord);
