@@ -65,6 +65,12 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: supabase functions deploy analyser-article-groq --project-ref "$SUPABASE_PROJECT_REF"
 
+      - name: Déployer analyser-article-openrouter
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: supabase functions deploy analyser-article-openrouter --project-ref "$SUPABASE_PROJECT_REF"
+
       - name: Déployer envoyer-inscription
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

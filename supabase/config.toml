@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.analyser-article-groq]
 verify_jwt = true
+
+[functions.analyser-article-openrouter]
+verify_jwt = true

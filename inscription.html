@@ -1214,25 +1214,25 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
   const imageUrl = urlPublique?.publicUrl;
   if(!imageUrl) throw new Error("URL publique de photo introuvable");
 
-  // 2. Groq Vision est le moteur principal uniquement si le vendeur laisse le nom vide.
+  // 2. OpenRouter Free Models Router est le moteur principal si le vendeur laisse le nom vide.
   // La clé reste côté Edge Function ; aucun secret n’est envoyé depuis GitHub Pages.
   let donneesIA = { nom: articleData.nomArticle, prix: articleData.prixSaisi, confiance: 0, categorie_id: null, sous_categorie_id: null };
-  let analyseGroq = null;
+  let analyseOpenRouter = null;
   if(!articleData.nomArticle) {
     try {
-      const reponseGroq = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/analyser-article-groq`, {
+      const reponseOpenRouter = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/analyser-article-openrouter`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ imageUrl: imageUrl })
       });
-      if(reponseGroq.ok) analyseGroq = await reponseGroq.json();
-      else console.warn("Groq indisponible ou quota atteint : repli automatique activé");
+      if(reponseOpenRouter.ok) analyseOpenRouter = await reponseOpenRouter.json();
+      else console.warn("OpenRouter indisponible ou quota atteint : repli automatique activé");
     } catch(error) {
-      console.warn("Groq indisponible : repli automatique activé", error);
+      console.warn("OpenRouter indisponible : repli automatique activé", error);
     }
 
     // Conservation de l’ancien endpoint s’il est disponible, sans bloquer la publication.
-    if(!analyseGroq?.ok) {
+    if(!analyseOpenRouter?.ok) {
       try {
         const reponseIA = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/ia-remplir-formulaire`, {
           method: "POST",
@@ -1246,12 +1246,12 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
     }
   }
 
-  // 3. Nom final : Groq est prioritaire ; le moteur local gratuit prend la relève
-  // dès que Groq est absent, limité, trop lent ou renvoie un résultat inutilisable.
+  // 3. Nom final : OpenRouter est prioritaire ; le moteur local gratuit prend la relève
+  // dès que OpenRouter est absent, limité, trop lent ou renvoie un résultat inutilisable.
   let nomFinal = articleData.nomArticle
     ? styliserNomArticle(articleData.nomArticle)
-    : analyseGroq?.ok && analyseGroq.nom
-      ? styliserNomArticle(analyseGroq.nom)
+    : analyseOpenRouter?.ok && analyseOpenRouter.nom
+      ? styliserNomArticle(analyseOpenRouter.nom)
       : "";
   if(!nomFinal) {
     const aspects = await analyserAspectsPhotoGratuite(articleData.photo.fichier);
