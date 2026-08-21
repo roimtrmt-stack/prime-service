@@ -3852,6 +3852,24 @@ function preparerNotifBoutiquier(commande){
   document.getElementById("statutNotifBoutiquier").textContent = "";
 }
 
+async function envoyerNotifBoutiquierPushDirect(message, telephones, tokenAdmin){
+  // Ancien chemin OneSignal conservé comme repli : il n’est utilisé que si
+  // la création de la file de relances serveur échoue.
+  return fetch(`${CONFIG.SUPABASE_URL}/functions/v1/clever-processor`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${tokenAdmin}`,
+    },
+    body: JSON.stringify({
+      titre: "Nouvelle commande Prime Service 🚀",
+      message: message,
+      telephones_cibles: telephones,
+      url: window.location.origin + window.location.pathname,
+    }),
+  });
+}
+
 async function envoyerNotifBoutiquier(){
   const statut = document.getElementById("statutNotifBoutiquier");
   const message = document.getElementById("messageNotifBoutiquier").value.trim();
@@ -3863,7 +3881,7 @@ async function envoyerNotifBoutiquier(){
   }
 
   statut.style.color = "#666";
-  statut.textContent = "Envoi push et SMS Orange...";
+  statut.textContent = "Programmation des relances push...";
 
   try{
     const articles = commandeSelectionneeNotif.articles || [];
@@ -3876,44 +3894,34 @@ async function envoyerNotifBoutiquier(){
     }
 
     const tokenAdmin = await obtenirTokenAdmin();
-    // L’envoi push ciblé existant est conservé tel quel.
-    const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/clever-processor`, {
+    const reponseFile = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/notifier-commande-manuellement`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${tokenAdmin}`,
       },
-      body: JSON.stringify({
-        titre: "Nouvelle commande Prime Service 🚀",
-        message: message,
-        telephones_cibles: telephones,
-        url: window.location.origin + window.location.pathname,
-      }),
+      body: JSON.stringify({ commande_id: commandeSelectionneeNotif.id }),
     });
 
-    if(!reponse.ok) throw new Error("Échec de l’envoi push");
-
-    let texteSms = "SMS Orange désactivé";
-    try{
-      const sms = await envoyerSmsOrange(message, {
-        commandeId: commandeSelectionneeNotif.id,
-        cible: "boutiques",
-      });
-      if(sms.enabled) texteSms = `${sms.accepted || 0} SMS Orange accepté${sms.accepted === 1 ? "" : "s"}`;
-      else if(sms.reason) texteSms = sms.reason;
-    } catch(erreurSms){
-      console.warn("SMS Orange commande manuelle indisponible :", erreurSms);
-      texteSms = "SMS Orange non envoyé";
+    if(!reponseFile.ok){
+      // Repli vers l’ancien envoi direct : aucun code OneSignal existant n’est supprimé.
+      const reponseDirecte = await envoyerNotifBoutiquierPushDirect(message, telephones, tokenAdmin);
+      if(!reponseDirecte.ok) throw new Error("Échec de la file et du push direct");
+      throw new Error("Relances indisponibles ; push direct envoyé");
     }
 
+    const resultatFile = await reponseFile.json().catch(() => ({}));
     statut.style.color = "#16a34a";
-    statut.textContent = `✅ Notification push envoyée. ${texteSms}.`;
+    statut.textContent = `✅ ${resultatFile.queued || telephones.length} notification${(resultatFile.queued || telephones.length) > 1 ? "s" : ""} programmée${(resultatFile.queued || telephones.length) > 1 ? "s" : ""} : push immédiat, rappels à 3/6/9 min et accusé rouge.`;
     setTimeout(() => {
       document.getElementById("modaleNotifBoutiquier").style.display = "none";
-    }, 1500);
+    }, 2500);
   } catch(e){
+    console.warn("Notification manuelle :", e);
     statut.style.color = "#dc2626";
-    statut.textContent = "❌ Envoi push impossible. Vérifiez la connexion.";
+    statut.textContent = e instanceof Error && e.message.includes("push direct")
+      ? "⚠️ Push direct envoyé, mais les relances automatiques n’ont pas pu être programmées."
+      : "❌ Envoi impossible. Vérifiez la connexion.";
   }
 }
 

@@ -41,7 +41,7 @@ Interprétez les réponses ainsi : `401` indique une clé invalide, `404` un app
 
 ## 3 bis. Ajouter Orange comme canal SMS supplémentaire
 
-Le code conserve TextBee, l’abonnement push et l’envoi général existant. Orange est ajouté comme canal SMS optionnel, sans remplacer le push : le bouton **Envoyer une notification** continue d’appeler `clever-processor`/OneSignal, puis appelle `envoyer-sms-orange` pour les boutiques enregistrées si Orange est activé. L’envoi manuel d’une notification liée à une commande conserve aussi son push ciblé et ajoute un SMS Orange résolu côté serveur à partir de l’identifiant de commande.
+Le code conserve TextBee, l’abonnement push et l’envoi général existant. Orange est ajouté comme canal SMS optionnel, sans remplacer le push : le bouton **Envoyer une notification** continue d’appeler `clever-processor`/OneSignal, puis appelle `envoyer-sms-orange` pour les boutiques enregistrées si Orange est activé. L’envoi manuel d’une notification liée à une commande utilise désormais `notifier-commande-manuellement`, qui réutilise la file `notifications_boutiquiers`, le worker `notifier-boutiquier`, les rappels à 3/6/9 minutes et l’accusé rouge ; son ancien push direct OneSignal reste conservé comme repli.
 
 L’envoi automatique de commande utilise le même principe. `envoyer-commande` crée toujours la file de relances push et envoie le Discord propriétaire ; selon le fournisseur activé, il envoie ensuite TextBee, Orange, ou les deux. Le SMS Orange de commande est volontairement court et conserve le lien opaque `boutique_token` en entier. Il ne contient jamais la commission, le prix client ou les données d’une autre boutique.
 
@@ -59,7 +59,7 @@ Dans **Supabase → Edge Functions → Secrets**, ajoutez les paramètres Orange
 
 L’API Orange utilise OAuth 2.0 v3 sur `https://api.orange.com/oauth/v3/token`, avec `grant_type=client_credentials`, puis `POST https://api.orange.com/smsmessaging/v1/outbound/{senderAddress}/requests`. Le token est conservé côté Edge Function et renouvelé avant expiration. Orange exige un contrat/bundle actif, un solde positif et peut imposer la validation d’un sender name ou d’une adresse d’envoi par l’équipe locale [11] [12].
 
-La fonction `envoyer-sms-orange` accepte uniquement un administrateur authentifié. Pour une commande, elle reçoit l’identifiant de commande et relit les numéros depuis `commandes` côté serveur. Pour un message général, elle lit les numéros uniques depuis `produits` côté serveur et n’accepte pas une liste arbitraire de numéros envoyée par le navigateur. Une erreur Orange n’annule jamais une commande et ne masque pas le résultat du push.
+La fonction `envoyer-sms-orange` accepte uniquement un administrateur authentifié. Pour une commande, elle reçoit l’identifiant de commande et relit les numéros depuis `commandes` côté serveur. Pour un message général, elle lit les numéros uniques depuis `produits` côté serveur et n’accepte pas une liste arbitraire de numéros envoyée par le navigateur. Une erreur de fournisseur n’annule jamais une commande et ne masque pas le résultat du push. Le bouton manuel associé à une commande crée une file de relances via `notifier-commande-manuellement`, sans dépendre d’Orange.
 
 ## 4. Ajouter les secrets dans Supabase
 
@@ -89,7 +89,7 @@ Le dépôt contient les fonctions versionnées dans `supabase/functions/`. La m�
 
 Dans GitHub, ouvrez le dépôt `roimtrmt-stack/prime-service`, puis **Settings → Secrets and variables → Actions → New repository secret**. Ajoutez `SUPABASE_ACCESS_TOKEN` avec un jeton personnel Supabase autorisé à déployer les fonctions, et `SUPABASE_PROJECT_REF` avec la valeur `kfxalpvbtbvkncztjwzc`. Ne mettez jamais ces valeurs dans un fichier commité.
 
-Ensuite, ouvrez **Actions → Déploiement des fonctions Supabase → Run workflow → Run workflow**. Le workflow publie `envoyer-commande`, `envoyer-sms-orange`, `clever-processor`, `envoyer-inscription`, `notifier-boutiquier`, `accuser-notification` et `lier-notification-push`. Il ne publie aucun secret dans les logs.
+Ensuite, ouvrez **Actions → Déploiement des fonctions Supabase → Run workflow → Run workflow**. Le workflow publie `envoyer-commande`, `envoyer-sms-orange`, `notifier-commande-manuellement`, `clever-processor`, `envoyer-inscription`, `notifier-boutiquier`, `accuser-notification` et `lier-notification-push`. Il ne publie aucun secret dans les logs.
 
 La migration `supabase/migrations/202608210001_secure_order_writes.sql` doit être appliquée une seule fois. Elle supprime les insertions anonymes directes dans `commandes` et `notifications_boutiquiers`, car ces deux écritures sont maintenant faites par `envoyer-commande` côté serveur. Avant de l’appliquer, vérifiez que la nouvelle fonction est bien déployée.
 
