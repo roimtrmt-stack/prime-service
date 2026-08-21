@@ -101,7 +101,7 @@ assert.match(groqFunction, /qwen\/qwen3\.6-27b/);
 assert.match(groqFunction, /image_url/);
 assert.match(groqFunction, /data:\$\{mimeType\};base64/);
 assert.match(groqFunction, /fetchImageAsData/);
-assert.match(groqFunction, /response_format/);
+assert.doesNotMatch(groqFunction, /response_format\s*:/);
 assert.match(groqFunction, /groq_quota_or_rate_limit/);
 assert.match(groqFunction, /groq_key_rejected/);
 assert.match(groqFunction, /groq_invalid_output/);

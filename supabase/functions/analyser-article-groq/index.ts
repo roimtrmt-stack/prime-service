@@ -119,12 +119,20 @@ Deno.serve(async (request) => {
           ],
         }],
         temperature: 0.2,
-        max_completion_tokens: 80,
-        response_format: { type: "json_object" },
+        max_completion_tokens: 120,
       }),
     });
 
     if(!groqResponse.ok) {
+      let providerCode = "";
+      try {
+        const errorPayload = await groqResponse.clone().json();
+        providerCode = String(errorPayload?.error?.code || "")
+          .replace(/[^a-zA-Z0-9_.-]/g, "")
+          .slice(0, 64);
+      } catch {
+        // Le fournisseur peut renvoyer une réponse non JSON ; le code HTTP suffit au fallback.
+      }
       const code = groqResponse.status === 401 || groqResponse.status === 403
         ? "groq_key_rejected"
         : groqResponse.status === 404
@@ -134,7 +142,7 @@ Deno.serve(async (request) => {
             : groqResponse.status === 429
               ? "groq_quota_or_rate_limit"
               : "groq_unavailable";
-      return jsonResponse({ ok: false, configured: true, code }, 502);
+      return jsonResponse({ ok: false, configured: true, code, provider_code: providerCode || undefined }, 502);
     }
     const payload = await groqResponse.json();
     const result = parseJsonObject(extractContent(payload));
