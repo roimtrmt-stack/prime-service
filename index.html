@@ -2360,44 +2360,33 @@ function construireLienItineraire(latDep, lngDep, latArr, lngArr){
 async function envoyerCommande(event){
   event.preventDefault();
 
-    // 🔴 BLOQUER LA COMMANDE SI LE CLIENT EST HORS LIGNE
-    if(!navigator.onLine){
-        const statutEnvoi = document.getElementById("statutEnvoi");
-        statutEnvoi.style.color = "#dc2626";
-        statutEnvoi.textContent = "⚠️ Vous êtes hors ligne. Connectez-vous à Internet pour commander.";
-        
-        // Désactiver le bouton pour éviter de cliquer encore
-        document.getElementById("btnEnvoyer").disabled = true;
+  const statutEnvoi = document.getElementById("statutEnvoi");
+  const btnEnvoyer = document.getElementById("btnEnvoyer");
+  if(!statutEnvoi || !btnEnvoyer) return false;
 
-        // ✅ Dès que la connexion revient, la page se recharge automatiquement
-        window.addEventListener("online", function rechargerPage() {
-            window.removeEventListener("online", rechargerPage); // pour éviter de recharger plusieurs fois
-            location.reload();
-        });
+  if(!navigator.onLine){
+    statutEnvoi.style.color = "#dc2626";
+    statutEnvoi.textContent = "⚠️ Vous êtes hors ligne. Connectez-vous à Internet pour commander.";
+    btnEnvoyer.disabled = false;
+    return false;
+  }
 
-        return false; // On arrête tout ici, la commande ne part pas.
-    }
-
-    const nom = document.getElementById("nomClient").value.trim();
-    const tel = document.getElementById("telClient").value.trim();
-    const paiement = document.getElementById("paiementClient").value;
-    const lat = Number(document.getElementById("latClient").value);
-    const lng = Number(document.getElementById("lngClient").value);
-    const statutEnvoi = document.getElementById("statutEnvoi");
-    const btnEnvoyer = document.getElementById("btnEnvoyer");
+  const nom = document.getElementById("nomClient").value.trim();
+  const tel = document.getElementById("telClient").value.trim();
+  const paiement = document.getElementById("paiementClient").value;
+  const lat = Number(document.getElementById("latClient").value);
+  const lng = Number(document.getElementById("lngClient").value);
 
   if(!/^[0-9+ ]{8,15}$/.test(tel)){
     statutEnvoi.style.color = "#dc2626";
     statutEnvoi.textContent = "⚠️ Entrez un vrai numéro de téléphone.";
     return false;
   }
-
-  if(!lat || !lng){
+  if(!Number.isFinite(lat) || !Number.isFinite(lng) || !lat || !lng){
     statutEnvoi.style.color = "#dc2626";
     statutEnvoi.textContent = "⚠️ Merci de récupérer votre position avant de valider.";
     return false;
   }
-
   if(panier.length === 0){
     statutEnvoi.style.color = "#dc2626";
     statutEnvoi.textContent = "⚠️ Votre panier est vide.";
@@ -2405,7 +2394,7 @@ async function envoyerCommande(event){
   }
 
   const totalCommande = calculerTotal();
-  if(totalCommande <= 0){
+  if(!Number.isFinite(totalCommande) || totalCommande <= 0){
     statutEnvoi.style.color = "#dc2626";
     statutEnvoi.textContent = "⚠️ Erreur de calcul du total. Réessayez.";
     return false;
@@ -2413,276 +2402,57 @@ async function envoyerCommande(event){
 
   btnEnvoyer.disabled = true;
   statutEnvoi.style.color = "#555";
-  statutEnvoi.textContent = "⏳ Vérification du stock...";
+  statutEnvoi.textContent = "⏳ Enregistrement sécurisé de la commande…";
 
-  /* =====================================================================
-     ÉTAPE 1 : VÉRIFIER LE STOCK EN LECTURE (sans modifier)
-     ===================================================================== */
   try{
-    for(const article of panier){
-      const { data: produit, error: errLecture } = await supabaseClient
-        .from("produits")
-        .select("stock, nom")
-        .eq("id", article.id)
-        .single();
-
-      if(errLecture){
-        statutEnvoi.style.color = "#dc2626";
-        statutEnvoi.textContent = "❌ Impossible de vérifier le stock. Réessayez.";
-        btnEnvoyer.disabled = false;
-        return false;
-      }
-
-      if(!produit || (produit.stock === null) || (produit.stock === undefined) || (produit.stock < article.quantite)){
-        const nomArticle = (produit && produit.nom) ? produit.nom : (article.nom || "Article inconnu");
-        statutEnvoi.style.color = "#dc2626";
-        statutEnvoi.textContent = `❌ Stock insuffisant pour "${echapperHtml(nomArticle)}". Il a peut-être été vendu entre-temps.`;
-        btnEnvoyer.disabled = false;
-        return false;
-      }
-    }
-  } catch(e){
-    console.error("Erreur vérification stock:", e);
-    statutEnvoi.style.color = "#dc2626";
-    statutEnvoi.textContent = "❌ Erreur de vérification du stock. Vérifiez votre connexion.";
-    btnEnvoyer.disabled = false;
-    return false;
-  }
-
-  /* =====================================================================
-     ÉTAPE 2 : CONSTRUIRE LE MESSAGE DISCORD (ADMIN)
-     ===================================================================== */
-  const lienPositionClient = construireLienGoogleMaps(lat, lng);
-
-  let adresseClientLisible = "Position GPS enregistrée";
-  try{
-    const reponseAdresse = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
-    const donneesAdresse = await reponseAdresse.json();
-    adresseClientLisible = donneesAdresse.display_name || adresseClientLisible;
-  } catch(e){
-    console.error("Adresse non trouvée :", e);
-  }
-
-  // Grouper par boutique
-  const boutiquesUniques = {};
-  panier.forEach(a => {
-    const cle = `${a.nom_boutique || "Boutique"}|${a.telephone_boutique || ""}|${a.lat || ""}|${a.lng || ""}|${a.adresse || ""}`;
-    if(!boutiquesUniques[cle]){
-      boutiquesUniques[cle] = {
-        nomBoutique: a.nom_boutique || "Boutique inconnue",
-        telephone: a.telephone_boutique || "Non renseigné",
-        lat: a.lat,
-        lng: a.lng,
-        adresse: a.adresse || "Non renseignée",
-        articles: [],
-        totalAEnvoyer: 0,
-        totalCommission: 0
-      };
-    }
-    const commissionUnitaire = Number(a.commission) || 0;
-    const partBoutique = Number(a.prix) - commissionUnitaire;
-    const qte = Number(a.quantite) || 1;
-
-    boutiquesUniques[cle].articles.push({ nom: a.nom, quantite: qte, prixUnitaire: Number(a.prix), imageUrl: a.image_url });
-    boutiquesUniques[cle].totalAEnvoyer += partBoutique * qte;
-    boutiquesUniques[cle].totalCommission += commissionUnitaire * qte;
-  });
-
-  // === MESSAGE DISCORD ADMIN ===
-  let texte = `🛒 **NOUVELLE COMMANDE — Prime Service**\n\n`;
-  texte += `📋 **INFOS CLIENT**\n`;
-  texte += `Nom du client: ${nom}\n`;
-  texte += `Numero: ${tel}\n\n`;
-
-  texte += `📦 **ARTICLES COMMANDÉS**\n`;
-  panier.forEach(a => {
-    const qte = Number(a.quantite) || 1;
-    texte += `\nNom du produit: ${a.nom} (x${qte})\n`;
-    if(a.image_url){
-      texte += `📸 Photo: ${a.image_url}\n`;
-    }
-  });
-
-  texte += `\n📍 **ADRESSE CLIENT**\n`;
-  texte += `Son adresse: ${adresseClientLisible}\n`;
-  texte += `Carte: ${lienPositionClient}\n\n`;
-
-  texte += `🏪 **DÉTAILS PAR BOUTIQUE**\n`;
-  Object.values(boutiquesUniques).forEach((b, idx) => {
-    if(idx > 0) texte += `\n---\n`;
-    const lienItineraire = (b.lat && b.lng) 
-      ? construireLienItineraire(b.lat, b.lng, lat, lng)
-      : "Itinéraire non disponible";
-
-    texte += `\nle nom de la boutique: ${b.nomBoutique}\n`;
-    texte += `l\'argent a l\'envoier: ${Math.round(b.totalAEnvoyer).toLocaleString("fr-FR")} FCFA\n`;
-    texte += `son adresse vers le la maison du client ou l\'itineraire: ${lienItineraire}\n`;
-    texte += `Ma commison: ${Math.round(b.totalCommission).toLocaleString("fr-FR")} FCFA\n`;
-  });
-
-  texte += `\n💰 **TOTAL COMMANDE: ${totalCommande.toLocaleString("fr-FR")} FCFA**`;
-
-  // === EMBEDS DISCORD ADMIN : images des articles ===
-  // Technique: plusieurs embeds avec la même URL = images côte à côte
-  const embeds = [];
-  const urlPartagee = window.location.origin + window.location.pathname;
-
-  // Un embed par article avec sa photo
-  panier.forEach((a, idx) => {
-    if(a.image_url){
-      embeds.push({
-        title: `${a.nom} (x${a.quantite || 1})`,
-        description: `Prix: ${Number(a.prix).toLocaleString("fr-FR")} FCFA`,
-        url: urlPartagee,
-        image: { url: a.image_url },
-        color: 0x2563eb
-      });
-    }
-  });
-
-  // Embed position client
-  embeds.push({
-    title: `📍 Position client`,
-    url: lienPositionClient,
-    description: `${adresseClientLisible}\nCliquez pour ouvrir dans Google Maps`,
-    color: 0x2563eb
-  });
-
-  // Embeds itinéraires boutiques
-  Object.values(boutiquesUniques).forEach(b => {
-    if(b.lat && b.lng){
-      const lienItineraire = construireLienItineraire(b.lat, b.lng, lat, lng);
-      embeds.push({
-        title: `🗺️ Itinéraire: ${b.nomBoutique} → Client`,
-        url: lienItineraire,
-        description: `Trajet complet Google Maps`,
-        color: 0xf97316,
-      });
-    }
-  });
-
-  const corpsRequete = { content: texte, embeds };
-  const commandeAEnvoyer = { 
-    corpsRequete, 
-    articlesPourStock: panier.map(a => ({ id: a.id, quantite: a.quantite })),
-    total: totalCommande 
-  };
-  
-  // Enregistrement Supabase commande
-  let commandeEnregistree = null;
-  try{
-    const { data } = await supabaseClient
-      .from("commandes")
-      .insert({
-        nom_client: nom,
-        telephone_client: tel,
-        paiement,
-        lat_client: lat,
-        lng_client: lng,
-        articles: panier,
-        total: totalCommande,
-      })
-      .select()
-      .single();
-
-    commandeEnregistree = data;
-
-    if(commandeEnregistree){
-      const lignesNotif = Object.values(boutiquesUniques)
-        .filter(b => b.telephone && b.telephone !== "Non renseigné")
-        .map(b => ({
-          commande_id: commandeEnregistree.id,
-          nom_boutique: b.nomBoutique,
-          telephone_boutique: b.telephone,
-          montant_a_recevoir: Math.round(b.totalAEnvoyer),
-          message: `Nouvelle commande ! ${Math.round(b.totalAEnvoyer).toLocaleString("fr-FR")} FCFA à recevoir. Client: ${nom} (${tel}). Adresse: ${adresseClientLisible}`,
-        }));
-      if(lignesNotif.length > 0){
-        await supabaseClient.from("notifications_boutiquiers").insert(lignesNotif);
-      }
-    }
-  } catch(e){
-    console.error("Erreur enregistrement base :", e);
-  }
-
-  /* =====================================================================
-     ÉTAPE 3 : ENVOYER À DISCORD (ADMIN)
-     ===================================================================== */
-  statutEnvoi.style.color = "#555";
-  statutEnvoi.textContent = "⏳ Envoi de la commande...";
-
-  let discordOk = false;
-  try{
-    console.log("Envoi Discord en cours...");
-
+    // Un seul aller-retour réseau côté client. Le serveur recalcule le prix,
+    // réserve le stock et lance Discord/SMS en arrière-plan.
     const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-commande`, {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
       },
-                body: JSON.stringify({
-        nom: nom,
-        tel: tel,
-        adresseClientLisible: adresseClientLisible,
-        lienPositionClient: lienPositionClient,
-        totalCommande: totalCommande,
-        panier: panier,
-        boutiquesUniques: boutiquesUniques
-      }) // <-- IL MANQUAIT L'ACCOLADE FERMANTE
-    }); // <-- ET LA PARENTHÈSE FERMANTE DU FETCHER
+      body: JSON.stringify({
+        nom,
+        tel,
+        paiement,
+        lat,
+        lng,
+        totalCommande,
+        panier: panier.map(article => ({
+          id: article.id,
+          quantite: article.quantite
+        }))
+      })
+    });
 
-    console.log("Réponse Discord:", reponse.status, reponse.statusText);
-
-    if(!reponse.ok){
-      const texteErreur = await reponse.text().catch(() => "");
-      console.error("Erreur Discord:", reponse.status, texteErreur);
-      throw new Error(`Discord a refusé l\'envoi (${reponse.status}). ${texteErreur}`);
+    let donnees = {};
+    try { donnees = await reponse.json(); } catch(e) {}
+    if(!reponse.ok || !donnees.success){
+      throw new Error(donnees.error || `Erreur serveur (${reponse.status})`);
     }
 
-    discordOk = true;
+    // La confirmation ne dépend volontairement ni de Discord ni du SMS.
+    try{
+      const secours = recupererCommandesSecours();
+      if(secours.length > 0){
+        localStorage.setItem(CLE_COMMANDES_SECOURS, JSON.stringify(
+          secours.map(c => ({...c, envoyee: true}))
+        ));
+      }
+    } catch(e){}
 
-  } catch(erreurDiscord){
-    console.error("Erreur Discord:", erreurDiscord);
-  }
-
-  /* =====================================================================
-     ÉTAPE 4 : STOCK VALIDÉ ET DÉCRÉMENTÉ ATOMIQUEMENT PAR LE SERVEUR
-     ===================================================================== */
-  if(!discordOk){
+    panier = [];
+    mettreAJourCompteur();
+    afficherPageMerci(paiement, Number(donnees.total) || totalCommande);
+  } catch(erreur){
+    console.error("Erreur enregistrement commande:", erreur);
     statutEnvoi.style.color = "#dc2626";
-    statutEnvoi.textContent = "❌ La commande n'a pas pu être validée. Le stock n'a pas été modifié.";
+    statutEnvoi.textContent = "❌ La commande n’a pas pu être enregistrée. Vérifiez votre connexion puis réessayez.";
     btnEnvoyer.disabled = false;
-    return false;
   }
 
-  console.log("✅ Stock validé et mis à jour par le serveur");
-
-  /* =====================================================================
-     ÉTAPE 5 : SUCCÈS TOTAL
-     ===================================================================== */
-  console.log("✅ Stock mis à jour avec succès");
-
-  try{
-    await envoyerNotificationAuxBoutiquiers(nom, tel, adresseClientLisible, lienPositionClient, totalCommande, boutiquesUniques);
-  } catch(e){
-    console.error("Erreur notification boutiquier:", e);
-  }
-
-  try{
-    const secours = recupererCommandesSecours();
-    if(secours.length > 0){
-      localStorage.setItem(CLE_COMMANDES_SECOURS, JSON.stringify(
-        secours.map(c => ({...c, envoyee: true}))
-      ));
-    }
-  } catch(e){}
-
-  panier = [];
-  mettreAJourCompteur();
-  afficherPageMerci(paiement, totalCommande);
-
-  btnEnvoyer.disabled = false;
   return false;
 }
 
@@ -2690,17 +2460,14 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
   cacherToutesLesVues();
   document.getElementById("vue-merci").style.display = "block";
 
-  // 🔒 BLOQUER LE LOGO, LE PANIER ET LES OPTIONS
+  // La confirmation est immédiatement navigable : les notifications continuent côté serveur.
   const logoHeader = document.querySelector('.header-left');
   const btnPanier = document.querySelector('.btn-panier');
   const btnOptions = document.querySelector('.btn-options');
   
-  if(logoHeader) logoHeader.style.pointerEvents = 'none';
-  if(btnPanier) { btnPanier.style.pointerEvents = 'none'; btnPanier.style.opacity = '0.5'; }
-  if(btnOptions) { btnOptions.style.pointerEvents = 'none'; btnOptions.style.opacity = '0.5'; }
-
-  // Initialiser le délai ici
-  const delaiAttente = 90; // secondes (1m30)
+  if(logoHeader) logoHeader.style.pointerEvents = 'auto';
+  if(btnPanier) { btnPanier.style.pointerEvents = 'auto'; btnPanier.style.opacity = '1'; }
+  if(btnOptions) { btnOptions.style.pointerEvents = 'auto'; btnOptions.style.opacity = '1'; }
 
   // --- ANCIENNE PARTIE (Affichage du prix et du numéro) ---
   const montantReel = Number(montant) || 0;
@@ -2714,13 +2481,13 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
   document.getElementById("numeroPaiementAffiche").textContent = numero;
   document.getElementById("modePaiementAffiche").textContent = "Orange Money";
 
-  // --- BLOQUER LE BOUTON "RETOUR A L'ACCUEIL" PENDANT 90s ---
+  // Le bouton Retour reste disponible immédiatement : l’enregistrement serveur est déjà terminé.
   const btnRetourAccueil = document.querySelector('#vue-merci .btn-principal');
   if(btnRetourAccueil){
-    btnRetourAccueil.disabled = true;
-    btnRetourAccueil.style.opacity = "0.5";
-    btnRetourAccueil.style.cursor = "not-allowed";
-    btnRetourAccueil.textContent = `⏳ Patientez ${delaiAttente}s avant de quitter`;
+    btnRetourAccueil.disabled = false;
+    btnRetourAccueil.style.opacity = "1";
+    btnRetourAccueil.style.cursor = "pointer";
+    btnRetourAccueil.textContent = "Retour à l'accueil";
   }
 
   // --- CRÉER ET AJOUTER LE BLOC D'INSTRUCTIONS DE PAIEMENT ---
@@ -2744,7 +2511,7 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
     divInstructions.innerHTML = `
       <div style="background: #fef2f2; border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; border-left: 4px solid #dc2626;">
         <strong style="color: #dc2626; display: block;">⚠️ Paiement Orange Money uniquement :</strong>
-        <span style="color: #991b1b; font-size: 14px;">N'envoyez PAS d'argent au livreur ! Payez simplement au numéro ci-dessous. Le bouton Retour se débloquera dans quelques secondes.</span>
+        <span style="color: #991b1b; font-size: 14px;">N'envoyez PAS d'argent au livreur ! Payez simplement au numéro ci-dessous. Vous pouvez revenir à l’accueil dès maintenant.</span>
       </div>
 
       <div style="margin-bottom: 16px;">
@@ -2769,71 +2536,19 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
     instructionsElement = document.getElementById("instructionsPaiementMerci");
   }
 
-  // --- COMPTE À REBOURS VISIBLE SUR LA PAGE ---
-  let secondesRestantes = delaiAttente;
-  
+  // Message informatif non bloquant : les notifications sont traitées côté serveur.
   let compteurElement = document.getElementById("compteurPageMerci");
   if(!compteurElement){
     compteurElement = document.createElement("p");
     compteurElement.id = "compteurPageMerci";
-    compteurElement.style.cssText = "font-weight:700;color:#dc2626;font-size:16px;margin:10px 0;";
+    compteurElement.style.cssText = "font-weight:600;color:#16a34a;font-size:14px;margin:10px 0;";
     document.querySelector(".bloc-paiement").after(compteurElement);
   }
-
-  const mettreAJourCompteur = () => {
-    if(compteurElement) {
-      compteurElement.textContent = `⏳ Le bouton "Retour" se débloquera dans ${secondesRestantes} secondes...`;
-    }
-  };
-  mettreAJourCompteur();
-
-  const intervalleCompteur = setInterval(() => {
-    secondesRestantes--;
-    if(secondesRestantes > 0) {
-      mettreAJourCompteur();
-      if(btnRetourAccueil){
-        btnRetourAccueil.textContent = `⏳ Patientez ${secondesRestantes}s avant de quitter`;
-      }
-    } else {
-      clearInterval(intervalleCompteur);
-      if(compteurElement) {
-        compteurElement.textContent = "✅ Vous pouvez maintenant quitter cette page !";
-        compteurElement.style.color = "#16a34a";
-      }
-      if(btnRetourAccueil){
-        btnRetourAccueil.disabled = false;
-        btnRetourAccueil.style.opacity = "1";
-        btnRetourAccueil.style.cursor = "pointer";
-        btnRetourAccueil.textContent = "Retour à l'accueil";
-      }
-    }
-  }, 1000);
-
-  // --- DÉBLOQUER LES BOUTONS APRÈS 90 SECONDES ---
-  setTimeout(() => {
-    if(logoHeader) logoHeader.style.pointerEvents = 'auto';
-    if(btnPanier) { btnPanier.style.pointerEvents = 'auto'; btnPanier.style.opacity = '1'; }
-    if(btnOptions) { btnOptions.style.pointerEvents = 'auto'; btnOptions.style.opacity = '1'; }
-  }, delaiAttente * 1000);
+  compteurElement.textContent = "✅ Commande enregistrée. Les notifications sont envoyées en arrière-plan.";
 
   document.getElementById("btnRetour").style.display = "none";
 
-  // --- BLOQUER LE BOUTON PRÉCÉDENT DU NAVIGATEUR ---
-  const bloquerNavigation = (e) => {
-    e.preventDefault();
-    history.pushState(null, "", window.location.href);
-    if(secondesRestantes > 0){
-      alert(`⏳ Veuillez patienter encore ${secondesRestantes} secondes.\n\nProfitez-en pour noter le numéro Orange Money et effectuer votre paiement ! Une fois payé, vous pourrez quitter la page.`);
-    }
-  };
-
-  history.pushState(null, "", window.location.href);
-  window.addEventListener("popstate", bloquerNavigation);
-
-  setTimeout(() => {
-    window.removeEventListener("popstate", bloquerNavigation);
-  }, delaiAttente * 1000);
-
+  // La page de confirmation reste navigable immédiatement.
   history.replaceState({ vue: "merci" }, "");
 }
 
@@ -4093,83 +3808,6 @@ async function envoyerNotifBoutiquier(){
   }
 }
 
-/* =====================================================================
-   ENVOI AUTOMATIQUE DE NOTIFICATION AU BOUTIQUIER CONCERNÉ
-   Cette fonction s'exécute automatiquement après chaque commande
-   ===================================================================== */
-async function envoyerNotificationAuxBoutiquiers(nomClient, telClient, adresseClient, lienCarte, totalCommande){
-  try{
-    // Récupérer les articles du panier pour trouver les boutiquiers concernés
-    const boutiques = {};
-    panier.forEach(a => {
-      const tel = a.telephone_boutique;
-      if(!tel) return;
-      if(!boutiques[tel]){
-        boutiques[tel] = {
-          telephone: tel,
-          nomBoutique: a.nom_boutique || "Boutique",
-          articles: [],
-          total: 0
-        };
-      }
-      const commission = Number(a.commission) || 0;
-      const partBoutique = Number(a.prix) - commission;
-      const qte = Number(a.quantite) || 1;
-      boutiques[tel].articles.push({
-        nom: a.nom,
-        quantite: qte,
-        image: a.image_url || null
-      });
-      boutiques[tel].total += partBoutique * qte;
-    });
-
-    const telephones = Object.keys(boutiques);
-    if(telephones.length === 0) return;
-
-    // 🛡️ NOUVEAU CODE SÉCURISÉ (appel à la fonction serveur)
-    for(const tel of telephones){
-      const b = boutiques[tel];
-      let articlesText = "";
-      let imagePrincipale = null;
-      
-      b.articles.forEach((art, index) => {
-        articlesText += `\n📦 ${art.nom} x${art.quantite}`;
-        if(art.image && index === 0){
-          imagePrincipale = art.image;
-        }
-      });
-
-      const message = 
-        `🚀 Nouvelle commande chez ${b.nomBoutique} !\n\n` +
-        `👤 Client: ${nomClient}\n` +
-        `📞 Téléphone client: ${telClient}\n` +
-        `📍 Adresse: ${adresseClient}\n` +
-        `🗺️ Carte: ${lienCarte}\n\n` +
-        `📋 Articles:${articlesText}\n\n` +
-        `💰 Montant à recevoir: ${Math.round(b.total).toLocaleString("fr-FR")} FCFA`;
-
-      // Appel sécurisé vers la fonction Edge (sans exposer la clé)
-      await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-notification-boutique`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${await obtenirTokenAdmin()}`
-        },
-        body: JSON.stringify({
-          telephones: [tel],
-          message: message,
-          titre: `Nouvelle commande chez ${b.nomBoutique}`,
-          imageUrl: imagePrincipale,
-          url: window.location.origin + window.location.pathname
-        })
-      });
-    }
-
-    console.log("✅ Notifications boutiquiers envoyées via le serveur !");
-  } catch(e){
-    console.error("Erreur envoi notification boutiquier:", e);
-  }
-}
 verifierEtatPause();
 
 /* =====================================================================

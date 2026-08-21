@@ -1,0 +1,39 @@
+name: Qualité Prime Service
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Vérifications sans effet métier
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Vérifier les fichiers et la syntaxe frontend
+        run: node tests/validate-system.mjs
+
+      - name: Vérifier la propreté du diff
+        run: git diff --check
+
+      - name: Vérifier les endpoints publics sans effet métier
+        env:
+          SUPABASE_URL: https://kfxalpvbtbvkncztjwzc.supabase.co
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: bash scripts/smoke-test.sh
