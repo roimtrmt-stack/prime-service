@@ -13,7 +13,8 @@ const RESSOURCES_ESSENTIELLES = [
   "./inscription.html",
   "./manifest.json",
   "./icon-192.png",
-  "./icon-512.png"
+  "./icon-512.png",
+  "./boutique-notification.html"
 ];
 
 self.addEventListener("install", (event) => {
@@ -86,4 +87,52 @@ self.addEventListener("fetch", (event) => {
       });
     })
   );
+});
+
+// Notifications de commandes boutique.
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { title: "Prime Service", body: "Nouvelle notification" };
+  }
+
+  const options = {
+    body: payload.body || "Nouvelle commande à préparer.",
+    icon: payload.icon || "./icon-192.png",
+    badge: payload.badge || "./icon-192.png",
+    tag: payload.tag || "prime-service-notification",
+    renotify: Boolean(payload.renotify),
+    requireInteraction: Boolean(payload.requireInteraction),
+    vibrate: Array.isArray(payload.vibrate) ? payload.vibrate : [200, 100, 200],
+    data: payload.data || {},
+    actions: Array.isArray(payload.actions) ? payload.actions : [],
+  };
+
+  event.waitUntil(self.registration.showNotification(payload.title || "Prime Service", options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  const notification = event.notification;
+  const data = notification.data || {};
+  notification.close();
+
+  if (event.action === "ack" && data.ackEndpoint && data.token) {
+    event.waitUntil(
+      fetch(data.ackEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: data.token }),
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error("Accusé non enregistré");
+          return self.clients.openWindow(`${self.location.origin}/prime-service/boutique-notification.html?status=ack`);
+        })
+        .catch(() => self.clients.openWindow(data.ackUrl || `${self.location.origin}/prime-service/boutique-notification.html`)),
+    );
+    return;
+  }
+
+  event.waitUntil(self.clients.openWindow(data.ackUrl || `${self.location.origin}/prime-service/boutique-notification.html`));
 });

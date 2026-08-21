@@ -14,7 +14,7 @@ Le système distingue l’enregistrement métier, les notifications et le contr�
 
 L’agent reçoit une requête publique minimale. Il ne fait pas confiance aux prix envoyés par le navigateur : il recharge les produits depuis Supabase, vérifie la disponibilité, recalcule le total et détermine la commission à partir des données serveur. Il appelle `decrement_stock_batch`, insère la commande et restaure le stock si l’insertion échoue.
 
-Après l’enregistrement, l’agent répond au navigateur sans attendre Discord, SMS ou WhatsApp. `EdgeRuntime.waitUntil` poursuit la notification. Le propriétaire reçoit un Discord global avec les photos en pièces jointes et les montants internes. Chaque boutique reçoit un SMS indépendant ; WhatsApp est un canal visuel facultatif, activé uniquement avec les secrets Meta, un template approuvé et le consentement requis.
+Après l’enregistrement, l’agent répond au navigateur sans attendre Discord, SMS, push ou WhatsApp. `EdgeRuntime.waitUntil` poursuit la notification. Le propriétaire reçoit un Discord global avec les photos en pièces jointes et les montants internes. Chaque boutique reçoit un SMS indépendant et, si son navigateur est associé à son numéro, un push initial. Le worker Supabase réessaie le push à +3, +6 et +9 minutes avec une intensité croissante et un bouton rouge `J’AI VU LA COMMANDE` à partir de la deuxième tentative. Après quatre échecs sans accusé, le propriétaire reçoit Discord avec le numéro à appeler manuellement. WhatsApp reste un canal visuel facultatif, activé uniquement avec les secrets Meta, un template approuvé et le consentement requis.
 
 ## Agent 2 — inscription
 

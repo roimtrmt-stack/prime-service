@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#dc2626">
+  <title>Prime Service — Confirmation boutique</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #fff7ed; color: #1f2937; }
+    main { width: min(92vw, 560px); background: white; border-radius: 22px; padding: 28px; box-shadow: 0 14px 40px rgba(127, 29, 29, .16); text-align: center; }
+    h1 { margin: 0 0 10px; color: #b91c1c; font-size: clamp(1.5rem, 5vw, 2.1rem); }
+    p { line-height: 1.55; }
+    .alerte { background: #fef2f2; border: 2px solid #fecaca; border-radius: 16px; padding: 16px; margin: 20px 0; text-align: left; }
+    button { width: 100%; border: 0; border-radius: 16px; padding: 20px 18px; color: white; background: #dc2626; font-size: 1.2rem; font-weight: 900; cursor: pointer; box-shadow: 0 8px 0 #991b1b; }
+    button:active { transform: translateY(4px); box-shadow: 0 4px 0 #991b1b; }
+    button:disabled { opacity: .65; cursor: wait; }
+    .success { color: #166534; background: #f0fdf4; border-color: #86efac; }
+    .error { color: #991b1b; }
+    a { color: #2563eb; font-weight: 700; }
+    small { color: #6b7280; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🔔 Prime Service</h1>
+    <p id="intro">Une commande Prime Service vous concerne. Ouvrez cette page et confirmez que vous avez vu le message.</p>
+    <div id="message" class="alerte">Confirmation en cours…</div>
+    <button id="btnAccuser" type="button">🟥 J’AI VU LA COMMANDE</button>
+    <p><small>Après votre confirmation, les relances automatiques s’arrêtent.</small></p>
+    <p><a href="./">Retourner sur Prime Service</a></p>
+  </main>
+  <script>
+    const SUPABASE_URL = "https://kfxalpvbtbvkncztjwzc.supabase.co";
+    const ENDPOINT = `${SUPABASE_URL}/functions/v1/accuser-notification`;
+    const params = new URLSearchParams(location.search);
+    const token = params.get("token") || "";
+    const status = params.get("status") || "";
+    const box = document.getElementById("message");
+    const button = document.getElementById("btnAccuser");
+
+    function afficherSucces() {
+      box.className = "alerte success";
+      box.textContent = "✅ Merci. La commande est marquée comme vue et les relances sont arrêtées.";
+      button.disabled = true;
+      button.textContent = "✅ COMMANDE VUE";
+    }
+
+    if (status === "ack") afficherSucces();
+    else if (!token) {
+      box.className = "alerte error";
+      box.textContent = "Ce lien ne contient pas de jeton valide. Ouvrez le dernier message reçu.";
+      button.disabled = true;
+    } else {
+      box.textContent = "⚠️ Cette commande attend encore votre confirmation.";
+    }
+
+    button.addEventListener("click", async () => {
+      if (!token) return;
+      button.disabled = true;
+      button.textContent = "Enregistrement…";
+      try {
+        const response = await fetch(ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+        if (!response.ok) throw new Error("confirmation impossible");
+        history.replaceState({}, "", `${location.pathname}?status=ack`);
+        afficherSucces();
+      } catch {
+        button.disabled = false;
+        button.textContent = "🟥 RÉESSAYER — J’AI VU LA COMMANDE";
+        box.className = "alerte error";
+        box.textContent = "La confirmation n’a pas pu être enregistrée. Vérifiez la connexion puis réessayez.";
+      }
+    });
+  </script>
+</body>
+</html>

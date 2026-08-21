@@ -13,6 +13,7 @@ const ALLOWED_ORIGINS = new Set([
   "http://localhost:4173",
   "http://localhost:5173",
 ]);
+const SITE_ORIGIN = "https://roimtrmt-stack.github.io/prime-service";
 const rateState = new Map<string, { started: number; count: number }>();
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_MAX_REQUESTS = 20;
@@ -117,6 +118,14 @@ function normalizeMaliPhone(value: unknown): string | null {
   if (digits.length === 8) return `+223${digits}`;
   if (digits.length === 11 && digits.startsWith("223")) return `+${digits}`;
   return null;
+}
+
+function maliPhoneDigits(value: string): string {
+  return value.replace(/\D/g, "").replace(/^223/, "").slice(-8);
+}
+
+function createAckToken(): string {
+  return `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, "");
 }
 
 function clip(value: string, max: number): string {
@@ -368,6 +377,57 @@ function groupByShop(items: CanonicalItem[]): Shop[] {
   return [...shops.values()].slice(0, 30);
 }
 
+async function queueBoutiqueNotifications(
+  commandId: string,
+  shops: Shop[],
+  clientName: string,
+  clientPhone: string,
+  mapUrl: string,
+): Promise<void> {
+  const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const rows = shops.filter((shop) => shop.phone).map((shop) => ({
+    commande_id: commandId,
+    nom_boutique: shop.name,
+    telephone_boutique: maliPhoneDigits(shop.phone!),
+    message: [
+      `Prime Service — commande #${commandId}`,
+      `Boutique : ${clip(shop.name, 100)}`,
+      "Articles à préparer :",
+      ...shop.items.map((item) => `• ${clip(item.nom, 100)} x${item.quantite}`),
+      `Montant NET à recevoir : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+      `Client : ${clip(clientName, 60)} — ${clip(clientPhone, 24)}`,
+      `Carte client : ${mapUrl}`,
+    ].join("\n"),
+    statut: "en_attente",
+    tentative: 0,
+    prochaine_tentative: new Date().toISOString(),
+    ack_token: createAckToken(),
+  }));
+  if (rows.length === 0) return;
+
+  const { error } = await supabaseAdmin.from("notifications_boutiquiers").insert(rows);
+  if (error) {
+    console.error("[boutiquier-retries] création file impossible", commandId, error.message);
+    return;
+  }
+
+  // Le cron assure la reprise chaque minute ; cet appel lance cependant la première
+  // tentative sans attendre le prochain tick. Le service_role reste côté serveur.
+  try {
+    await fetchWithTimeout(`${SUPABASE_URL}/functions/v1/notifier-boutiquier`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: "{}",
+    }, 10_000);
+  } catch (error) {
+    console.error("[boutiquier-retries] premier passage différé", commandId, error instanceof Error ? error.message : error);
+  }
+}
+
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`;
@@ -396,6 +456,7 @@ async function notifyInBackground(input: {
     const address = await reverseGeocode(input.lat, input.lng);
     const mapUrl = `https://www.google.com/maps?q=${input.lat},${input.lng}`;
     const shops = groupByShop(input.items);
+    await queueBoutiqueNotifications(input.commandId, shops, input.nom, input.tel, mapUrl);
     const commissionTotal = input.items.reduce(
       (sum, item) => sum + item.commission * item.quantite,
       0,
@@ -507,6 +568,7 @@ async function notifyInBackground(input: {
         `Montant NET à recevoir : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
         `Client : ${clip(input.nom, 60)} — ${clip(input.tel, 24)}`,
         `Carte client : ${mapUrl}`,
+        `Activer les notifications du site : ${SITE_ORIGIN}/?boutique=${maliPhoneDigits(shop.phone)}`,
       ].join(" | ");
       const sms = await sendTextBee(shop.phone, boutiqueText);
       const whatsapp = await sendWhatsApp(

@@ -3195,21 +3195,36 @@ function urlBase64VersUint8Array(base64String){
 async function abonnerAuxNotifications(){
   try{
     if(!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-    if(localStorage.getItem("prime_service_deja_abonne_notif") === "oui") return;
+    const numeroBoutique = (new URLSearchParams(window.location.search).get("boutique") || "")
+      .replace(/\D/g, "")
+      .replace(/^223/, "")
+      .slice(-8);
+    const dejaAbonne = localStorage.getItem("prime_service_deja_abonne_notif") === "oui";
+    const dejaAssocie = localStorage.getItem("prime_service_numero_boutique_notif") || "";
+    if(dejaAbonne && (!numeroBoutique || dejaAssocie === numeroBoutique)) return;
 
-    const permission = await Notification.requestPermission();
+    const permission = Notification.permission === "granted"
+      ? "granted"
+      : await Notification.requestPermission();
     if(permission !== "granted") return;
 
     const enregistrement = await navigator.serviceWorker.ready;
-    const abonnement = await enregistrement.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64VersUint8Array(CLE_VAPID_PUBLIQUE),
-    });
+    let abonnement = await enregistrement.pushManager.getSubscription();
+    if(!abonnement){
+      abonnement = await enregistrement.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64VersUint8Array(CLE_VAPID_PUBLIQUE),
+      });
+    }
 
-    if(supabaseClient){
-      await supabaseClient.from("abonnements_push").insert({ subscription: abonnement.toJSON() });
+    if(supabaseClient && (!dejaAbonne || (numeroBoutique.length === 8 && dejaAssocie !== numeroBoutique))){
+      await supabaseClient.from("abonnements_push").insert({
+        subscription: abonnement.toJSON(),
+        telephone_boutique: numeroBoutique.length === 8 ? numeroBoutique : null,
+      });
     }
     localStorage.setItem("prime_service_deja_abonne_notif", "oui");
+    if(numeroBoutique.length === 8) localStorage.setItem("prime_service_numero_boutique_notif", numeroBoutique);
   } catch(erreur){
     console.error("Abonnement notifications impossible :", erreur);
   }
@@ -3243,6 +3258,18 @@ function reporterNotifOptin(){
 
   const dejaAbonneIci = localStorage.getItem("prime_service_deja_abonne_notif") === "oui";
   const permissionNavigateur = Notification.permission; // "granted" | "denied" | "default"
+  const numeroBoutiqueLien = (new URLSearchParams(window.location.search).get("boutique") || "")
+    .replace(/\D/g, "")
+    .replace(/^223/, "")
+    .slice(-8);
+
+  // Un lien boutique avec une permission déjà accordée peut associer l’appareil
+  // sans afficher de nouvelle demande au navigateur.
+  if(numeroBoutiqueLien.length === 8 && permissionNavigateur === "granted"){
+    void abonnerAuxNotifications();
+    bloc.style.display = "none";
+    return;
+  }
 
   // Déjà accepté ou déjà refusé une fois dans le navigateur → on ne redemande
   // jamais (un refus est aussi définitif qu'une acceptation, pas la peine

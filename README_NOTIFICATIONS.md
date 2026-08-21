@@ -97,3 +97,18 @@ La page de remerciement affiche le numéro de paiement `94 13 44 08`, le montant
 [8]: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages "Meta — Service messages and customer service window"
 [9]: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/image-messages "Meta — Image messages"
 [10]: https://www.orangemali.com/fr/transfert/transfert-national.html "Orange Mali — Transfert national"
+
+## 10. Relances automatiques des boutiquiers
+
+Pour chaque boutique concernée par une commande, `envoyer-commande` crée une ligne indépendante dans `notifications_boutiquiers` avec un jeton d’accusé aléatoire. Le premier push part immédiatement depuis `notifier-boutiquier`. Si le boutiquier ne clique pas sur l’accusé, le cron Supabase réveille le worker chaque minute et le worker réessaie à trois minutes, six minutes et neuf minutes après le premier envoi.
+
+| Tentative | Délai | Intensité | Bouton |
+|---:|---:|---|---|
+| 1 | immédiate | Nouvelle commande | aucun bouton dans la notification push ; l’ouverture affiche toutefois la page d’accusé |
+| 2 | +3 min | rappel 1/3 | bouton rouge `J’AI VU LA COMMANDE` |
+| 3 | +6 min | rappel urgent 2/3, vibration et interaction requise | bouton rouge `J’AI VU LA COMMANDE` |
+| 4 | +9 min | dernier rappel 3/3 | bouton rouge `J’AI VU LA COMMANDE` |
+
+Le bouton appelle `accuser-notification` avec un jeton à usage pratique limité à la ligne concernée. Lorsque l’accusé est enregistré, le statut devient `accusee`, `acknowledged_at` est rempli et `prochaine_tentative` est annulée. Après la quatrième tentative sans accusé, le statut devient `echec_definitif` et le propriétaire reçoit Discord avec la boutique, la commande et le numéro à appeler manuellement.
+
+Un boutiquier doit d’abord associer son navigateur à son numéro. Le SMS initial contient un lien Prime Service avec le paramètre `boutique=XXXXXXXX`; après avoir appuyé sur **Autoriser**, le navigateur est enregistré dans `abonnements_push` avec ce numéro. Le site ne peut pas envoyer un push à une boutique qui n’a jamais autorisé les notifications ou dont le navigateur n’est plus disponible ; dans ce cas, l’escalade Discord finale vous prévient.
