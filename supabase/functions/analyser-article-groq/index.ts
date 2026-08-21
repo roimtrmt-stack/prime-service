@@ -118,8 +118,10 @@ Deno.serve(async (request) => {
             { type: "image_url", image_url: { url: imageDataUrl } },
           ],
         }],
-        temperature: 0.2,
+        temperature: 1,
+        top_p: 1,
         max_completion_tokens: 120,
+        stream: false,
       }),
     });
 
