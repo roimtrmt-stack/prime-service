@@ -63,3 +63,7 @@ Une réponse serveur de succès a été simulée dans le navigateur local, sans 
 ## Smoke test distant
 
 Après publication, `envoyer-commande` et `envoyer-inscription` ont été testées avec un corps JSON vide. Les deux endpoints ont refusé la requête avec HTTP 400. Le premier test de l’inscription avait produit une erreur 500 pour un mauvais format ; une validation `multipart/form-data` a été ajoutée, la fonction a été republiée en version 19, puis le test a réussi.
+
+## Publication publique
+
+Le commit `0828ca2` a été poussé sur `main`. Le workflow `Qualité Prime Service` a terminé avec succès, et le workflow `pages-build-deployment` a également terminé avec succès pour le même commit. La page publique `https://roimtrmt-stack.github.io/prime-service/` se charge correctement ; la console publique ne produit aucune sortie d’erreur.
