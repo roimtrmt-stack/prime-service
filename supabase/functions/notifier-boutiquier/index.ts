@@ -68,6 +68,7 @@ async function sendPush(
   attempt: number,
   token: string,
   boutique: string,
+  expiresAt: string,
 ): Promise<void> {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) throw new Error("Clés VAPID absentes");
   await webpush.sendNotification(
@@ -86,6 +87,7 @@ async function sendPush(
         ackEndpoint: ACK_FUNCTION_URL,
         token,
         boutique: clip(boutique, 100),
+        expiresAt,
       },
       actions: attempt >= 2
         ? [{ action: "ack", title: "🟥 J’AI VU LA COMMANDE" }]
@@ -133,7 +135,7 @@ async function traiterNotification(
     .eq("statut", "en_attente")
     .eq("tentative", currentAttempt)
     .is("acknowledged_at", null)
-    .select("id, ack_token, message, nom_boutique, telephone_boutique, commande_id, tentative, acknowledged_at")
+    .select("id, ack_token, message, nom_boutique, telephone_boutique, commande_id, tentative, acknowledged_at, created_at")
     .maybeSingle();
   if (claimError || !claimed) return { id, status: "already_claimed_or_acknowledged" };
 
@@ -155,6 +157,10 @@ async function traiterNotification(
         attempt,
         token,
         String(notification.nom_boutique || "Boutique"),
+        (() => {
+          const createdAt = Date.parse(String(notification.created_at || ""));
+          return new Date(Number.isFinite(createdAt) ? createdAt + 60 * 60 * 1000 : Date.now() + 60 * 60 * 1000).toISOString();
+        })(),
       );
       delivered += 1;
     } catch (error) {
@@ -210,7 +216,7 @@ Deno.serve(async (req: Request) => {
   const now = new Date().toISOString();
   const { data: pending, error } = await supabase
     .from("notifications_boutiquiers")
-    .select("id, commande_id, nom_boutique, telephone_boutique, message, statut, tentative, prochaine_tentative, ack_token, acknowledged_at")
+    .select("id, commande_id, nom_boutique, telephone_boutique, message, statut, tentative, prochaine_tentative, ack_token, acknowledged_at, created_at")
     .eq("statut", "en_attente")
     .is("acknowledged_at", null)
     .lt("tentative", MAX_ATTEMPTS)

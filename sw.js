@@ -1,12 +1,6 @@
-// Service worker : rend le site "installable" ET consultable hors-ligne.
-//
-// Stratégie "réseau d'abord, cache en secours" :
-// - En ligne : on va toujours chercher la dernière version sur le serveur
-//   (jamais de contenu périmé), et on garde une copie fraîche de côté.
-// - Hors-ligne : si le réseau échoue, on sert la dernière copie connue
-//   au lieu d'un écran d'erreur.
-
-const CACHE_NAME = "prime-service-cache-v2";
+// Service worker : rend le site installable, consultable hors-ligne et capable
+// de gérer les notifications de commandes boutique.
+const CACHE_NAME = "prime-service-cache-v3";
 const RESSOURCES_ESSENTIELLES = [
   "./",
   "./index.html",
@@ -14,12 +8,13 @@ const RESSOURCES_ESSENTIELLES = [
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
-  "./boutique-notification.html"
+  "./boutique-notification.html",
 ];
+const NOTIFICATION_TTL_MS = 60 * 60 * 1000;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(RESSOURCES_ESSENTIELLES))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(RESSOURCES_ESSENTIELLES)),
   );
 });
 
@@ -27,69 +22,75 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     Promise.all([
       self.clients.claim(),
-      caches.keys().then((cles) =>
-        Promise.all(cles.filter((cle) => cle !== CACHE_NAME).map((cle) => caches.delete(cle)))
+      caches.keys().then((keys) =>
+        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
       ),
-    ])
+    ]),
   );
 });
 
 self.addEventListener("message", (event) => {
-  if (event.data && event.data.type === "SKIP_WAITING") {
-    self.skipWaiting();
-  }
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("fetch", (event) => {
-  // 0. NE PAS METTRE EN CACHE LES APPELS API (Supabase)
   const url = new URL(event.request.url);
   if (url.pathname.includes("/functions/v1/") || url.pathname.includes("/rest/v1/")) {
-    // Pour les API, on va toujours sur le réseau, pas de cache.
     event.respondWith(fetch(event.request));
     return;
   }
-
-  // [!] AJOUT CRUCIAL : Ici on dit "Si ce n'est pas une page normale (GET), ne touche à rien".
-  // Ce petit bloc empêche le site de planter quand quelqu'un valide un formulaire (commande ou ajout d'article).
   if (event.request.method !== "GET") {
     event.respondWith(fetch(event.request));
     return;
   }
-
-  // 1. Pour les pages HTML (navigation) : réseau d'abord, cache en secours
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request, { cache: "no-store" })
-        .then((reponse) => {
-          const copie = reponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copie));
-          return reponse;
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
         })
-        .catch(() =>
-          caches.match(event.request).then((correspondance) => correspondance || caches.match("./index.html"))
-        )
+        .catch(() => caches.match(event.request).then((match) => match || caches.match("./index.html"))),
     );
     return;
   }
-
-  // 2. Pour les images, les scripts CDN et autres fichiers : cache d'abord, réseau en secours
   event.respondWith(
-    caches.match(event.request).then((reponseEnCache) => {
-      if (reponseEnCache) {
-        return reponseEnCache;
-      }
-      return fetch(event.request).then((reponseReseau) => {
-        if (reponseReseau && reponseReseau.status === 200) {
-          const copie = reponseReseau.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copie));
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+      return fetch(event.request).then((response) => {
+        if (response && response.status === 200) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         }
-        return reponseReseau;
+        return response;
       });
-    })
+    }),
   );
 });
 
-// Notifications de commandes boutique.
+function parseExpiry(value) {
+  const timestamp = Date.parse(String(value || ""));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+async function closeExpiredNotifications(tag, expiresAt) {
+  const notifications = await self.registration.getNotifications({ tag });
+  notifications.forEach((notification) => {
+    if (notification.data && notification.data.expiresAt === expiresAt) notification.close();
+  });
+}
+
+function scheduleClose(tag, expiresAt) {
+  const expiry = parseExpiry(expiresAt);
+  const delay = expiry - Date.now();
+  if (delay <= 0) return;
+  // Le navigateur peut suspendre un service worker ; la vérification à l’ouverture
+  // de la page reste donc la garantie serveur, et ce timer assure la fermeture
+  // immédiate lorsque le worker demeure actif.
+  setTimeout(() => closeExpiredNotifications(tag, expiresAt).catch(() => {}), delay + 250);
+}
+
 self.addEventListener("push", (event) => {
   let payload = {};
   try {
@@ -98,19 +99,26 @@ self.addEventListener("push", (event) => {
     payload = { title: "Prime Service", body: "Nouvelle notification" };
   }
 
+  const receivedAt = Date.now();
+  const expiresAt = payload.data?.expiresAt || new Date(receivedAt + NOTIFICATION_TTL_MS).toISOString();
+  const tag = payload.tag || "prime-service-notification";
   const options = {
     body: payload.body || "Nouvelle commande à préparer.",
     icon: payload.icon || "./icon-192.png",
     badge: payload.badge || "./icon-192.png",
-    tag: payload.tag || "prime-service-notification",
+    tag,
     renotify: Boolean(payload.renotify),
     requireInteraction: Boolean(payload.requireInteraction),
     vibrate: Array.isArray(payload.vibrate) ? payload.vibrate : [200, 100, 200],
-    data: payload.data || {},
+    data: { ...(payload.data || {}), expiresAt },
     actions: Array.isArray(payload.actions) ? payload.actions : [],
   };
 
-  event.waitUntil(self.registration.showNotification(payload.title || "Prime Service", options));
+  event.waitUntil((async () => {
+    await closeExpiredNotifications(tag, expiresAt).catch(() => {});
+    await self.registration.showNotification(payload.title || "Prime Service", options);
+    scheduleClose(tag, expiresAt);
+  })());
 });
 
 self.addEventListener("notificationclick", (event) => {
@@ -118,21 +126,16 @@ self.addEventListener("notificationclick", (event) => {
   const data = notification.data || {};
   notification.close();
 
-  if (event.action === "ack" && data.ackEndpoint && data.token) {
-    event.waitUntil(
-      fetch(data.ackEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: data.token }),
-      })
-        .then((response) => {
-          if (!response.ok) throw new Error("Accusé non enregistré");
-          return self.clients.openWindow(`${self.location.origin}/prime-service/boutique-notification.html?status=ack`);
-        })
-        .catch(() => self.clients.openWindow(data.ackUrl || `${self.location.origin}/prime-service/boutique-notification.html`)),
-    );
+  if (parseExpiry(data.expiresAt) && Date.now() >= parseExpiry(data.expiresAt)) {
+    event.waitUntil(self.clients.openWindow(data.ackUrl || `${self.location.origin}/prime-service/boutique-notification.html`));
     return;
   }
 
+  // Le bouton rouge conserve son action existante, mais ouvre d’abord les détails.
+  // La page impose ensuite 60 secondes de lecture et l’endpoint serveur revérifie le délai.
+  if (event.action === "ack") {
+    event.waitUntil(self.clients.openWindow(data.ackUrl || `${self.location.origin}/prime-service/boutique-notification.html`));
+    return;
+  }
   event.waitUntil(self.clients.openWindow(data.ackUrl || `${self.location.origin}/prime-service/boutique-notification.html`));
 });

@@ -20,6 +20,7 @@ const boutiquePage = await read("boutique-notification.html");
 const migration = await read("supabase/migrations/202608210001_secure_order_writes.sql");
 const photoMigration = await read("supabase/migrations/202608210002_fix_public_photo_uploads.sql");
 const retryMigration = await read("supabase/migrations/202608210003_boutiquier_notification_retries.sql");
+const readDelayMigration = await read("supabase/migrations/202608210005_boutiquier_read_delay.sql");
 
 function inlineScripts(html) {
   return [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map((match) => match[1]);
@@ -126,6 +127,9 @@ assert.doesNotMatch(inscriptionPage, /abonnements_push.*telephone_boutique/);
 assert.doesNotMatch(inscriptionPage, /supabaseClient\.from\("abonnements_push"\)/);
 assert.match(serviceWorker, /notificationclick/);
 assert.match(serviceWorker, /event\.action === "ack"/);
+assert.match(serviceWorker, /NOTIFICATION_TTL_MS = 60 \* 60 \* 1000/);
+assert.match(serviceWorker, /scheduleClose/);
+assert.match(serviceWorker, /data\.ackUrl/);
 assert.match(serviceWorker, /actions: Array\.isArray/);
 assert.match(retryFunction, /MAX_ATTEMPTS = 4/);
 assert.match(retryFunction, /RETRY_DELAY_MS = 3 \* 60 \* 1000/);
@@ -134,9 +138,19 @@ assert.match(retryFunction, /echec_definitif/);
 assert.match(retryFunction, /escalateDiscord/);
 assert.match(ackFunction, /ack_token/);
 assert.match(ackFunction, /acknowledged_at/);
+assert.match(ackFunction, /READ_DELAY_MS = 60 \* 1000/);
+assert.match(ackFunction, /NOTIFICATION_TTL_MS = 60 \* 60 \* 1000/);
+assert.match(ackFunction, /read_started_at/);
+assert.match(ackFunction, /read_too_soon/);
+assert.match(ackFunction, /expired/);
 assert.match(linkFunction, /notifications_boutiquiers/);
 assert.match(linkFunction, /ack_token/);
 assert.match(linkFunction, /abonnements_push/);
 assert.match(boutiquePage, /J’AI VU LA COMMANDE/);
+assert.match(boutiquePage, /image_url/);
+assert.match(boutiquePage, /remainingSeconds/);
+assert.match(boutiquePage, /60 secondes/);
+assert.match(boutiquePage, /expiresAt/);
+assert.match(readDelayMigration, /read_started_at/);
 
 console.log("OK: frontend syntax, secure order path, push preserved, Orange SMS paths, owner-only inscription path and Storage upload checks");

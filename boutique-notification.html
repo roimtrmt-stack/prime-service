@@ -4,19 +4,28 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#dc2626">
-  <title>Prime Service — Confirmation boutique</title>
+  <title>Prime Service — Détails de commande</title>
   <style>
     :root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #fff7ed; color: #1f2937; }
-    main { width: min(92vw, 560px); background: white; border-radius: 22px; padding: 28px; box-shadow: 0 14px 40px rgba(127, 29, 29, .16); text-align: center; }
-    h1 { margin: 0 0 10px; color: #b91c1c; font-size: clamp(1.5rem, 5vw, 2.1rem); }
+    main { width: min(92vw, 700px); background: white; border-radius: 22px; padding: 28px; box-shadow: 0 14px 40px rgba(127, 29, 29, .16); }
+    h1 { margin: 0 0 10px; color: #b91c1c; font-size: clamp(1.5rem, 5vw, 2.1rem); text-align: center; }
+    h2 { margin: 0 0 8px; font-size: 1.25rem; }
     p { line-height: 1.55; }
-    .alerte { background: #fef2f2; border: 2px solid #fecaca; border-radius: 16px; padding: 16px; margin: 20px 0; text-align: left; }
-    button { width: 100%; border: 0; border-radius: 16px; padding: 20px 18px; color: white; background: #dc2626; font-size: 1.2rem; font-weight: 900; cursor: pointer; box-shadow: 0 8px 0 #991b1b; }
-    button:active { transform: translateY(4px); box-shadow: 0 4px 0 #991b1b; }
-    button:disabled { opacity: .65; cursor: wait; }
+    .alerte { background: #fef2f2; border: 2px solid #fecaca; border-radius: 16px; padding: 16px; margin: 20px 0; }
     .success { color: #166534; background: #f0fdf4; border-color: #86efac; }
     .error { color: #991b1b; }
+    .details { display: grid; gap: 8px; text-align: left; }
+    .ligne { padding: 10px 12px; border-radius: 10px; background: #f9fafb; }
+    .photos { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
+    .article { border: 1px solid #e5e7eb; border-radius: 14px; padding: 10px; background: #fff; }
+    .article img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; display: block; background: #f3f4f6; }
+    .article strong { display: block; margin-top: 8px; }
+    .article small { color: #4b5563; }
+    button { width: 100%; border: 0; border-radius: 16px; padding: 20px 18px; color: white; background: #dc2626; font-size: 1.2rem; font-weight: 900; cursor: pointer; box-shadow: 0 8px 0 #991b1b; }
+    button:active { transform: translateY(4px); box-shadow: 0 4px 0 #991b1b; }
+    button:disabled { opacity: .65; cursor: not-allowed; }
+    .compteur { text-align: center; font-weight: 800; color: #b91c1c; }
     a { color: #2563eb; font-weight: 700; }
     small { color: #6b7280; }
   </style>
@@ -24,10 +33,13 @@
 <body>
   <main>
     <h1>🔔 Prime Service</h1>
-    <p id="intro">Une commande Prime Service vous concerne. Ouvrez cette page et confirmez que vous avez vu le message.</p>
-    <div id="message" class="alerte">Confirmation en cours…</div>
-    <button id="btnAccuser" type="button">🟥 J’AI VU LA COMMANDE</button>
-    <p><small>Après votre confirmation, les relances automatiques s’arrêtent.</small></p>
+    <p id="intro">Lecture obligatoire des détails de la commande avant confirmation.</p>
+    <div id="message" class="alerte">Chargement sécurisé de la commande…</div>
+    <section id="details" class="details" hidden></section>
+    <div id="photos" class="photos" hidden></div>
+    <p id="compteur" class="compteur" hidden></p>
+    <button id="btnAccuser" type="button" disabled>🔒 Lecture en cours…</button>
+    <p><small>Le bouton sera activé après 60 secondes de lecture. Après confirmation, les relances automatiques s’arrêtent.</small></p>
     <p><a href="./">Retourner sur Prime Service</a></p>
   </main>
   <script>
@@ -37,44 +49,154 @@
     const token = params.get("token") || "";
     const status = params.get("status") || "";
     const box = document.getElementById("message");
+    const detailsBox = document.getElementById("details");
+    const photosBox = document.getElementById("photos");
+    const counter = document.getElementById("compteur");
     const button = document.getElementById("btnAccuser");
+    let canAcknowledge = false;
+    let acknowledged = false;
+    let expiresAtMs = 0;
+    let countdownTimer = null;
 
-    function afficherSucces() {
+    function setError(text) {
+      box.className = "alerte error";
+      box.textContent = text;
+      button.disabled = true;
+      if (countdownTimer) clearInterval(countdownTimer);
+    }
+
+    function addLine(label, value) {
+      const line = document.createElement("div");
+      line.className = "ligne";
+      const strong = document.createElement("strong");
+      strong.textContent = `${label} `;
+      line.append(strong, document.createTextNode(value || "—"));
+      detailsBox.appendChild(line);
+    }
+
+    function renderDetails(command) {
+      detailsBox.replaceChildren();
+      photosBox.replaceChildren();
+      addLine("Boutique :", command.boutique);
+      addLine("Adresse boutique :", command.adresse_boutique);
+      addLine("Client :", command.nom_client);
+      addLine("Téléphone client :", command.telephone_client);
+      addLine("Montant NET à recevoir :", `${Number(command.montant_net_total || 0).toLocaleString("fr-FR")} FCFA`);
+
+      const articles = Array.isArray(command.articles) ? command.articles : [];
+      articles.forEach((article) => {
+        const card = document.createElement("article");
+        card.className = "article";
+        if (article.image_url) {
+          const image = document.createElement("img");
+          image.src = article.image_url;
+          image.alt = article.nom || "Photo de l’article";
+          image.loading = "lazy";
+          card.appendChild(image);
+        }
+        const title = document.createElement("strong");
+        title.textContent = `${article.nom || "Article"} x${article.quantite || 1}`;
+        const net = document.createElement("small");
+        net.textContent = `Montant net : ${Number(article.montant_net || 0).toLocaleString("fr-FR")} FCFA`;
+        card.append(title, net);
+        photosBox.appendChild(card);
+      });
+      detailsBox.hidden = false;
+      photosBox.hidden = articles.length === 0;
+    }
+
+    function showAcknowledged() {
+      acknowledged = true;
       box.className = "alerte success";
       box.textContent = "✅ Merci. La commande est marquée comme vue et les relances sont arrêtées.";
       button.disabled = true;
       button.textContent = "✅ COMMANDE VUE";
+      counter.hidden = true;
+      if (countdownTimer) clearInterval(countdownTimer);
     }
 
-    if (status === "ack") afficherSucces();
-    else if (!token) {
-      box.className = "alerte error";
-      box.textContent = "Ce lien ne contient pas de jeton valide. Ouvrez le dernier message reçu.";
-      button.disabled = true;
-    } else {
-      box.textContent = "⚠️ Cette commande attend encore votre confirmation.";
+    function expirePage() {
+      if (acknowledged) return;
+      setError("Cette notification a expiré après une heure. Ouvrez le dernier message reçu si une nouvelle commande vous concerne.");
+      detailsBox.hidden = true;
+      photosBox.hidden = true;
+      counter.hidden = true;
+    }
+
+    function startCountdown(remainingSeconds) {
+      let remaining = Math.max(0, Number(remainingSeconds) || 0);
+      counter.hidden = false;
+      const tick = () => {
+        if (expiresAtMs && Date.now() >= expiresAtMs) return expirePage();
+        if (remaining <= 0) {
+          canAcknowledge = true;
+          button.disabled = false;
+          button.textContent = "🟥 J’AI VU LA COMMANDE";
+          counter.textContent = "✅ Une minute de lecture est terminée. Vous pouvez confirmer.";
+          if (countdownTimer) clearInterval(countdownTimer);
+          return;
+        }
+        counter.textContent = `⏳ Lisez les détails encore ${remaining} seconde${remaining > 1 ? "s" : ""} avant de confirmer.`;
+        remaining -= 1;
+      };
+      tick();
+      countdownTimer = setInterval(tick, 1000);
+    }
+
+    async function callAction(action) {
+      const response = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, action }),
+      });
+      let body = {};
+      try { body = await response.json(); } catch { /* réponse vide */ }
+      if (!response.ok) {
+        const error = new Error(body.error || "Opération impossible");
+        error.code = body.code || (response.status === 410 ? "expired" : "");
+        throw error;
+      }
+      return body;
+    }
+
+    async function loadPage() {
+      if (status === "ack") return showAcknowledged();
+      if (!token) return setError("Ce lien ne contient pas de jeton valide. Ouvrez le dernier message reçu.");
+      try {
+        const body = await callAction("details");
+        expiresAtMs = Date.parse(body.expiresAt || "") || 0;
+        if (expiresAtMs && Date.now() >= expiresAtMs) return expirePage();
+        if (!body.command) return setError("Les détails de cette commande sont indisponibles.");
+        renderDetails(body.command);
+        expiresAtMs = Date.parse(body.expiresAt || "") || expiresAtMs;
+        if (body.status === "accusee") return showAcknowledged();
+        box.className = "alerte";
+        box.textContent = "📖 Lisez attentivement la boutique, l’adresse, les articles, les photos et le montant net.";
+        startCountdown(body.remainingSeconds);
+      } catch (error) {
+        if (error.code === "expired") return expirePage();
+        setError(error.message || "Impossible de charger les détails de la commande.");
+      }
     }
 
     button.addEventListener("click", async () => {
-      if (!token) return;
+      if (!token || !canAcknowledge || acknowledged) return;
       button.disabled = true;
       button.textContent = "Enregistrement…";
       try {
-        const response = await fetch(ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token }),
-        });
-        if (!response.ok) throw new Error("confirmation impossible");
+        await callAction("ack");
         history.replaceState({}, "", `${location.pathname}?status=ack`);
-        afficherSucces();
-      } catch {
+        showAcknowledged();
+      } catch (error) {
+        if (error.code === "expired") return expirePage();
         button.disabled = false;
         button.textContent = "🟥 RÉESSAYER — J’AI VU LA COMMANDE";
         box.className = "alerte error";
-        box.textContent = "La confirmation n’a pas pu être enregistrée. Vérifiez la connexion puis réessayez.";
+        box.textContent = error.message || "La confirmation n’a pas pu être enregistrée.";
       }
     });
+
+    loadPage();
   </script>
 </body>
 </html>

@@ -49,6 +49,8 @@ Le code conserve TextBee, l’abonnement push et l’envoi général existant. L
 
 L’envoi automatique de commande utilise le même principe. `envoyer-commande` crée toujours la file de relances push et envoie le Discord propriétaire ; selon le fournisseur activé, il envoie ensuite TextBee, Orange, ou les deux. Le SMS Orange de commande est volontairement court et conserve le lien opaque `boutique_token` en entier. Il ne contient jamais la commission, le prix client ou les données d’une autre boutique.
 
+Lorsqu’un boutiquier ouvre une notification, `boutique-notification.html` charge côté serveur les articles de sa boutique, les photos visuelles autorisées depuis Storage, l’adresse boutique et le montant net. Le bouton **J’AI VU LA COMMANDE** reste verrouillé pendant 60 secondes ; ce délai est contrôlé à la fois dans l’interface et par `accuser-notification`, donc un appel direct ne peut pas le contourner. La notification porte une expiration d’une heure côté service worker et l’endpoint refuse toute confirmation après cette heure. La fermeture automatique du téléphone dépend toutefois du réveil du service worker ; dans tous les cas, la validation serveur reste expirée après 60 minutes.
+
 Dans **Supabase → Edge Functions → Secrets**, ajoutez les paramètres Orange seulement après approbation de l’application SMS Mali par Orange Developer :
 
 | Nom du secret | Valeur | Utilisé par |
