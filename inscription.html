@@ -1201,20 +1201,14 @@ async function envoyerSoumission(event){
     // Succès global
     document.getElementById("vue-formulaire").style.display = "none";
     document.getElementById("vue-merci-inscription").style.display = "block";
-
-    // Demande de notifications push pour le boutiquier
-    if(document.getElementById("autorisationNotifBoutique").checked){
-      if(!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-      const permission = await Notification.requestPermission();
-      if(permission === "granted") {
-        const enregistrement = await navigator.serviceWorker.ready;
-        const abonnement = await enregistrement.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64VersUint8Array("BKUvZzJuPGArqm0y7jr69DJMp4NjO9EnDRwPzyIB4yJl7efqLtJSrem-uUQfvk46RkWfK9kshSONNp4ad5EQxlY"),
-        });
-        await supabaseClient.from("abonnements_push").insert({ subscription: abonnement.toJSON(), telephone_boutique: telephone });
-      }
+    const confirmationNotif = document.querySelector("#vue-merci-inscription .carte-merci p");
+    if(confirmationNotif && document.getElementById("autorisationNotifBoutique").checked){
+      confirmationNotif.textContent += " Vous avez autorisé les notifications ; le premier SMS de commande contiendra un lien pour activer ce navigateur de manière sécurisée.";
     }
+
+    // L’autorisation est recueillie ici, mais la liaison technique du navigateur
+    // est réalisée par le lien opaque envoyé dans le premier SMS de commande.
+    // Cela empêche un navigateur public de choisir directement un numéro boutique.
 
     // ================================================================
     // AJOUT : ENVOYER LA NOTIFICATION DISCORD VIA LA FONCTION BACKEND

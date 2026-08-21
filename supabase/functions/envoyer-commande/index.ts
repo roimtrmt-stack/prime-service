@@ -233,125 +233,6 @@ async function sendTextBee(phone: string, message: string): Promise<DeliveryResu
   }
 }
 
-function normalizeWhatsAppPhone(value: unknown): string | null {
-  const raw = text(value, 40);
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 8) return `223${digits}`;
-  if (digits.length === 11 && digits.startsWith("223")) return digits;
-  return null;
-}
-
-async function uploadWhatsAppMedia(
-  endpoint: string,
-  token: string,
-  attachment: ImageAttachment,
-): Promise<string | null> {
-  if (!["image/jpeg", "image/png"].includes(attachment.blob.type) || attachment.blob.size > 5_000_000) {
-    return null;
-  }
-  const form = new FormData();
-  form.append("messaging_product", "whatsapp");
-  form.append("type", attachment.blob.type);
-  form.append("file", attachment.blob, attachment.filename);
-  try {
-    const response = await fetchWithTimeout(`${endpoint}/media`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: form,
-    }, 20_000);
-    if (!response.ok) return null;
-    const body = await response.json();
-    return text(body?.id, 200) || null;
-  } catch {
-    return null;
-  }
-}
-
-async function sendWhatsApp(
-  phone: string,
-  shop: Shop,
-  clientName: string,
-  clientPhone: string,
-  mapUrl: string,
-  images: ImageAttachment[],
-): Promise<DeliveryResult> {
-  const token = text(Deno.env.get("WHATSAPP_TOKEN"), 4_000);
-  const phoneId = text(
-    Deno.env.get("WHATSAPP_PHONE_ID") || Deno.env.get("WHATSAPP_PHONE_NUMBER_ID"),
-    120,
-  );
-  const templateName = text(Deno.env.get("WHATSAPP_TEMPLATE_NAME"), 120);
-  const language = text(Deno.env.get("WHATSAPP_TEMPLATE_LANGUAGE"), 20) || "fr";
-  const target = `whatsapp:${phone}`;
-  if (!token || !phoneId || !templateName) {
-    return { target, delivered: false, reason: "WhatsApp non configuré (token, phone ID ou template absent)" };
-  }
-  const recipient = normalizeWhatsAppPhone(phone);
-  if (!recipient) return { target, delivered: false, reason: "numéro WhatsApp malien invalide" };
-
-  const graphVersion = text(Deno.env.get("WHATSAPP_GRAPH_VERSION"), 20) || "v26.0";
-  const endpoint = `https://graph.facebook.com/${graphVersion}/${phoneId}`;
-  const bodyParameters = [
-    shop.name,
-    clientName,
-    clientPhone,
-    shop.articles.join(", "),
-    `${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
-    mapUrl,
-  ].map((value) => ({ type: "text", text: clip(value, 1_024) }));
-  const components: Array<Record<string, unknown>> = [{ type: "body", parameters: bodyParameters }];
-  const templateNeedsImageHeader = Deno.env.get("WHATSAPP_TEMPLATE_HEADER_IMAGE") === "true";
-  if (templateNeedsImageHeader) {
-    const firstImage = images[0];
-    if (!firstImage) return { target, delivered: false, reason: "template WhatsApp image sans photo valide" };
-    const mediaId = await uploadWhatsAppMedia(endpoint, token, firstImage);
-    if (!mediaId) return { target, delivered: false, reason: "échec téléversement média WhatsApp" };
-    components.unshift({ type: "header", parameters: [{ type: "image", image: { id: mediaId } }] });
-  }
-
-  try {
-    const response = await fetchWithTimeout(`${endpoint}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: `+${recipient}`,
-        type: "template",
-        template: { name: templateName, language: { code: language }, components },
-      }),
-    }, 20_000);
-    if (!response.ok) return { target, delivered: false, reason: `WhatsApp HTTP ${response.status}` };
-
-    // Les images libres supplémentaires ne sont activées que si l’administrateur
-    // confirme qu’une fenêtre de service WhatsApp est ouverte pour ce destinataire.
-    if (Deno.env.get("WHATSAPP_ALLOW_FREEFORM_MEDIA") === "true") {
-      for (const image of images.slice(0, 10)) {
-        const mediaId = await uploadWhatsAppMedia(endpoint, token, image);
-        if (!mediaId) continue;
-        await fetchWithTimeout(`${endpoint}/messages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: `+${recipient}`,
-            type: "image",
-            image: { id: mediaId, caption: clip(image.item.nom, 1_024) },
-          }),
-        }, 20_000);
-      }
-    }
-    return { target, delivered: true, reason: "accepted" };
-  } catch (error) {
-    return {
-      target,
-      delivered: false,
-      reason: error instanceof Error ? error.message.slice(0, 160) : "exception WhatsApp",
-    };
-  }
-}
-
 function groupByShop(items: CanonicalItem[]): Shop[] {
   const shops = new Map<string, Shop>();
   for (const item of items) {
@@ -562,12 +443,8 @@ async function notifyInBackground(input: {
         return {
           target: shop.name,
           sms: { target: shop.name, delivered: false, reason: "numéro malien invalide ou absent" },
-          whatsapp: { target: shop.name, delivered: false, reason: "numéro malien invalide ou absent" },
         };
       }
-      const shopAttachments = (await Promise.all(
-        shop.items.filter((item) => item.image_url).slice(0, 10).map(getImageAttachment),
-      )).filter((item): item is ImageAttachment => item !== null);
       const boutiqueText = [
         `Prime Service — nouvelle commande #${input.commandId}`,
         `Boutique : ${clip(shop.name, 100)}`,
@@ -579,15 +456,7 @@ async function notifyInBackground(input: {
         `Activer les relances du site : ${activationByPhone.get(shop.phone) || `${SITE_ORIGIN}/`}`,
       ].join(" | ");
       const sms = await sendTextBee(shop.phone, boutiqueText);
-      const whatsapp = await sendWhatsApp(
-        shop.phone,
-        shop,
-        input.nom,
-        input.tel,
-        mapUrl,
-        shopAttachments,
-      );
-      return { target: shop.name, sms, whatsapp };
+      return { target: shop.name, sms };
     }));
     console.log("[notifications] commande traitée", JSON.stringify({
       commandId: input.commandId,

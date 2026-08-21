@@ -20,11 +20,24 @@ TextBee envoie les SMS en utilisant un téléphone Android enregistré comme pas
 
 Dans TextBee, ouvrez ensuite la section de clé API, créez une clé et copiez-la immédiatement dans un gestionnaire de mots de passe. Le plan gratuit annoncé comprend un appareil, 50 messages par jour et 300 messages par mois ; le forfait mobile et la SIM restent nécessaires pour l’envoi réel [3]. Les numéros des boutiques doivent être enregistrés sous forme malienne à huit chiffres ou au format international `+223XXXXXXXX`.
 
-## 3. Préparer WhatsApp Cloud API sans téléphone
+## 3. Remettre TextBee en service
 
-WhatsApp Cloud API peut fonctionner depuis le serveur Meta, sans dépendre d’un téléphone ou d’un ordinateur allumé. Il faut cependant un portfolio Meta Business, un compte WhatsApp Business, un numéro professionnel, un jeton d’accès, les permissions API, le consentement des boutiquiers et un template approuvé pour une notification initiée par le serveur. Meta permet l’envoi de texte et de médias ; pour les images, le code utilise un média téléversé lorsque le template possède un en-tête image.
+TextBee utilise un téléphone Android comme passerelle SMS. Le compte, l’application Android, la SIM et la connexion Internet du téléphone doivent rester actifs. La procédure officielle demande un compte TextBee, un appareil Android enregistré, le **Device ID** et une clé API ; l’API actuelle utilise `POST https://api.textbee.dev/api/v1/gateway/send-sms`, l’en-tête `x-api-key`, un tableau `recipients` au format international et `message` [3].
 
-Cette option reste **désactivée par défaut** pour respecter la contrainte 100 % gratuite et ne pas envoyer un message non conforme. Le code ne l’active que lorsque `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID` et `WHATSAPP_TEMPLATE_NAME` sont renseignés dans les secrets. Les tarifs et règles Meta peuvent évoluer ; il faut vérifier la page [Meta WhatsApp Pricing](https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing) avant d’activer l’envoi réel. Tant que cette vérification n’est pas faite, TextBee reste le canal SMS de secours et Discord reste le canal propriétaire.
+Sur l’ordinateur, ouvrez le tableau de bord TextBee et vérifiez que le téléphone apparaît **Connected/Online**. Si le téléphone est déconnecté, ouvrez l’application Android TextBee, vérifiez Internet, les permissions SMS et téléphone, désactivez l’économie de batterie pour TextBee, puis redémarrez ou réenregistrez l’appareil. Vérifiez ensuite le **Device ID** exact dans le tableau de bord et recréez une clé API si elle a été révoquée.
+
+Dans Supabase, ouvrez **Edge Functions → Secrets** et confirmez que `TEXTBEE_API_KEY` contient la clé active et que `TEXTBEE_DEVICE_ID` contient exactement le Device ID, sans espaces. La fonction Prime Service envoie le numéro boutique sous la forme `+223XXXXXXXX`, conformément au format E.164 attendu par TextBee. N’envoyez jamais la clé dans le chat, le frontend ou un dépôt GitHub.
+
+Pour tester sans déclencher une commande, utilisez le test SMS du tableau de bord TextBee vers votre propre numéro. Pour un test API contrôlé, envoyez un seul message court vers un numéro autorisé :
+
+```bash
+curl -X POST https://api.textbee.dev/api/v1/gateway/send-sms \\
+  -H 'Content-Type: application/json' \\
+  -H 'x-api-key: VOTRE_CLE_TEXTBEE' \\
+  -d '{"recipients":["+223XXXXXXXX"],"message":"Test Prime Service"}'
+```
+
+Interprétez les réponses ainsi : `401` indique une clé invalide, `404` un appareil introuvable ou un Device ID incorrect, `429` une limite atteinte, et `200` une requête acceptée. Le forfait gratuit annoncé par TextBee comprend un appareil, 50 messages par jour et 300 messages par mois ; les SMS utilisent toutefois la SIM et le forfait mobile du téléphone Android [3] [4].
 
 ## 4. Ajouter les secrets dans Supabase
 
@@ -37,13 +50,9 @@ Ouvrez le [projet Supabase Prime Service](https://supabase.com/dashboard/project
 | `TEXTBEE_API_KEY` | Clé API TextBee | SMS des boutiques concernées |
 | `TEXTBEE_DEVICE_ID` | Device ID du téléphone Android TextBee | SMS des boutiques concernées |
 | `SUPABASE_SERVICE_ROLE_KEY` | Clé secrète Supabase, si absente des secrets par défaut | Enregistrement serveur et stock |
-| `WHATSAPP_TOKEN` | Jeton Meta Business | WhatsApp facultatif |
-| `WHATSAPP_PHONE_ID` | Identifiant du numéro WhatsApp Business | WhatsApp facultatif |
-| `WHATSAPP_GRAPH_VERSION` | Version Graph, par exemple `v26.0` | WhatsApp facultatif |
-| `WHATSAPP_TEMPLATE_NAME` | Nom exact d’un template approuvé | WhatsApp facultatif |
-| `WHATSAPP_TEMPLATE_LANGUAGE` | Code de langue du template, par exemple `fr` | WhatsApp facultatif |
-| `WHATSAPP_TEMPLATE_HEADER_IMAGE` | `true` seulement si le template possède un en-tête image | WhatsApp facultatif |
-| `WHATSAPP_ALLOW_FREEFORM_MEDIA` | `true` uniquement après confirmation d’une fenêtre de service ouverte | Médias WhatsApp facultatifs |
+| `VAPID_PUBLIC_KEY` | Clé publique correspondant au frontend | Push boutique |
+| `VAPID_PRIVATE_KEY` | Clé privée correspondante | Push boutique côté serveur |
+| `DISCORD_WEBHOOK_ADMIN` | Webhook du propriétaire pour l’escalade finale | Alerte après quatre échecs |
 
 Cliquez sur **Save**. Supabase documente l’ajout des secrets depuis la page de gestion des secrets des Edge Functions et précise qu’il n’est pas nécessaire de redéployer la fonction après une simple modification des secrets [1].
 
@@ -53,7 +62,7 @@ Le dépôt contient les fonctions versionnées dans `supabase/functions/`. La m�
 
 Dans GitHub, ouvrez le dépôt `roimtrmt-stack/prime-service`, puis **Settings → Secrets and variables → Actions → New repository secret**. Ajoutez `SUPABASE_ACCESS_TOKEN` avec un jeton personnel Supabase autorisé à déployer les fonctions, et `SUPABASE_PROJECT_REF` avec la valeur `kfxalpvbtbvkncztjwzc`. Ne mettez jamais ces valeurs dans un fichier commité.
 
-Ensuite, ouvrez **Actions → Déploiement des fonctions Supabase → Run workflow → Run workflow**. Le workflow publie `envoyer-commande` et `envoyer-inscription`. Il ne publie aucun secret dans les logs.
+Ensuite, ouvrez **Actions → Déploiement des fonctions Supabase → Run workflow → Run workflow**. Le workflow publie `envoyer-commande`, `envoyer-inscription`, `notifier-boutiquier`, `accuser-notification` et `lier-notification-push`. Il ne publie aucun secret dans les logs.
 
 La migration `supabase/migrations/202608210001_secure_order_writes.sql` doit être appliquée une seule fois. Elle supprime les insertions anonymes directes dans `commandes` et `notifications_boutiquiers`, car ces deux écritures sont maintenant faites par `envoyer-commande` côté serveur. Avant de l’appliquer, vérifiez que la nouvelle fonction est bien déployée.
 
@@ -65,7 +74,7 @@ GitHub documente une allocation GitHub Free de 2 000 minutes mensuelles et la gr
 
 ## 7. Tests à effectuer
 
-Le test local est lancé depuis la racine du dépôt avec `node tests/validate-system.mjs`. Il vérifie la syntaxe des deux pages, l’absence d’insertion publique de commande dans le navigateur, la présence de TextBee côté serveur, la séparation du webhook d’inscription et la migration RLS.
+Le test local est lancé depuis la racine du dépôt avec `node tests/validate-system.mjs`. Il vérifie la syntaxe des pages, l’absence d’insertion publique de commande et de numéro boutique dans le navigateur, la présence de TextBee côté serveur, la séparation du webhook d’inscription, la liaison push par jeton et la migration RLS.
 
 Pour le test réel, créez d’abord une commande avec un seul article de test et un numéro de boutique de test. Vérifiez que la confirmation apparaît sans attendre la réception du SMS. Vérifiez ensuite que le propriétaire reçoit le message Discord et que seul le boutiquier lié à l’article reçoit le SMS. Avec une commande composée d’articles de deux boutiques, chaque boutique doit recevoir uniquement son propre montant et ses propres articles.
 
@@ -73,7 +82,7 @@ Pour l’inscription, envoyez deux articles avec deux photos. Le formulaire peut
 
 Le workflow distant envoie uniquement des corps JSON invalides (`{}`) aux deux endpoints. Une réponse `400`, `401`, `403` ou `429` est considérée comme un refus correct ; aucune commande, aucun stock et aucune notification réelle ne sont créés par ce contrôle.
 
-Après une activation WhatsApp, vérifier dans les logs trois statuts distincts : `owner-discord`, `sms` et `whatsapp`. Un échec WhatsApp doit rester un échec de notification, jamais un échec d’enregistrement de commande.
+Après un test TextBee, vérifier dans les logs le statut `sms` par boutique et la réponse HTTP TextBee. Un échec SMS doit rester un échec de notification, jamais un échec d’enregistrement de commande.
 
 ## 8. Architecture retenue
 
@@ -93,9 +102,9 @@ La page de remerciement affiche le numéro de paiement `94 13 44 08`, le montant
 [4]: https://docs.github.com/billing/managing-billing-for-github-actions/about-billing-for-github-actions "GitHub — Actions billing"
 [5]: https://supabase.com/docs/guides/functions/background-tasks "Supabase — Background Tasks"
 [6]: https://supabase.com/pricing "Supabase — Pricing"
-[7]: https://developers.facebook.com/documentation/business-messaging/whatsapp/about-the-platform "Meta — About the WhatsApp Business Platform"
-[8]: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages "Meta — Service messages and customer service window"
-[9]: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/image-messages "Meta — Image messages"
+[7]: https://textbee.dev/docs/sending-sms/sending-sms "TextBee — Sending SMS"
+[8]: https://textbee.dev/docs/faq "TextBee — FAQ et dépannage"
+[9]: https://api.textbee.dev/ "TextBee — API reference"
 [10]: https://www.orangemali.com/fr/transfert/transfert-national.html "Orange Mali — Transfert national"
 
 ## 10. Relances automatiques des boutiquiers

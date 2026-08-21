@@ -59,3 +59,13 @@ Les tests Node locaux, `git diff --check`, la compilation des quatre Edge Functi
 ## Fichiers corrigés
 
 Les principaux fichiers sont `supabase/functions/envoyer-commande/index.ts`, `supabase/functions/lier-notification-push/index.ts`, `index.html`, `supabase/migrations/202608210004_secure_push_subscription_binding.sql`, `.github/workflows/deploy-functions.yml`, `AGENTS_ROLES.md`, `README_NOTIFICATIONS.md` et la compétence `/home/ubuntu/skills/prime-service-notifications/SKILL.md`.
+
+## Test réel contrôlé du 21 août 2026
+
+Deux articles fictifs `TEST_NOTIFICATION_PRIME_20260821_A` et `TEST_NOTIFICATION_PRIME_20260821_B` ont été publiés puis commandés avec le client `TEST Audit Notifications`. La commande `ff044b69-6440-484c-a868-247889177d40` a été enregistrée avec un total de 4 100 FCFA, puis supprimée avec ses articles et sa file de notification.
+
+Le journal backend a confirmé `owner-discord: delivered=true` avec photos jointes. Le SMS boutique a échoué avec la cause exacte `TEXTBEE_API_KEY absent`, donc TextBee n’est pas actuellement configuré dans les secrets Edge Functions ou la clé n’est pas visible par la fonction. Aucun push réel n’a été envoyé car aucun abonnement push actif n’était associé au numéro de test.
+
+Un probe push fictif a ensuite été traité par quatre tentatives. L’erreur obtenue était `The subscription p256dh value should be 65 bytes long`, et non `Clés VAPID absentes` : les variables VAPID ont donc été lues par le worker. Le statut final est devenu `echec_definitif` avec `tentative=4`, `prochaine_tentative=null` et `escalated_at` renseigné, ce qui confirme le fonctionnement du calendrier et de l’escalade. La réception Discord a été déclenchée via le webhook administrateur ou, à défaut, le webhook propriétaire de secours ; le test ne permet pas de distinguer lequel sans lire les secrets.
+
+Les compteurs de nettoyage sont tous à zéro : articles TEST, commande TEST, notification TEST et abonnement push fictif supprimés.
