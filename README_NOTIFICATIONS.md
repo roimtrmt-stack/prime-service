@@ -20,7 +20,13 @@ TextBee envoie les SMS en utilisant un téléphone Android enregistré comme pas
 
 Dans TextBee, ouvrez ensuite la section de clé API, créez une clé et copiez-la immédiatement dans un gestionnaire de mots de passe. Le plan gratuit annoncé comprend un appareil, 50 messages par jour et 300 messages par mois ; le forfait mobile et la SIM restent nécessaires pour l’envoi réel [3]. Les numéros des boutiques doivent être enregistrés sous forme malienne à huit chiffres ou au format international `+223XXXXXXXX`.
 
-## 3. Ajouter les secrets dans Supabase
+## 3. Préparer WhatsApp Cloud API sans téléphone
+
+WhatsApp Cloud API peut fonctionner depuis le serveur Meta, sans dépendre d’un téléphone ou d’un ordinateur allumé. Il faut cependant un portfolio Meta Business, un compte WhatsApp Business, un numéro professionnel, un jeton d’accès, les permissions API, le consentement des boutiquiers et un template approuvé pour une notification initiée par le serveur. Meta permet l’envoi de texte et de médias ; pour les images, le code utilise un média téléversé lorsque le template possède un en-tête image.
+
+Cette option reste **désactivée par défaut** pour respecter la contrainte 100 % gratuite et ne pas envoyer un message non conforme. Le code ne l’active que lorsque `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID` et `WHATSAPP_TEMPLATE_NAME` sont renseignés dans les secrets. Les tarifs et règles Meta peuvent évoluer ; il faut vérifier la page [Meta WhatsApp Pricing](https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing) avant d’activer l’envoi réel. Tant que cette vérification n’est pas faite, TextBee reste le canal SMS de secours et Discord reste le canal propriétaire.
+
+## 4. Ajouter les secrets dans Supabase
 
 Ouvrez le [projet Supabase Prime Service](https://supabase.com/dashboard/project/kfxalpvbtbvkncztjwzc), puis allez dans **Edge Functions → Secrets**. Cliquez sur **Add new secret** et ajoutez les entrées suivantes. La clé `SUPABASE_SERVICE_ROLE_KEY` est normalement fournie automatiquement par Supabase ; si elle n’apparaît pas, utilisez la clé secrète du projet uniquement dans les secrets Edge Functions, jamais dans le frontend.
 
@@ -31,10 +37,17 @@ Ouvrez le [projet Supabase Prime Service](https://supabase.com/dashboard/project
 | `TEXTBEE_API_KEY` | Clé API TextBee | SMS des boutiques concernées |
 | `TEXTBEE_DEVICE_ID` | Device ID du téléphone Android TextBee | SMS des boutiques concernées |
 | `SUPABASE_SERVICE_ROLE_KEY` | Clé secrète Supabase, si absente des secrets par défaut | Enregistrement serveur et stock |
+| `WHATSAPP_TOKEN` | Jeton Meta Business | WhatsApp facultatif |
+| `WHATSAPP_PHONE_ID` | Identifiant du numéro WhatsApp Business | WhatsApp facultatif |
+| `WHATSAPP_GRAPH_VERSION` | Version Graph, par exemple `v26.0` | WhatsApp facultatif |
+| `WHATSAPP_TEMPLATE_NAME` | Nom exact d’un template approuvé | WhatsApp facultatif |
+| `WHATSAPP_TEMPLATE_LANGUAGE` | Code de langue du template, par exemple `fr` | WhatsApp facultatif |
+| `WHATSAPP_TEMPLATE_HEADER_IMAGE` | `true` seulement si le template possède un en-tête image | WhatsApp facultatif |
+| `WHATSAPP_ALLOW_FREEFORM_MEDIA` | `true` uniquement après confirmation d’une fenêtre de service ouverte | Médias WhatsApp facultatifs |
 
 Cliquez sur **Save**. Supabase documente l’ajout des secrets depuis la page de gestion des secrets des Edge Functions et précise qu’il n’est pas nécessaire de redéployer la fonction après une simple modification des secrets [1].
 
-## 4. Publier les fonctions serveur
+## 5. Publier les fonctions serveur
 
 Le dépôt contient les fonctions versionnées dans `supabase/functions/`. La méthode recommandée est d’utiliser le workflow manuel GitHub prévu pour cela après avoir ajouté les secrets de déploiement.
 
@@ -44,13 +57,13 @@ Ensuite, ouvrez **Actions → Déploiement des fonctions Supabase → Run workfl
 
 La migration `supabase/migrations/202608210001_secure_order_writes.sql` doit être appliquée une seule fois. Elle supprime les insertions anonymes directes dans `commandes` et `notifications_boutiquiers`, car ces deux écritures sont maintenant faites par `envoyer-commande` côté serveur. Avant de l’appliquer, vérifiez que la nouvelle fonction est bien déployée.
 
-## 5. Mettre le site à jour
+## 6. Mettre le site à jour
 
 Le site GitHub Pages est déjà configuré sur la branche `main`. Après validation locale, poussez les fichiers sur `main` ou acceptez la mise à jour proposée. GitHub Pages reconstruira automatiquement le site. Le workflow `Qualité Prime Service` s’exécute sur chaque modification, sur les demandes de fusion, manuellement et une fois par semaine.
 
 GitHub documente une allocation GitHub Free de 2 000 minutes mensuelles et la gratuité des runners standard pour les dépôts publics [4]. Le workflow de ce dépôt reste volontairement léger : il ne lance aucun navigateur lourd, n’envoie aucune vraie notification et ne modifie aucune donnée métier.
 
-## 6. Tests à effectuer
+## 7. Tests à effectuer
 
 Le test local est lancé depuis la racine du dépôt avec `node tests/validate-system.mjs`. Il vérifie la syntaxe des deux pages, l’absence d’insertion publique de commande dans le navigateur, la présence de TextBee côté serveur, la séparation du webhook d’inscription et la migration RLS.
 
@@ -60,11 +73,17 @@ Pour l’inscription, envoyez deux articles avec deux photos. Le formulaire peut
 
 Le workflow distant envoie uniquement des corps JSON invalides (`{}`) aux deux endpoints. Une réponse `400`, `401`, `403` ou `429` est considérée comme un refus correct ; aucune commande, aucun stock et aucune notification réelle ne sont créés par ce contrôle.
 
-## Architecture retenue
+Après une activation WhatsApp, vérifier dans les logs trois statuts distincts : `owner-discord`, `sms` et `whatsapp`. Un échec WhatsApp doit rester un échec de notification, jamais un échec d’enregistrement de commande.
+
+## 8. Architecture retenue
 
 GitHub Actions ne sert pas de serveur temps réel : un workflow ne peut pas garantir une confirmation inférieure à une seconde après chaque validation publique. Il sert à vérifier le code et à publier les fonctions. Supabase reçoit la commande et utilise une tâche d’arrière-plan Edge Function pour poursuivre Discord et TextBee après la réponse HTTP. Supabase documente précisément ce mécanisme avec `EdgeRuntime.waitUntil` [5].
 
 Cette séparation préserve la fluidité du parcours client et garde les clés privées hors du navigateur. Le plan gratuit Supabase documente 500 000 invocations Edge Functions incluses et 500 Mo de base de données ; ces quotas doivent néanmoins être surveillés [6].
+
+## 9. Paiement et carte côté client
+
+La page de remerciement affiche le numéro de paiement `94 13 44 08`, le montant de la commande et le code direct officiel Orange Mali sous la forme `#144*1*94 13 44 08 sans espaces*montant*1*CODE_SECRET#`. Le client remplace `CODE_SECRET` uniquement sur son téléphone, vérifie le numéro, le montant et les frais, puis appuie sur OK/Envoyer. Il peut aussi composer `#144#`, choisir « Transfert d’argent » et suivre le menu. Un aperçu de la position est affiché si les coordonnées GPS sont disponibles ; le bouton Google Maps nécessite Internet. Le site ne promet pas une navigation satellite hors connexion à partir d’un simple lien.
 
 ## Références officielles
 
@@ -74,3 +93,7 @@ Cette séparation préserve la fluidité du parcours client et garde les clés p
 [4]: https://docs.github.com/billing/managing-billing-for-github-actions/about-billing-for-github-actions "GitHub — Actions billing"
 [5]: https://supabase.com/docs/guides/functions/background-tasks "Supabase — Background Tasks"
 [6]: https://supabase.com/pricing "Supabase — Pricing"
+[7]: https://developers.facebook.com/documentation/business-messaging/whatsapp/about-the-platform "Meta — About the WhatsApp Business Platform"
+[8]: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages "Meta — Service messages and customer service window"
+[9]: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/image-messages "Meta — Image messages"
+[10]: https://www.orangemali.com/fr/transfert/transfert-national.html "Orange Mali — Transfert national"

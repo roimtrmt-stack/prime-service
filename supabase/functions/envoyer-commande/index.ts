@@ -50,7 +50,9 @@ type Shop = {
   name: string;
   phone: string | null;
   articles: string[];
+  items: CanonicalItem[];
   amount: number;
+  commission: number;
   lat: number | null;
   lng: number | null;
 };
@@ -136,12 +138,18 @@ async function fetchWithTimeout(
 }
 
 async function fetchSafeImage(url: string): Promise<Blob | null> {
-  const response = await fetchWithTimeout(url, { method: "GET", redirect: "error" }, 5_000);
-  if (!response.ok) return null;
-  const declaredSize = Number(response.headers.get("content-length") || 0);
-  if (declaredSize > MAX_IMAGE_BYTES) return null;
-  const blob = await response.blob();
-  return blob.size <= MAX_IMAGE_BYTES ? blob : null;
+  try {
+    const response = await fetchWithTimeout(url, { method: "GET", redirect: "error" }, 5_000);
+    if (!response.ok) return null;
+    const declaredSize = Number(response.headers.get("content-length") || 0);
+    if (declaredSize > MAX_IMAGE_BYTES) return null;
+    const contentType = (response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    if (!["image/jpeg", "image/png", "image/webp"].includes(contentType)) return null;
+    const blob = await response.blob();
+    return blob.size <= MAX_IMAGE_BYTES ? blob : null;
+  } catch {
+    return null;
+  }
 }
 
 type DeliveryResult = {
@@ -150,12 +158,37 @@ type DeliveryResult = {
   reason: string;
 };
 
-async function sendDiscord(webhookUrl: string, payload: Record<string, unknown>): Promise<boolean> {
-  const response = await fetchWithTimeout(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+type ImageAttachment = {
+  item: CanonicalItem;
+  blob: Blob;
+  filename: string;
+};
+
+function imageExtension(contentType: string): string {
+  if (contentType === "image/png") return "png";
+  if (contentType === "image/webp") return "webp";
+  return "jpg";
+}
+
+async function sendDiscord(
+  webhookUrl: string,
+  payload: Record<string, unknown>,
+  attachments: ImageAttachment[] = [],
+): Promise<boolean> {
+  if (attachments.length === 0) {
+    const response = await fetchWithTimeout(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return response.ok;
+  }
+  const form = new FormData();
+  form.append("payload_json", JSON.stringify(payload));
+  attachments.forEach((attachment, index) => {
+    form.append(`files[${index}]`, attachment.blob, attachment.filename);
   });
+  const response = await fetchWithTimeout(webhookUrl, { method: "POST", body: form }, 20_000);
   return response.ok;
 }
 
@@ -191,6 +224,125 @@ async function sendTextBee(phone: string, message: string): Promise<DeliveryResu
   }
 }
 
+function normalizeWhatsAppPhone(value: unknown): string | null {
+  const raw = text(value, 40);
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 8) return `223${digits}`;
+  if (digits.length === 11 && digits.startsWith("223")) return digits;
+  return null;
+}
+
+async function uploadWhatsAppMedia(
+  endpoint: string,
+  token: string,
+  attachment: ImageAttachment,
+): Promise<string | null> {
+  if (!["image/jpeg", "image/png"].includes(attachment.blob.type) || attachment.blob.size > 5_000_000) {
+    return null;
+  }
+  const form = new FormData();
+  form.append("messaging_product", "whatsapp");
+  form.append("type", attachment.blob.type);
+  form.append("file", attachment.blob, attachment.filename);
+  try {
+    const response = await fetchWithTimeout(`${endpoint}/media`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    }, 20_000);
+    if (!response.ok) return null;
+    const body = await response.json();
+    return text(body?.id, 200) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function sendWhatsApp(
+  phone: string,
+  shop: Shop,
+  clientName: string,
+  clientPhone: string,
+  mapUrl: string,
+  images: ImageAttachment[],
+): Promise<DeliveryResult> {
+  const token = text(Deno.env.get("WHATSAPP_TOKEN"), 4_000);
+  const phoneId = text(
+    Deno.env.get("WHATSAPP_PHONE_ID") || Deno.env.get("WHATSAPP_PHONE_NUMBER_ID"),
+    120,
+  );
+  const templateName = text(Deno.env.get("WHATSAPP_TEMPLATE_NAME"), 120);
+  const language = text(Deno.env.get("WHATSAPP_TEMPLATE_LANGUAGE"), 20) || "fr";
+  const target = `whatsapp:${phone}`;
+  if (!token || !phoneId || !templateName) {
+    return { target, delivered: false, reason: "WhatsApp non configuré (token, phone ID ou template absent)" };
+  }
+  const recipient = normalizeWhatsAppPhone(phone);
+  if (!recipient) return { target, delivered: false, reason: "numéro WhatsApp malien invalide" };
+
+  const graphVersion = text(Deno.env.get("WHATSAPP_GRAPH_VERSION"), 20) || "v26.0";
+  const endpoint = `https://graph.facebook.com/${graphVersion}/${phoneId}`;
+  const bodyParameters = [
+    shop.name,
+    clientName,
+    clientPhone,
+    shop.articles.join(", "),
+    `${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+    mapUrl,
+  ].map((value) => ({ type: "text", text: clip(value, 1_024) }));
+  const components: Array<Record<string, unknown>> = [{ type: "body", parameters: bodyParameters }];
+  const templateNeedsImageHeader = Deno.env.get("WHATSAPP_TEMPLATE_HEADER_IMAGE") === "true";
+  if (templateNeedsImageHeader) {
+    const firstImage = images[0];
+    if (!firstImage) return { target, delivered: false, reason: "template WhatsApp image sans photo valide" };
+    const mediaId = await uploadWhatsAppMedia(endpoint, token, firstImage);
+    if (!mediaId) return { target, delivered: false, reason: "échec téléversement média WhatsApp" };
+    components.unshift({ type: "header", parameters: [{ type: "image", image: { id: mediaId } }] });
+  }
+
+  try {
+    const response = await fetchWithTimeout(`${endpoint}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: `+${recipient}`,
+        type: "template",
+        template: { name: templateName, language: { code: language }, components },
+      }),
+    }, 20_000);
+    if (!response.ok) return { target, delivered: false, reason: `WhatsApp HTTP ${response.status}` };
+
+    // Les images libres supplémentaires ne sont activées que si l’administrateur
+    // confirme qu’une fenêtre de service WhatsApp est ouverte pour ce destinataire.
+    if (Deno.env.get("WHATSAPP_ALLOW_FREEFORM_MEDIA") === "true") {
+      for (const image of images.slice(0, 10)) {
+        const mediaId = await uploadWhatsAppMedia(endpoint, token, image);
+        if (!mediaId) continue;
+        await fetchWithTimeout(`${endpoint}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: `+${recipient}`,
+            type: "image",
+            image: { id: mediaId, caption: clip(image.item.nom, 1_024) },
+          }),
+        }, 20_000);
+      }
+    }
+    return { target, delivered: true, reason: "accepted" };
+  } catch (error) {
+    return {
+      target,
+      delivered: false,
+      reason: error instanceof Error ? error.message.slice(0, 160) : "exception WhatsApp",
+    };
+  }
+}
+
 function groupByShop(items: CanonicalItem[]): Shop[] {
   const shops = new Map<string, Shop>();
   for (const item of items) {
@@ -201,12 +353,16 @@ function groupByShop(items: CanonicalItem[]): Shop[] {
       name,
       phone,
       articles: [],
+      items: [],
       amount: 0,
+      commission: 0,
       lat: item.lat,
       lng: item.lng,
     };
     existing.articles.push(`${item.nom} x${item.quantite}`);
+    existing.items.push(item);
     existing.amount += Math.max(0, item.prix - item.commission) * item.quantite;
+    existing.commission += item.commission * item.quantite;
     shops.set(key, existing);
   }
   return [...shops.values()].slice(0, 30);
@@ -240,12 +396,26 @@ async function notifyInBackground(input: {
     const address = await reverseGeocode(input.lat, input.lng);
     const mapUrl = `https://www.google.com/maps?q=${input.lat},${input.lng}`;
     const shops = groupByShop(input.items);
-    const lines = input.items.map((item) =>
-      `• ${clip(item.nom, 100)} x${item.quantite} — ${(item.prix * item.quantite).toLocaleString("fr-FR")} FCFA`
+    const commissionTotal = input.items.reduce(
+      (sum, item) => sum + item.commission * item.quantite,
+      0,
     );
-    const shopLines = shops.map((shop) =>
-      `🏪 ${clip(shop.name, 80)} — ${(Math.round(shop.amount)).toLocaleString("fr-FR")} FCFA`
-    );
+    const lines = input.items.map((item) => {
+      const displayedAmount = item.prix * item.quantite;
+      const shopAmount = Math.max(0, item.prix - item.commission) * item.quantite;
+      const commissionAmount = item.commission * item.quantite;
+      return [
+        `• ${clip(item.nom, 100)} x${item.quantite}`,
+        `  Prix affiché client : ${displayedAmount.toLocaleString("fr-FR")} FCFA`,
+        `  À remettre à la boutique : ${shopAmount.toLocaleString("fr-FR")} FCFA`,
+        `  Commission Prime Service : ${commissionAmount.toLocaleString("fr-FR")} FCFA`,
+      ].join("\n");
+    });
+    const shopLines = shops.map((shop) => [
+      `🏪 **${clip(shop.name, 80)}**`,
+      `   À remettre à la boutique : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+      `   Commission à garder : ${Math.round(shop.commission).toLocaleString("fr-FR")} FCFA`,
+    ].join("\n"));
     const created = new Date(input.createdAt).toLocaleString("fr-FR", {
       timeZone: "Africa/Bamako",
     });
@@ -258,22 +428,40 @@ async function notifyInBackground(input: {
       `📍 **Adresse :** ${address}`,
       `🗺️ **Carte :** ${mapUrl}`,
       "",
-      "📦 **Articles :**",
+      "📦 **Articles et répartition financière propriétaire :**",
       ...lines,
       "",
       ...shopLines,
-      `💰 **TOTAL :** ${input.total.toLocaleString("fr-FR")} FCFA`,
+      `💰 **TOTAL CLIENT :** ${input.total.toLocaleString("fr-FR")} FCFA`,
+      `🧾 **COMMISSION TOTALE À GARDER :** ${Math.round(commissionTotal).toLocaleString("fr-FR")} FCFA`,
     ].join("\n"), 1_950);
-    const imageItems = (await Promise.all(
-      input.items
-        .filter((item) => item.image_url)
-        .slice(0, 10)
-        .map(async (item) => (await fetchSafeImage(item.image_url!)) ? item : null),
-    )).filter((item): item is CanonicalItem => item !== null);
-    const embeds = imageItems.map((item) => ({
-      title: `${clip(item.nom, 180)} x${item.quantite}`,
-      description: `${(item.prix * item.quantite).toLocaleString("fr-FR")} FCFA`,
-      image: { url: item.image_url },
+
+    const imageCache = new Map<number, ImageAttachment | null>();
+    const getImageAttachment = async (item: CanonicalItem): Promise<ImageAttachment | null> => {
+      if (!item.image_url) return null;
+      if (imageCache.has(item.id)) return imageCache.get(item.id) ?? null;
+      const blob = await fetchSafeImage(item.image_url);
+      const attachment = blob
+        ? {
+          item,
+          blob,
+          filename: `article-${item.id}.${imageExtension(blob.type)}`,
+        }
+        : null;
+      imageCache.set(item.id, attachment);
+      return attachment;
+    };
+    const ownerAttachments = (await Promise.all(
+      input.items.filter((item) => item.image_url).slice(0, 10).map(getImageAttachment),
+    )).filter((item): item is ImageAttachment => item !== null);
+    const embeds = ownerAttachments.map((attachment) => ({
+      title: `${clip(attachment.item.nom, 180)} x${attachment.item.quantite}`,
+      description: [
+        `Prix affiché : ${(attachment.item.prix * attachment.item.quantite).toLocaleString("fr-FR")} FCFA`,
+        `À remettre : ${(Math.max(0, attachment.item.prix - attachment.item.commission) * attachment.item.quantite).toLocaleString("fr-FR")} FCFA`,
+        `Commission : ${(attachment.item.commission * attachment.item.quantite).toLocaleString("fr-FR")} FCFA`,
+      ].join("\n"),
+      image: { url: `attachment://${attachment.filename}` },
       color: 0x2563eb,
     }));
 
@@ -289,30 +477,47 @@ async function notifyInBackground(input: {
           content,
           embeds,
           allowed_mentions: { parse: [] },
-        });
+        }, ownerAttachments);
         ownerResult = {
           target: "owner-discord",
           delivered: discordOk,
-          reason: discordOk ? "accepted" : "Discord HTTP error",
+          reason: discordOk ? "accepted avec photos jointes" : "Discord HTTP error",
         };
       } catch (error) {
         ownerResult.reason = error instanceof Error ? error.message.slice(0, 160) : "exception Discord";
       }
     }
 
-    const shopResults = await Promise.all(shops.map(async (shop): Promise<DeliveryResult> => {
+    const shopResults = await Promise.all(shops.map(async (shop) => {
       if (!shop.phone) {
-        return { target: shop.name, delivered: false, reason: "numéro malien invalide ou absent" };
+        return {
+          target: shop.name,
+          sms: { target: shop.name, delivered: false, reason: "numéro malien invalide ou absent" },
+          whatsapp: { target: shop.name, delivered: false, reason: "numéro malien invalide ou absent" },
+        };
       }
-      const sms = [
+      const shopAttachments = (await Promise.all(
+        shop.items.filter((item) => item.image_url).slice(0, 10).map(getImageAttachment),
+      )).filter((item): item is ImageAttachment => item !== null);
+      const boutiqueText = [
         `Prime Service — nouvelle commande #${input.commandId}`,
-        `Boutique: ${shop.name}`,
-        `Articles: ${shop.articles.join(", ")}`,
-        `Montant boutique: ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
-        `Client: ${clip(input.nom, 60)} — ${clip(input.tel, 24)}`,
-        `Carte client: ${mapUrl}`,
+        `Boutique : ${clip(shop.name, 100)}`,
+        "Articles à préparer :",
+        ...shop.items.map((item) => `• ${clip(item.nom, 100)} x${item.quantite}`),
+        `Montant NET à recevoir : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+        `Client : ${clip(input.nom, 60)} — ${clip(input.tel, 24)}`,
+        `Carte client : ${mapUrl}`,
       ].join(" | ");
-      return await sendTextBee(shop.phone, sms);
+      const sms = await sendTextBee(shop.phone, boutiqueText);
+      const whatsapp = await sendWhatsApp(
+        shop.phone,
+        shop,
+        input.nom,
+        input.tel,
+        mapUrl,
+        shopAttachments,
+      );
+      return { target: shop.name, sms, whatsapp };
     }));
     console.log("[notifications] commande traitée", JSON.stringify({
       commandId: input.commandId,

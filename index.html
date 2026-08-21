@@ -2445,7 +2445,7 @@ async function envoyerCommande(event){
 
     panier = [];
     mettreAJourCompteur();
-    afficherPageMerci(paiement, Number(donnees.total) || totalCommande);
+    afficherPageMerci(paiement, Number(donnees.total) || totalCommande, false, lat, lng);
   } catch(erreur){
     console.error("Erreur enregistrement commande:", erreur);
     statutEnvoi.style.color = "#dc2626";
@@ -2456,7 +2456,7 @@ async function envoyerCommande(event){
   return false;
 }
 
-function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
+function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClient = null, lngClient = null){
   cacherToutesLesVues();
   document.getElementById("vue-merci").style.display = "block";
 
@@ -2508,32 +2508,56 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false){
       line-height: 1.6;
     `;
 
+    const numeroPaiementSaisi = CONFIG.NUMERO_PAIEMENT.replace(/\D/g, "");
+    const codeOrange = "#144#";
     divInstructions.innerHTML = `
       <div style="background: #fef2f2; border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; border-left: 4px solid #dc2626;">
         <strong style="color: #dc2626; display: block;">⚠️ Paiement Orange Money uniquement :</strong>
-        <span style="color: #991b1b; font-size: 14px;">N'envoyez PAS d'argent au livreur ! Payez simplement au numéro ci-dessous. Vous pouvez revenir à l’accueil dès maintenant.</span>
+        <span style="color: #991b1b; font-size: 14px;">N'envoyez pas d'argent au livreur. Le paiement se fait au numéro Prime Service ci-dessous. Les frais éventuels affichés par Orange sont à vérifier avant validation.</span>
       </div>
 
       <div style="margin-bottom: 16px;">
-        <div style="font-weight: 700; font-size: 16px; margin-bottom: 8px; color: #1f2937;">💳 Paiement Orange Money</div>
+        <div style="font-weight: 700; font-size: 16px; margin-bottom: 8px; color: #1f2937;">💳 Transfert Orange Money sans connexion Internet</div>
+        <p style="margin: 0 0 10px; color: #374151;">Utilisez le menu USSD officiel Orange Mali :</p>
         <ol style="margin: 0; padding-left: 20px; color: #374151;">
-          <li style="margin-bottom: 6px;">Composez <strong>#144#</strong> sur votre téléphone.</li>
-          <li style="margin-bottom: 6px;">Suivez le menu <strong>Transfert d'argent</strong>.</li>
-          <li style="margin-bottom: 6px;">Entrez le numéro <strong style="color: #2563eb;">94 13 44 08</strong> et le montant de <strong style="color: #16a34a;">${montantAffiche}</strong>.</li>
-          <li>Validez avec votre code secret Orange Money.</li>
+          <li style="margin-bottom: 6px;">Ouvrez l’application <strong>Téléphone</strong>.</li>
+          <li style="margin-bottom: 6px;">Composez directement <strong style="color: #dc2626;">#144*1*${numeroPaiementSaisi}*${Math.round(montantReel)}*1*CODE_SECRET#</strong>.</li>
+          <li style="margin-bottom: 6px;">Remplacez uniquement <strong>CODE_SECRET</strong> par votre code secret Orange Money, puis appuyez sur <strong>Appeler / Envoyer</strong>.</li>
+          <li style="margin-bottom: 6px;">Relisez le numéro <strong style="color: #2563eb;">${numeroPaiementSaisi}</strong>, le montant <strong style="color: #16a34a;">${montantAffiche}</strong> et les frais affichés, puis validez avec <strong>OK / Envoyer</strong>.</li>
+          <li>Attendez le SMS de confirmation et conservez-le. Ne communiquez jamais votre code secret à quelqu’un d’autre.</li>
         </ol>
+        <p style="margin: 10px 0 0; color: #6b7280; font-size: 13px;">Le code direct officiel est indiqué ci-dessus. Vous pouvez aussi composer <strong>#144#</strong>, choisir « Transfert d'argent » et suivre le menu. Ne validez jamais si le bénéficiaire ou le montant affiché est incorrect.</p>
       </div>
 
       <div style="border-top: 1px solid #e5e7eb; padding-top: 14px; margin-top: 8px;">
         <div style="font-weight: 600; font-size: 14px; color: #374151; margin-bottom: 4px;">🏪 Alternative Kiosque Orange Money :</div>
         <div style="color: #4b5563; font-size: 14px;">
-          Donnez le numéro <strong style="color: #2563eb;">94 13 44 08</strong> et <strong style="color: #16a34a;">${montantAffiche}</strong> au vendeur. Il fera le transfert pour vous (frais minimes).
+          Donnez au vendeur le numéro <strong style="color: #2563eb;">${numeroPaiementSaisi}</strong> et le montant <strong style="color: #16a34a;">${montantAffiche}</strong>. Vérifiez le SMS de confirmation avant de quitter le kiosque.
         </div>
       </div>
     `;
 
     document.querySelector(".bloc-paiement").after(divInstructions);
     instructionsElement = document.getElementById("instructionsPaiementMerci");
+  }
+
+  // Aperçu cartographique léger : l’image est facultative et le lien reste utilisable en ligne.
+  let carteElement = document.getElementById("carteClientMerci");
+  if(!carteElement && Number.isFinite(Number(latClient)) && Number.isFinite(Number(lngClient))){
+    const lat = Number(latClient);
+    const lng = Number(lngClient);
+    const carteUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
+    const apercuUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${encodeURIComponent(`${lat},${lng}`)}&zoom=16&size=600x300&maptype=mapnik&markers=${encodeURIComponent(`${lat},${lng},red-pushpin`)}`;
+    carteElement = document.createElement("div");
+    carteElement.id = "carteClientMerci";
+    carteElement.style.cssText = "background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:14px;margin:16px 0;text-align:left;";
+    carteElement.innerHTML = `
+      <div style="font-weight:700;color:#1f2937;margin-bottom:8px;">📍 Position de livraison</div>
+      <a href="${carteUrl}" target="_blank" rel="noopener noreferrer" style="display:block;color:#2563eb;font-weight:600;margin-bottom:10px;">Ouvrir l’itinéraire dans Google Maps</a>
+      <img src="${apercuUrl}" alt="Aperçu de la position de livraison" loading="lazy" style="display:block;width:100%;max-height:220px;object-fit:cover;border-radius:10px;background:#e5e7eb;" onerror="this.style.display='none';">
+      <div style="font-size:12px;color:#6b7280;margin-top:8px;">L’aperçu peut nécessiter Internet ; le bouton ouvre la carte détaillée.</div>
+    `;
+    document.getElementById("instructionsPaiementMerci").after(carteElement);
   }
 
   // Message informatif non bloquant : les notifications sont traitées côté serveur.
