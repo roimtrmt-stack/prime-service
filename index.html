@@ -1100,8 +1100,8 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#1a1a1a">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3" integrity="sha384-l8ah+VgaWtk1mvOe9VC+OirC6qHFF4yH7l7mKRidV9MSti3E9F463bMp6ZVN4kuC" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
 </head>
 <body>
 
@@ -1548,6 +1548,20 @@ function echapperPourOnclick(texte){
   return echapperHtml(JSON.stringify(String(texte ?? "")));
 }
 
+// Valide les URLs d'image avant toute insertion dans le DOM.
+function urlImageSecurisee(url){
+  if(url === null || url === undefined || String(url).trim() === "") return "";
+  try{
+    const candidate = new URL(String(url), window.location.href);
+    const originSupabase = new URL(CONFIG.SUPABASE_URL).origin;
+    const origineAutorisee = candidate.origin === window.location.origin || candidate.origin === originSupabase;
+    if(candidate.protocol !== "https:" || !origineAutorisee) return "";
+    return candidate.href;
+  } catch(e){
+    return "";
+  }
+}
+
 /* =====================================================================
    TEST DU WEBHOOK DISCORD (pour déboguer)
    ===================================================================== */
@@ -1983,17 +1997,20 @@ function afficherRecherche(query, pousserHistorique = true){
   if(resultats.length === 0){
     grille.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:#666;padding:30px 0;">Aucun article ou boutique ne correspond à votre recherche.</p>`;
   } else {
-    grille.innerHTML = resultats.map(p => `
+    grille.innerHTML = resultats.map(p => {
+      const imageUrl = urlImageSecurisee(p.image_url);
+      return `
       <div class="carte-produit">
-        <div class="zone-image" ${p.image_url ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(p.image_url)}, ${echapperPourOnclick(p.nom)})"` : ""}>
-          ${p.image_url ? `<img src="${p.image_url}" alt="${echapperHtml(p.nom)}" loading="lazy">` : `<span class="icone-produit">📦</span>`}
+        <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(p.nom)})"` : ""}>
+          ${imageUrl ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(p.nom)}" loading="lazy">` : `<span class="icone-produit">📦</span>`}
         </div>
         <h4>${echapperHtml(p.nom)}</h4>
         ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(p.nom_boutique)}</p>` : ""}
         <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
         <p class="stock-produit">📦 ${p.stock} en stock</p>
         <button class="btn-ajouter" onclick="ajouterAuPanierDepuisRecherche(${JSON.stringify(p.id)}, event)">Ajouter au panier</button>
-      </div>`).join("");
+      </div>`;
+    }).join("");
   }
   if(pousserHistorique) history.pushState({ vue: "recherche", query: recherche }, "");
 }
@@ -2077,11 +2094,13 @@ function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pouss
   if(produits.length === 0){
     grille.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:#666;">Aucun article ici pour le moment.</p>`;
   } else {
-    grille.innerHTML = produits.map((p, index) => `
+    grille.innerHTML = produits.map((p, index) => {
+      const imageUrl = urlImageSecurisee(p.image_url);
+      return `
       <div class="carte-produit">
-        <div class="zone-image" ${p.image_url ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(p.image_url)}, ${echapperPourOnclick(p.nom)})"` : ""}>
-          ${p.image_url
-            ? `<img src="${p.image_url}" alt="${echapperHtml(p.nom)}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
+        <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(p.nom)})"` : ""}>
+          ${imageUrl
+            ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(p.nom)}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
             : `<span class="icone-produit">📦</span>`}
         </div>
         <h4>${echapperHtml(p.nom)}</h4>
@@ -2092,7 +2111,8 @@ function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pouss
           Ajouter au panier
         </button>
       </div>
-    `).join("");
+    `;
+    }).join("");
   }
 
   if(pousserHistorique) history.pushState({ vue: "produits", idCategorie, idSousCategorie }, "");
@@ -2269,10 +2289,12 @@ function dessinerPanier(){
   } else {
     videMessage.style.display = "none";
     btnValider.style.display = "block";
-    liste.innerHTML = panier.map((a, index) => `
+    liste.innerHTML = panier.map((a, index) => {
+      const imageUrl = urlImageSecurisee(a.image_url);
+      return `
       <div class="ligne-panier">
         <div class="info-produit">
-          ${a.image_url ? `<img src="${a.image_url}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;">` : `<span class="icone-produit">📦</span>`}
+          ${imageUrl ? `<img src="${echapperHtml(imageUrl)}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;">` : `<span class="icone-produit">📦</span>`}
           <div>
             <div><strong>${echapperHtml(a.nom)}</strong></div>
             <div style="font-size:13px;color:#666;">${Number(a.prix).toLocaleString("fr-FR")} FCFA</div>
@@ -2285,7 +2307,8 @@ function dessinerPanier(){
           <button class="btn-supprimer" onclick="supprimerArticle(${index})">Retirer</button>
         </div>
       </div>
-    `).join("");
+    `;
+    }).join("");
   }
 
   document.getElementById("totalPanier").textContent = calculerTotal().toLocaleString("fr-FR") + " FCFA";
@@ -2624,94 +2647,16 @@ async function envoyerCommande(event){
   }
 
   /* =====================================================================
-     ÉTAPE 4 : DÉCRÉMENTER LE STOCK AVEC UPDATE DIRECT
+     ÉTAPE 4 : STOCK VALIDÉ ET DÉCRÉMENTÉ ATOMIQUEMENT PAR LE SERVEUR
      ===================================================================== */
-  statutEnvoi.textContent = "⏳ Mise à jour du stock...";
-
-  const articlesDecrementes = [];
-  let stockOk = true;
-  let nomArticleEchec = "";
-
-  for(const article of panier){
-    try{
-      const { data: produitActuel, error: errRead } = await supabaseClient
-        .from("produits")
-        .select("stock, nom")
-        .eq("id", article.id)
-        .single();
-
-      if(errRead || !produitActuel){
-        console.error("Erreur lecture stock avant update:", errRead);
-        stockOk = false;
-        nomArticleEchec = article.nom || "Article inconnu";
-        break;
-      }
-
-      if(produitActuel.stock < article.quantite){
-        stockOk = false;
-        nomArticleEchec = produitActuel.nom || article.nom || "Article inconnu";
-        break;
-      }
-
-      const nouveauStock = produitActuel.stock - article.quantite;
-      const { error: errUpdate } = await supabaseClient
-        .from("produits")
-        .update({ stock: nouveauStock })
-        .eq("id", article.id);
-
-      if(errUpdate){
-        console.error("Erreur UPDATE stock:", errUpdate);
-        stockOk = false;
-        nomArticleEchec = article.nom || "Article inconnu";
-        break;
-      }
-
-      articlesDecrementes.push(article);
-
-    } catch(e){
-      console.error("Exception UPDATE stock:", e);
-      stockOk = false;
-      nomArticleEchec = article.nom || "Article inconnu";
-      break;
-    }
-  }
-
-  // Rollback si échec
-  if(!stockOk){
-    console.log("Rollback du stock en cours...");
-    for(const art of articlesDecrementes){
-      try{
-        const { data: prod } = await supabaseClient
-          .from("produits")
-          .select("stock")
-          .eq("id", art.id)
-          .single();
-
-        if(prod){
-          await supabaseClient
-            .from("produits")
-            .update({ stock: prod.stock + art.quantite })
-            .eq("id", art.id);
-        }
-      } catch(e){
-        console.error("Rollback échoué pour article", art.id, e);
-      }
-    }
-
-    if(discordOk){
-      console.log("Discord OK mais stock échoué — page merci affichée quand même");
-      panier = [];
-      mettreAJourCompteur();
-      afficherPageMerci(paiement, totalCommande);
-      statutEnvoi.textContent = "";
-    } else {
-      statutEnvoi.style.color = "#dc2626";
-      statutEnvoi.textContent = `❌ Stock insuffisant pour "${echapperHtml(nomArticleEchec)}". Il a peut-être été vendu entre-temps.`;
-    }
-
+  if(!discordOk){
+    statutEnvoi.style.color = "#dc2626";
+    statutEnvoi.textContent = "❌ La commande n'a pas pu être validée. Le stock n'a pas été modifié.";
     btnEnvoyer.disabled = false;
     return false;
   }
+
+  console.log("✅ Stock validé et mis à jour par le serveur");
 
   /* =====================================================================
      ÉTAPE 5 : SUCCÈS TOTAL
@@ -3351,11 +3296,13 @@ function dessinerGestionArticles(){
   }
 
   // Nouvelle grille identique au catalogue client, avec les boutons Admin
-  conteneur.innerHTML = `<div class="grille-produits">` + articles.map(a => `
+  conteneur.innerHTML = `<div class="grille-produits">` + articles.map(a => {
+    const imageUrl = urlImageSecurisee(a.image_url);
+    return `
     <div class="carte-produit ${a.masque ? "article-masque" : ""}" style="position:relative;">
-      <div class="zone-image" ${a.image_url ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(a.image_url)}, ${echapperPourOnclick(a.nom)})"` : ""}>
-        ${a.image_url
-          ? `<img src="${a.image_url}" alt="${echapperHtml(a.nom)}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
+      <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(a.nom)})"` : ""}>
+        ${imageUrl
+          ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(a.nom)}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
           : `<span class="icone-produit">📦</span>`}
       </div>
       <h4>${echapperHtml(a.nom)} ${a.masque ? `<span class="etiquette-masque" style="font-size:10px;background:#666;color:#fff;padding:2px 6px;border-radius:4px;">masqué</span>` : ""}</h4>
@@ -3376,7 +3323,7 @@ function dessinerGestionArticles(){
         </button>
       </div>
     </div>
-  `).join("") + `</div>`;
+  `; }).join("") + `</div>`;
 }
 
 async function basculerVisibiliteArticle(id, nouvelEtatMasque){
@@ -3468,6 +3415,8 @@ function cacherBlocInstaller(){
    ZOOM PLEIN ECRAN SUR L'IMAGE D'UN ARTICLE (comme regarder une photo)
    ===================================================================== */
 function ouvrirImageEnGrand(url, nom){
+  const imageUrl = urlImageSecurisee(url);
+  if(!imageUrl) return;
   let visionneuse = document.getElementById("visionneuseImage");
   if(!visionneuse){
     visionneuse = document.createElement("div");
@@ -3480,7 +3429,7 @@ function ouvrirImageEnGrand(url, nom){
     `;
     document.body.appendChild(visionneuse);
   }
-  document.getElementById("imageVisionneuse").src = url;
+  document.getElementById("imageVisionneuse").src = imageUrl;
   document.getElementById("imageVisionneuse").alt = nom || "Article";
   visionneuse.style.display = "flex";
 }
@@ -3582,13 +3531,16 @@ function ouvrirChoixArticlesNotif(){
   if(tousLesArticles.length === 0){
     grille.innerHTML = `<p style="grid-column:1/-1;color:#666;">Publiez d'abord un article.</p>`;
   } else {
-    grille.innerHTML = tousLesArticles.map(a => `
+    grille.innerHTML = tousLesArticles.map(a => {
+      const imageUrl = urlImageSecurisee(a.image_url);
+      return `
       <div class="choix-article-notif ${articlesSelectionnesNotif.some(s => s.id === a.id) ? "selectionne" : ""}"
            data-id="${a.id}" onclick="basculerChoixArticleNotif('${a.id}')">
-        <img src="${a.image_url || ""}" alt="${echapperHtml(a.nom)}">
+        <img src="${imageUrl ? echapperHtml(imageUrl) : ""}" alt="${echapperHtml(a.nom)}">
         <span class="coche">✓</span>
       </div>
-    `).join("");
+    `;
+    }).join("");
   }
   document.getElementById("modaleChoixArticlesNotif").style.display = "flex";
 }
@@ -3613,12 +3565,15 @@ function validerChoixArticlesNotif(){
   document.getElementById("modaleChoixArticlesNotif").style.display = "none";
   const rangee = document.getElementById("rangeeArticlesNotif");
   rangee.innerHTML = `<div class="tuile-ajout-notif" onclick="ouvrirChoixArticlesNotif()">+</div>` +
-    articlesSelectionnesNotif.map(a => `
+    articlesSelectionnesNotif.map(a => {
+      const imageUrl = urlImageSecurisee(a.image_url);
+      return `
       <div class="tuile-article-notif">
-        <img src="${a.image_url || ""}" alt="${echapperHtml(a.nom)}">
+        <img src="${imageUrl ? echapperHtml(imageUrl) : ""}" alt="${echapperHtml(a.nom)}">
         <button class="retirer" onclick="retirerArticleNotif('${a.id}')">✕</button>
       </div>
-    `).join("");
+    `;
+    }).join("");
 }
 
 function retirerArticleNotif(id){
@@ -3990,7 +3945,7 @@ async function chargerHistoriqueAchats(){
       console.error("Erreur Supabase:", error);
       conteneur.innerHTML = `
         <div style="border:1px dashed var(--orange);border-radius:12px;padding:16px;background:#fff7ed;text-align:center;">
-          <p style="color:#666;margin:0 0 12px;">⚠️ ${error.message || "Impossible de charger les commandes"}</p>
+          <p style="color:#666;margin:0 0 12px;">⚠️ ${echapperHtml(error.message || "Impossible de charger les commandes")}</p>
           <p style="color:#666;margin:0 0 12px;font-size:13px;">La table "commandes" n'existe peut-être pas encore dans Supabase, ou les permissions RLS bloquent l'accès.</p>
           <button class="btn-principal" style="margin:0;" onclick="ouvrirNotifManuelle()">✏️ Écrire un message manuel</button>
         </div>
@@ -4009,22 +3964,26 @@ async function chargerHistoriqueAchats(){
     }
 
         conteneur.innerHTML = commandes.map(cmd => {
-      const articles = cmd.articles || [];
-      const nb = articles.reduce((n, a) => n + (a.quantite || 1), 0);
-      const date = new Date(cmd.created_at).toLocaleString("fr-FR");
+      const articles = Array.isArray(cmd.articles) ? cmd.articles : [];
+      const nb = articles.reduce((n, a) => n + Math.max(0, Math.min(99, Number(a?.quantite) || 1)), 0);
+      const date = echapperHtml(new Date(cmd.created_at).toLocaleString("fr-FR"));
+      const id = echapperHtml(cmd.id);
+      const idJs = echapperPourOnclick(cmd.id);
+      const nomClient = echapperHtml(cmd.nom_client || "—");
+      const telephoneClient = echapperHtml(cmd.telephone_client || "—");
       return `
         <div style="border:1px solid var(--gris-bordure);border-radius:12px;padding:12px;margin-bottom:10px;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <div>
-              <div style="font-weight:700;">Commande #${cmd.id} — ${date}</div>
+              <div style="font-weight:700;">Commande #${id} — ${date}</div>
               <div style="font-size:13px;color:#666;margin:4px 0;">
-                👤 ${cmd.nom_client || "—"} · 📞 ${cmd.telephone_client || "—"} · 📦 ${nb} article(s)
+                👤 ${nomClient} · 📞 ${telephoneClient} · 📦 ${nb} article(s)
               </div>
               <div style="font-size:13px;color:#666;margin-bottom:4px;">
                 💰 ${Number(cmd.total || 0).toLocaleString("fr-FR")} FCFA
               </div>
             </div>
-            <button class="btn-supprimer-gestion" onclick="supprimerCommande('${cmd.id}')" title="Supprimer cette commande">
+            <button class="btn-supprimer-gestion" onclick="supprimerCommande(${idJs})" title="Supprimer cette commande">
               🗑️
             </button>
           </div>
@@ -4291,9 +4250,10 @@ setTimeout(() => {
       const produits = produitsParCle[cle];
       if(produits && produits.length > 0){
         produits.forEach(p => {
-          if(p.image_url && p.image_url.trim() !== ""){
+          const imageUrl = urlImageSecurisee(p.image_url);
+          if(imageUrl){
             const img = new Image();
-            img.src = p.image_url;
+            img.src = imageUrl;
           }
         });
       }

@@ -6,10 +6,11 @@
 // - Hors-ligne : si le réseau échoue, on sert la dernière copie connue
 //   au lieu d'un écran d'erreur.
 
-const CACHE_NAME = "prime-service-cache-v1";
+const CACHE_NAME = "prime-service-cache-v2";
 const RESSOURCES_ESSENTIELLES = [
   "./",
   "./index.html",
+  "./inscription.html",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png"
