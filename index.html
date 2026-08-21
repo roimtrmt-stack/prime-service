@@ -3195,13 +3195,15 @@ function urlBase64VersUint8Array(base64String){
 async function abonnerAuxNotifications(){
   try{
     if(!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-    const numeroBoutique = (new URLSearchParams(window.location.search).get("boutique") || "")
+    const paramsNotif = new URLSearchParams(window.location.search);
+    const activationToken = paramsNotif.get("boutique_token") || "";
+    const numeroBoutique = (paramsNotif.get("boutique") || "")
       .replace(/\D/g, "")
       .replace(/^223/, "")
       .slice(-8);
     const dejaAbonne = localStorage.getItem("prime_service_deja_abonne_notif") === "oui";
     const dejaAssocie = localStorage.getItem("prime_service_numero_boutique_notif") || "";
-    if(dejaAbonne && (!numeroBoutique || dejaAssocie === numeroBoutique)) return;
+    if(dejaAbonne && !activationToken) return;
 
     const permission = Notification.permission === "granted"
       ? "granted"
@@ -3217,14 +3219,23 @@ async function abonnerAuxNotifications(){
       });
     }
 
-    if(supabaseClient && (!dejaAbonne || (numeroBoutique.length === 8 && dejaAssocie !== numeroBoutique))){
-      await supabaseClient.from("abonnements_push").insert({
-        subscription: abonnement.toJSON(),
-        telephone_boutique: numeroBoutique.length === 8 ? numeroBoutique : null,
+    if(supabaseClient && activationToken.length >= 32){
+      const liaison = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/lier-notification-push`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ token: activationToken, subscription: abonnement.toJSON() }),
       });
+      if(!liaison.ok) throw new Error("Lien d’activation boutique invalide");
+      localStorage.setItem("prime_service_numero_boutique_notif", "liee-par-token");
+      const urlSansToken = `${window.location.origin}${window.location.pathname}`;
+      window.history.replaceState({}, document.title, urlSansToken);
+    } else if(supabaseClient && !dejaAbonne){
+      await supabaseClient.from("abonnements_push").insert({ subscription: abonnement.toJSON(), telephone_boutique: null });
     }
     localStorage.setItem("prime_service_deja_abonne_notif", "oui");
-    if(numeroBoutique.length === 8) localStorage.setItem("prime_service_numero_boutique_notif", numeroBoutique);
   } catch(erreur){
     console.error("Abonnement notifications impossible :", erreur);
   }
@@ -3258,14 +3269,11 @@ function reporterNotifOptin(){
 
   const dejaAbonneIci = localStorage.getItem("prime_service_deja_abonne_notif") === "oui";
   const permissionNavigateur = Notification.permission; // "granted" | "denied" | "default"
-  const numeroBoutiqueLien = (new URLSearchParams(window.location.search).get("boutique") || "")
-    .replace(/\D/g, "")
-    .replace(/^223/, "")
-    .slice(-8);
+  const activationTokenLien = new URLSearchParams(window.location.search).get("boutique_token") || "";
 
   // Un lien boutique avec une permission déjà accordée peut associer l’appareil
   // sans afficher de nouvelle demande au navigateur.
-  if(numeroBoutiqueLien.length === 8 && permissionNavigateur === "granted"){
+  if(activationTokenLien.length >= 32 && permissionNavigateur === "granted"){
     void abonnerAuxNotifications();
     bloc.style.display = "none";
     return;

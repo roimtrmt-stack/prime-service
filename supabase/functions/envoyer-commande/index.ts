@@ -383,32 +383,39 @@ async function queueBoutiqueNotifications(
   clientName: string,
   clientPhone: string,
   mapUrl: string,
-): Promise<void> {
+): Promise<Map<string, string>> {
   const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const rows = shops.filter((shop) => shop.phone).map((shop) => ({
-    commande_id: commandId,
-    nom_boutique: shop.name,
-    telephone_boutique: maliPhoneDigits(shop.phone!),
-    message: [
-      `Prime Service — commande #${commandId}`,
-      `Boutique : ${clip(shop.name, 100)}`,
-      "Articles à préparer :",
-      ...shop.items.map((item) => `• ${clip(item.nom, 100)} x${item.quantite}`),
-      `Montant NET à recevoir : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
-      `Client : ${clip(clientName, 60)} — ${clip(clientPhone, 24)}`,
-      `Carte client : ${mapUrl}`,
-    ].join("\n"),
-    statut: "en_attente",
-    tentative: 0,
-    prochaine_tentative: new Date().toISOString(),
-    ack_token: createAckToken(),
-  }));
-  if (rows.length === 0) return;
+  const activationByPhone = new Map<string, string>();
+  const rows = shops.filter((shop) => shop.phone).map((shop) => {
+    const ackToken = createAckToken();
+    activationByPhone.set(maliPhoneDigits(shop.phone!), `${SITE_ORIGIN}/?boutique_token=${encodeURIComponent(ackToken)}`);
+    const activationUrl = `${SITE_ORIGIN}/?boutique_token=${encodeURIComponent(ackToken)}`;
+    return {
+      commande_id: commandId,
+      nom_boutique: shop.name,
+      telephone_boutique: maliPhoneDigits(shop.phone!),
+      message: [
+        `Prime Service — commande #${commandId}`,
+        `Boutique : ${clip(shop.name, 100)}`,
+        "Articles à préparer :",
+        ...shop.items.map((item) => `• ${clip(item.nom, 100)} x${item.quantite}`),
+        `Montant NET à recevoir : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+        `Client : ${clip(clientName, 60)} — ${clip(clientPhone, 24)}`,
+        `Carte client : ${mapUrl}`,
+        `Activer les relances du site : ${activationUrl}`,
+      ].join("\n"),
+      statut: "en_attente",
+      tentative: 0,
+      prochaine_tentative: new Date().toISOString(),
+      ack_token: ackToken,
+    };
+  });
+  if (rows.length === 0) return activationByPhone;
 
   const { error } = await supabaseAdmin.from("notifications_boutiquiers").insert(rows);
   if (error) {
     console.error("[boutiquier-retries] création file impossible", commandId, error.message);
-    return;
+    return new Map();
   }
 
   // Le cron assure la reprise chaque minute ; cet appel lance cependant la première
@@ -426,6 +433,7 @@ async function queueBoutiqueNotifications(
   } catch (error) {
     console.error("[boutiquier-retries] premier passage différé", commandId, error instanceof Error ? error.message : error);
   }
+  return activationByPhone;
 }
 
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
@@ -456,7 +464,7 @@ async function notifyInBackground(input: {
     const address = await reverseGeocode(input.lat, input.lng);
     const mapUrl = `https://www.google.com/maps?q=${input.lat},${input.lng}`;
     const shops = groupByShop(input.items);
-    await queueBoutiqueNotifications(input.commandId, shops, input.nom, input.tel, mapUrl);
+    const activationByPhone = await queueBoutiqueNotifications(input.commandId, shops, input.nom, input.tel, mapUrl);
     const commissionTotal = input.items.reduce(
       (sum, item) => sum + item.commission * item.quantite,
       0,
@@ -568,7 +576,7 @@ async function notifyInBackground(input: {
         `Montant NET à recevoir : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
         `Client : ${clip(input.nom, 60)} — ${clip(input.tel, 24)}`,
         `Carte client : ${mapUrl}`,
-        `Activer les notifications du site : ${SITE_ORIGIN}/?boutique=${maliPhoneDigits(shop.phone)}`,
+        `Activer les relances du site : ${activationByPhone.get(shop.phone) || `${SITE_ORIGIN}/`}`,
       ].join(" | ");
       const sms = await sendTextBee(shop.phone, boutiqueText);
       const whatsapp = await sendWhatsApp(
