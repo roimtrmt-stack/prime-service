@@ -65,6 +65,8 @@ La page affiche le code direct officiel Orange Mali sous la forme `#144*1*NUMERO
 
 Les secrets restent dans les secrets Supabase Edge Functions. Les écritures publiques directes de commandes et de notifications restent interdites par RLS. L’intégration WhatsApp ne vérifie pas elle-même l’opt-in métier : l’administrateur doit n’enregistrer que des destinataires consentants et n’activer les paramètres qu’après approbation Meta. Une requête de lecture détaillée des logs Supabase a rencontré une erreur backend après un premier défaut de schéma ; la version active et les réponses HTTP invalides ont toutefois été vérifiées par les contrôles alternatifs disponibles.
 
+L’advisor de sécurité Supabase signale trois points résiduels : `notifications_boutiquiers` a RLS activé sans politique, ce qui est cohérent avec la suppression des écritures anonymes mais doit rester documenté ; `pg_net` est installé dans le schéma public et peut être déplacé lors d’une maintenance dédiée ; la protection des mots de passe compromis Supabase Auth est désactivée et devrait être activée depuis le tableau de bord si le propriétaire souhaite ce durcissement. Aucun de ces trois points n’a été modifié automatiquement pour éviter une régression hors du périmètre des notifications.
+
 ## Fichiers principaux
 
 `supabase/functions/envoyer-commande/index.ts` contient le calcul des montants, le routage, les pièces jointes Discord, le SMS et WhatsApp optionnel. `index.html` contient le parcours rapide, le paiement Orange Money et la carte. `supabase/functions/.env.example` liste les paramètres sans valeur secrète. `README_NOTIFICATIONS.md` explique la configuration et le déploiement. `AGENTS_ROLES.md` et `NOTIFICATION_MESSAGES.md` expliquent les rôles et les formulations.
