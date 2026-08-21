@@ -1006,6 +1006,7 @@ async function ajouterPhoto(event){
   photosAjoutees.push({
     id,
     fichier: fichierCompresse,
+    nomFichier: fichierOriginal.name,
     apercuUrl: urlTemp,
   });
   
@@ -1021,8 +1022,8 @@ function redessinerPhotos(){
     <div class="carte-photo-inscription">
       <button type="button" class="btn-retirer-photo" onclick="retirerPhoto(${p.id})">✕</button>
       <img src="${p.apercuUrl}" class="apercu-photo-inscription">
-      <label class="label" style="margin-top:8px;">Nom de l'article ${index + 1}</label>
-      <input type="text" class="champ nom-photo" data-photo-id="${p.id}" placeholder="Ex : Robe bleue taille M" required>
+      <label class="label" style="margin-top:8px;">Nom de l'article ${index + 1} <small>(facultatif — l’agent le génère si vide)</small></label>
+      <input type="text" class="champ nom-photo" data-photo-id="${p.id}" placeholder="Laissez vide pour un nom automatique">
       <label class="label" style="margin-top:8px;">Quantité en stock</label>
       <input type="number" class="champ stock-photo" data-photo-id="${p.id}" placeholder="Ex : 5" min="1" step="1" required>
       <label class="label" style="margin-top:8px;">Prix (FCFA) — minimum 1000 FCFA</label>
@@ -1113,6 +1114,86 @@ function nomIAEstGenerique(value) {
   return !nom || /nouvel article|boutique prime|^photo$|^image$|^[0-9a-f-]{12,}$/i.test(nom) || /^\d{8,}/.test(nom);
 }
 
+// Analyse visuelle locale et gratuite : aucun envoi de la photo à un service payant.
+// Elle relève les aspects visuels fiables (palette, luminosité, cadrage) pour créer
+// un nom valorisant lorsque le vendeur laisse le champ vide.
+function analyserAspectsPhotoGratuite(fichier) {
+  const secours = { couleur: "Nuance élégante", cadrage: "Ligne équilibrée" };
+  if(typeof Image === "undefined" || typeof document === "undefined") return Promise.resolve(secours);
+  return new Promise((resolve) => {
+    const image = new Image();
+    const url = URL.createObjectURL(fichier);
+    image.onload = () => {
+      try {
+        const taille = 64;
+        const ratio = Math.min(taille / image.naturalWidth, taille / image.naturalHeight, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio));
+        const contexte = canvas.getContext("2d", { willReadFrequently: true });
+        if(!contexte) throw new Error("Canvas indisponible");
+        contexte.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const pixels = contexte.getImageData(0, 0, canvas.width, canvas.height).data;
+        let rouge = 0, vert = 0, bleu = 0, luminosite = 0, echantillons = 0;
+        for(let i = 0; i < pixels.length; i += 16) {
+          const alpha = pixels[i + 3];
+          if(alpha < 30) continue;
+          rouge += pixels[i];
+          vert += pixels[i + 1];
+          bleu += pixels[i + 2];
+          luminosite += (0.299 * pixels[i]) + (0.587 * pixels[i + 1]) + (0.114 * pixels[i + 2]);
+          echantillons++;
+        }
+        if(!echantillons) throw new Error("Pixels insuffisants");
+        rouge /= echantillons;
+        vert /= echantillons;
+        bleu /= echantillons;
+        luminosite /= echantillons;
+        const maximum = Math.max(rouge, vert, bleu);
+        const minimum = Math.min(rouge, vert, bleu);
+        const saturation = maximum ? (maximum - minimum) / maximum : 0;
+        let couleur = "Nuance élégante";
+        if(luminosite < 55) couleur = "Noir profond";
+        else if(luminosite > 225 && saturation < 0.16) couleur = "Blanc lumineux";
+        else if(saturation < 0.16) couleur = luminosite > 165 ? "Ivoire doux" : "Gris moderne";
+        else if(rouge >= vert * 1.22 && rouge >= bleu * 1.22) couleur = "Rouge signature";
+        else if(vert >= rouge * 1.18 && vert >= bleu * 1.12) couleur = "Vert naturel";
+        else if(bleu >= rouge * 1.18 && bleu >= vert * 1.08) couleur = "Bleu intense";
+        else if(rouge > 150 && vert > 90 && bleu < 100) couleur = "Terre chaleureuse";
+        else couleur = "Éclat coloré";
+        const proportion = image.naturalHeight / image.naturalWidth;
+        const cadrage = proportion > 1.25
+          ? "Silhouette élancée"
+          : proportion < 0.80
+            ? "Format panoramique"
+            : "Ligne équilibrée";
+        resolve({ couleur, cadrage });
+      } catch(error) {
+        console.warn("Analyse visuelle gratuite indisponible :", error);
+        resolve(secours);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(secours);
+    };
+    image.src = url;
+  });
+}
+
+function genererNomArticleGratuit(articleData, aspects) {
+  const source = String(articleData.nomArticle || articleData.nomFichier || "")
+    .replace(/\.(jpg|jpeg|png|webp)$/i, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b(photo|image|article|produit|nouveau|new|img|dsc)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const base = !nomIAEstGenerique(source) ? source : "Sélection";
+  return styliserNomArticle(`${base} ${aspects.couleur} ${aspects.cadrage}`, "Sélection Prime Service");
+}
+
 // --- 5. FONCTION SÉCURISÉE POUR PUBLIER UN ARTICLE (Plus propre) ---
 async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adresse, lat, lng) {
   // 1. Upload sécurisé de la photo brute dans le bucket public modéré.
@@ -1144,12 +1225,21 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
     if(reponseIA.ok) donneesIA = await reponseIA.json();
   } catch(e) { console.warn("IA indisponible pour cet article, on prend les données manuelles"); }
 
-  // 3. Création de l'objet article final
+  // 3. Nom final : le vendeur peut le laisser vide ; l’agent gratuit relève alors
+  // les aspects visuels de la photo après son envoi avant de créer l’article.
+  let nomFinal = articleData.nomArticle
+    ? styliserNomArticle(articleData.nomArticle)
+    : "";
+  if(!nomFinal) {
+    const aspects = await analyserAspectsPhotoGratuite(articleData.photo.fichier);
+    const nomIAFiable = donneesIA.nom && !nomIAEstGenerique(donneesIA.nom) && Number(donneesIA.confiance) > 0.70;
+    nomFinal = nomIAFiable
+      ? styliserNomArticle(donneesIA.nom)
+      : genererNomArticleGratuit(articleData, aspects);
+  }
+
   const nouvelArticle = {
-    nom: styliserNomArticle(
-      nomIAEstGenerique(donneesIA.nom) ? articleData.nomArticle : donneesIA.nom,
-      articleData.nomArticle,
-    ),
+    nom: nomFinal,
     prix: Number(articleData.prixSaisi) + CONFIG.COMMISSION_FCFA,
     commission: CONFIG.COMMISSION_FCFA,
     stock: Number(articleData.stockSaisi),
@@ -1197,7 +1287,6 @@ async function envoyerSoumission(event){
     const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
     const champStock = document.querySelector(`.stock-photo[data-photo-id="${photo.id}"]`);
     
-    if(!champNom.value.trim()) { statut.textContent = `⚠️ Donnez un nom à l'article #${photo.id}.`; return false; }
     if(!champPrix.value || Number(champPrix.value) < 1000) { statut.textContent = `⚠️ Prix minimum 1000 FCFA pour l'article #${photo.id}.`; return false; }
     if(!champStock.value || Number(champStock.value) < 1) { statut.textContent = `⚠️ Stock minimum 1 pour l'article #${photo.id}.`; return false; }
   }
@@ -1218,6 +1307,7 @@ async function envoyerSoumission(event){
         const articleData = {
           photo: photo,
           nomArticle: champNom.value.trim(),
+          nomFichier: photo.nomFichier || "",
           prixSaisi: Number(champPrix.value),
           stockSaisi: Number(champStock.value)
         };
