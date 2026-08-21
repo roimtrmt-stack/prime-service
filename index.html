@@ -1946,6 +1946,70 @@ function cacherToutesLesVues(){
   document.querySelectorAll(".vue").forEach(v => v.style.display = "none");
 }
 
+function lancerRecherche(){
+  const champ = document.getElementById("champRecherche");
+  const query = champ ? champ.value.trim() : "";
+  if(!query){
+    alert("Veuillez entrer un mot-clé (nom de boutique ou d'article).");
+    return;
+  }
+  afficherRecherche(query);
+}
+
+function afficherRecherche(query, pousserHistorique = true){
+  const recherche = String(query || "").trim();
+  vueEnCours = { nom: "recherche", query: recherche };
+  cacherToutesLesVues();
+  document.getElementById("vue-recherche").style.display = "block";
+  document.getElementById("titreRecherche").textContent = `🔍 Résultats pour "${recherche}"`;
+  const btnRetour = document.getElementById("btnRetour");
+  btnRetour.style.display = "inline-block";
+  btnRetour.onclick = () => afficherAccueil();
+  const q = recherche.toLocaleLowerCase("fr-FR");
+  const resultats = Object.values(produitsParCle).flat()
+    .filter(p => !p.masque)
+    .filter(p => String(p.nom || "").toLocaleLowerCase("fr-FR").includes(q) || String(p.nom_boutique || "").toLocaleLowerCase("fr-FR").includes(q));
+  const grille = document.getElementById("grilleRecherche");
+  if(resultats.length === 0){
+    grille.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:#666;padding:30px 0;">Aucun article ou boutique ne correspond à votre recherche.</p>`;
+  } else {
+    grille.innerHTML = resultats.map(p => `
+      <div class="carte-produit">
+        <div class="zone-image" ${p.image_url ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(p.image_url)}, ${echapperPourOnclick(p.nom)})"` : ""}>
+          ${p.image_url ? `<img src="${p.image_url}" alt="${echapperHtml(p.nom)}" loading="lazy">` : `<span class="icone-produit">📦</span>`}
+        </div>
+        <h4>${echapperHtml(p.nom)}</h4>
+        ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(p.nom_boutique)}</p>` : ""}
+        <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
+        <p class="stock-produit">📦 ${p.stock} en stock</p>
+        <button class="btn-ajouter" onclick="ajouterAuPanierDepuisRecherche(${JSON.stringify(p.id)}, event)">Ajouter au panier</button>
+      </div>`).join("");
+  }
+  if(pousserHistorique) history.pushState({ vue: "recherche", query: recherche }, "");
+}
+
+function trouverProduitParId(id){
+  return Object.values(produitsParCle).flat().find(p => String(p.id) === String(id));
+}
+
+function ajouterAuPanierDepuisRecherche(id, event){
+  const produit = trouverProduitParId(id);
+  if(!produit){ alert("Article introuvable."); return; }
+  const existant = panier.find(a => a.id === produit.id);
+  if(existant){
+    if(existant.quantite >= produit.stock){
+      alert(`Stock maximum atteint pour "${produit.nom}" (${produit.stock} disponible(s)).`);
+      return;
+    }
+    existant.quantite += 1;
+  } else {
+    if(!produit.stock || produit.stock < 1){ alert("Cet article n'est plus disponible."); return; }
+    panier.push({ ...produit, quantite: 1 });
+  }
+  mettreAJourCompteur();
+  animerAjoutPanier(event);
+}
+
 function afficherAccueil(pousserHistorique = true){
   vueEnCours = { nom: "accueil", idCategorie: null, idSousCategorie: null };
   cacherToutesLesVues();
@@ -4154,6 +4218,9 @@ window.addEventListener("popstate", (event) => {
       break;
     case "produits":
       afficherProduits(etat.idCategorie, etat.idSousCategorie, true, false);
+      break;
+    case "recherche":
+      afficherRecherche(etat.query, false);
       break;
     case "panier":
       afficherPanier(false);
