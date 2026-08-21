@@ -21,6 +21,8 @@ const migration = await read("supabase/migrations/202608210001_secure_order_writ
 const photoMigration = await read("supabase/migrations/202608210002_fix_public_photo_uploads.sql");
 const retryMigration = await read("supabase/migrations/202608210003_boutiquier_notification_retries.sql");
 const readDelayMigration = await read("supabase/migrations/202608210005_boutiquier_read_delay.sql");
+const geminiFunction = await read("supabase/functions/analyser-article-gemini/index.ts");
+const supabaseConfig = await read("supabase/config.toml");
 
 function inlineScripts(html) {
   return [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map((match) => match[1]);
@@ -84,6 +86,17 @@ assert.match(manualNotificationFunction, /requireAdmin/);
 assert.doesNotMatch(manualNotificationFunction, /ORANGE_CLIENT_SECRET|TEXTBEE_API_KEY/);
 assert.match(index, /clever-processor/);
 assert.match(index, /envoyer-sms-orange/);
+assert.match(geminiFunction, /GEMINI_API_KEY/);
+assert.match(geminiFunction, /generativelanguage\.googleapis\.com/);
+assert.match(geminiFunction, /gemini-3\.7-flash/);
+assert.match(geminiFunction, /x-goog-api-key/);
+assert.match(geminiFunction, /photos-articles/);
+assert.match(geminiFunction, /origin !== ALLOWED_ORIGIN/);
+assert.match(geminiFunction, /responseSchema/);
+assert.match(geminiFunction, /gemini_quota_or_rate_limit/);
+assert.doesNotMatch(geminiFunction, /GEMINI_API_KEY\s*[:=]\s*["']/);
+assert.match(supabaseConfig, /\[functions\.analyser-article-gemini\]/);
+assert.match(supabaseConfig, /\[functions\.analyser-article-gemini\][\s\S]*?verify_jwt = true/);
 assert.match(index, /envoyerSmsOrange/);
 assert.match(index, /notifier-commande-manuellement/);
 assert.match(index, /envoyerNotifBoutiquierPushDirect/);
@@ -104,6 +117,8 @@ assert.match(inscriptionPage, /adresse: adresse/);
 assert.match(inscriptionPage, /styliserNomArticle/);
 assert.match(inscriptionPage, /nomIAEstGenerique/);
 assert.match(inscriptionPage, /analyserAspectsPhotoGratuite/);
+assert.match(inscriptionPage, /analyser-article-gemini/);
+assert.match(inscriptionPage, /repli automatique activé/);
 assert.match(inscriptionPage, /genererNomArticleGratuit/);
 assert.match(inscriptionPage, /nomFichier/);
 assert.match(inscriptionPage, /Laissez vide pour un nom automatique/);
@@ -161,6 +176,8 @@ assert.match(boutiquePage, /image_url/);
 assert.match(boutiquePage, /remainingSeconds/);
 assert.match(boutiquePage, /60 secondes/);
 assert.match(boutiquePage, /expiresAt/);
+assert.match(await read("GEMINI_SETUP.md"), /GEMINI_API_KEY/);
+assert.match(await read("GEMINI_SETUP.md"), /relève|repli/i);
 assert.match(readDelayMigration, /read_started_at/);
 
 console.log("OK: frontend syntax, secure order path, push preserved, Orange SMS paths, owner-only inscription path and Storage upload checks");

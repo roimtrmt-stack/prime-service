@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.envoyer-inscription]
 verify_jwt = true
+
+[functions.analyser-article-gemini]
+verify_jwt = true

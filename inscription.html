@@ -1214,22 +1214,45 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
   const imageUrl = urlPublique?.publicUrl;
   if(!imageUrl) throw new Error("URL publique de photo introuvable");
 
-  // 2. Appel à l'IA pour trouver nom, prix estimé et catégorie
+  // 2. Gemini Vision est le moteur principal uniquement si le vendeur laisse le nom vide.
+  // La clé reste côté Edge Function ; aucun secret n’est envoyé depuis GitHub Pages.
   let donneesIA = { nom: articleData.nomArticle, prix: articleData.prixSaisi, confiance: 0, categorie_id: null, sous_categorie_id: null };
-  try {
-    const reponseIA = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/ia-remplir-formulaire`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ imageUrl: imageUrl })
-    });
-    if(reponseIA.ok) donneesIA = await reponseIA.json();
-  } catch(e) { console.warn("IA indisponible pour cet article, on prend les données manuelles"); }
+  let analyseGemini = null;
+  if(!articleData.nomArticle) {
+    try {
+      const reponseGemini = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/analyser-article-gemini`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: imageUrl })
+      });
+      if(reponseGemini.ok) analyseGemini = await reponseGemini.json();
+      else console.warn("Gemini indisponible ou quota atteint : repli automatique activé");
+    } catch(error) {
+      console.warn("Gemini indisponible : repli automatique activé", error);
+    }
 
-  // 3. Nom final : le vendeur peut le laisser vide ; l’agent gratuit relève alors
-  // les aspects visuels de la photo après son envoi avant de créer l’article.
+    // Conservation de l’ancien endpoint s’il est disponible, sans bloquer la publication.
+    if(!analyseGemini?.ok) {
+      try {
+        const reponseIA = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/ia-remplir-formulaire`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ imageUrl: imageUrl })
+        });
+        if(reponseIA.ok) donneesIA = await reponseIA.json();
+      } catch(error) {
+        console.warn("Ancien moteur IA indisponible : repli local activé", error);
+      }
+    }
+  }
+
+  // 3. Nom final : Gemini est prioritaire ; le moteur local gratuit prend la relève
+  // dès que Gemini est absent, limité, trop lent ou renvoie un résultat inutilisable.
   let nomFinal = articleData.nomArticle
     ? styliserNomArticle(articleData.nomArticle)
-    : "";
+    : analyseGemini?.ok && analyseGemini.nom
+      ? styliserNomArticle(analyseGemini.nom)
+      : "";
   if(!nomFinal) {
     const aspects = await analyserAspectsPhotoGratuite(articleData.photo.fichier);
     const nomIAFiable = donneesIA.nom && !nomIAEstGenerique(donneesIA.nom) && Number(donneesIA.confiance) > 0.70;
