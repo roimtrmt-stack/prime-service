@@ -81,4 +81,10 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-        run: supabase functions deploy enregistrer-visite --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+        run: supabase functions deploy enregistrer-visite --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Déployer embellir-photo-produit
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: supabase functions deploy embellir-photo-produit --project-ref "$SUPABASE_PROJECT_REF"

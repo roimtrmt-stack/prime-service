@@ -907,6 +907,26 @@ const CONFIG = {
 };
 
 let supabaseClient = null;
+
+// Lance l’optimisation immédiatement sans attendre sa fin. Le cron Supabase
+// reprend la file si le navigateur est fermé, hors ligne ou si l’appel échoue.
+function declencherOptimisationPhotosEnArrierePlan(){
+  try{
+    void fetch(`${CONFIG.SUPABASE_URL}/functions/v1/embellir-photo-produit`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+        "apikey": CONFIG.SUPABASE_ANON_KEY,
+      },
+      body: "{}",
+      keepalive: true,
+    }).catch((erreur) => console.warn("Optimisation photo différée :", erreur));
+  } catch(erreur){
+    console.warn("Déclenchement optimisation photo indisponible :", erreur);
+  }
+}
+
 try{
   supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 } catch(erreur){
@@ -1607,6 +1627,10 @@ async function envoyerSoumission(event){
       statut.textContent = `❌ ${echecs} article(s) n'ont pas pu être enregistré(s). Aucun message d'inscription ne sera envoyé.`;
       return false;
     }
+
+    // La publication est terminée. L’embellissement est volontairement séparé
+    // pour ne jamais ralentir ni empêcher la création de l’article.
+    declencherOptimisationPhotosEnArrierePlan();
 
     // Succès global
     document.getElementById("vue-formulaire").style.display = "none";

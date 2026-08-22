@@ -1,0 +1,3 @@
+# Contrôle visuel local — optimisation photo
+
+La photo de référence 1000×540 est décodée et transformée en JPEG 1000×1000. Les deux chaussures restent entières, leurs couleurs bleu-vert et l’élément vert central sont conservés, et le cadrage conserve la composition horizontale dans un cadre carré adapté aux cartes du catalogue. Le pipeline applique une détection de contenu fiable, une marge de sécurité, une légère correction de luminosité/contraste/saturation et une netteté modérée, sans texte, logo, filigrane ni génération d’objet. La sortie testée est décodable et pèse environ 275 Ko. Le traitement reste volontairement conservateur : il corrige cadrage et rendu, mais ne prétend pas remplacer une retouche IA générative payante.

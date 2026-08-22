@@ -1745,6 +1745,26 @@ window.addEventListener("beforeinstallprompt", (e) => {
 // en dépend (panier, catalogue en direct...) échouera individuellement,
 // mais l'installation, le partage et l'affichage de base continueront.
 let supabaseClient = null;
+
+// Le traitement de photo ne bloque jamais l’enregistrement de l’article.
+// Le cron Supabase reprend automatiquement la file si cet appel échoue.
+function declencherOptimisationPhotosEnArrierePlan(){
+  try{
+    void fetch(`${CONFIG.SUPABASE_URL}/functions/v1/embellir-photo-produit`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+        "apikey": CONFIG.SUPABASE_ANON_KEY,
+      },
+      body: "{}",
+      keepalive: true,
+    }).catch((erreur) => console.warn("Optimisation photo différée :", erreur));
+  } catch(erreur){
+    console.warn("Déclenchement optimisation photo indisponible :", erreur);
+  }
+}
+
 try{
   supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 } catch(erreur){
@@ -3430,7 +3450,8 @@ async function publierArticle(event){
       if(erreurMaj) throw erreurMaj;
 
       statutPublication.style.color = "#16a34a";
-      statutPublication.textContent = "✅ Article modifié !";
+      statutPublication.textContent = "✅ Article modifié ! La photo sera optimisée automatiquement en arrière-plan.";
+      declencherOptimisationPhotosEnArrierePlan();
 
     } else {
       // ===== MODE AJOUT : une ligne par rayon coché =====
@@ -3443,7 +3464,8 @@ async function publierArticle(event){
       if(erreurInsertion) throw erreurInsertion;
 
       statutPublication.style.color = "#16a34a";
-      statutPublication.textContent = "✅ Article publié ! Visible immédiatement par tous vos clients.";
+      statutPublication.textContent = "✅ Article publié ! La photo sera optimisée automatiquement en arrière-plan.";
+      declencherOptimisationPhotosEnArrierePlan();
     }
 
     fichierPhotoSelectionne = null;
