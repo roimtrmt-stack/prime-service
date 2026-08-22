@@ -5,6 +5,7 @@ const SITE_ORIGINS = new Set([
   "https://roimtrmt-stack.github.io",
 ]);
 const DEFAULT_SITE_ORIGIN = "https://primeservice.netlify.app";
+const NOTIFICATION_LOGO_URL = "https://roimtrmt-stack.github.io/prime-service/logo-prime-service.png";
 const ADMIN_EMAIL = (Deno.env.get("ADMIN_EMAIL") || "roimtrmt@gmail.com").toLowerCase();
 
 function corsHeaders(req: Request): Headers {
@@ -70,7 +71,10 @@ Deno.serve(async (req: Request) => {
       app_id: appId,
       headings: { fr: titre },
       contents: { fr: message },
-      data: { url: url || `${DEFAULT_SITE_ORIGIN}/` },
+      chrome_web_icon: NOTIFICATION_LOGO_URL,
+      chrome_web_badge: NOTIFICATION_LOGO_URL,
+      chrome_web_image: NOTIFICATION_LOGO_URL,
+      data: { url: url || `${DEFAULT_SITE_ORIGIN}/`, image: NOTIFICATION_LOGO_URL },
     };
     if (telephones && telephones.length > 0) payload.include_external_user_ids = telephones;
     else payload.included_segments = ["All"];

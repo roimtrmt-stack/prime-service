@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const READ_DELAY_MS = 60 * 1000;
+const READ_DELAY_MS = 90 * 1000;
 const NOTIFICATION_TTL_MS = 60 * 60 * 1000;
 const STORAGE_ORIGIN = "https://kfxalpvbtbvkncztjwzc.supabase.co";
 const ALLOWED_ORIGINS = new Set([
@@ -180,7 +180,7 @@ Deno.serve(async (req: Request) => {
     const elapsedMs = nowMs - Date.parse(readStartedAt);
     if (!Number.isFinite(elapsedMs) || elapsedMs < READ_DELAY_MS) {
       return response(req, {
-        error: "Veuillez lire les détails pendant une minute avant de confirmer.",
+        error: "Veuillez lire les détails pendant 1 min 30 s avant de confirmer.",
         code: "read_too_soon",
         remainingSeconds: Math.ceil(Math.max(0, READ_DELAY_MS - elapsedMs) / 1000),
       }, 409);

@@ -1,6 +1,6 @@
 // Service worker : rend le site installable, consultable hors-ligne et capable
-// de gérer les notifications de commandes boutique.
-const CACHE_NAME = "prime-service-cache-v4";
+// de gérer les notifications de commandes boutique et les annonces générales.
+const CACHE_NAME = "prime-service-cache-v5";
 const RESSOURCES_ESSENTIELLES = [
   "./",
   "./index.html",
@@ -8,6 +8,7 @@ const RESSOURCES_ESSENTIELLES = [
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
+  "./logo-prime-service.png",
   "./boutique-notification.html",
 ];
 const NOTIFICATION_TTL_MS = 60 * 60 * 1000;
@@ -102,10 +103,12 @@ self.addEventListener("push", (event) => {
   const receivedAt = Date.now();
   const expiresAt = payload.data?.expiresAt || new Date(receivedAt + NOTIFICATION_TTL_MS).toISOString();
   const tag = payload.tag || "prime-service-notification";
+  const logo = "./logo-prime-service.png";
   const options = {
     body: payload.body || "Nouvelle commande à préparer.",
-    icon: payload.icon || "./icon-192.png",
-    badge: payload.badge || "./icon-192.png",
+    icon: payload.icon || logo,
+    badge: payload.badge || logo,
+    image: payload.image || payload.data?.image || undefined,
     tag,
     renotify: Boolean(payload.renotify),
     requireInteraction: Boolean(payload.requireInteraction),
@@ -134,7 +137,7 @@ self.addEventListener("notificationclick", (event) => {
   }
 
   // Le bouton rouge conserve son action existante, mais ouvre d’abord les détails.
-  // La page impose ensuite 60 secondes de lecture et l’endpoint serveur revérifie le délai.
+  // La page impose ensuite 1 min 30 s de lecture et l’endpoint serveur revérifie le délai.
   if (event.action === "ack") {
     event.waitUntil(self.clients.openWindow(data.ackUrl || targetUrl));
     return;

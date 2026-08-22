@@ -511,66 +511,65 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 
 /* ===================== PAGE DE REMERCIEMENT ===================== */
 .carte-merci{
-  max-width:420px;
-  margin:40px auto;
+  max-width:460px;
+  margin:18px auto;
   text-align:center;
   border:1px solid var(--gris-bordure);
-  border-radius:var(--rayon);
-  padding:36px 24px;
+  border-radius:16px;
+  padding:20px 14px;
+  box-shadow:0 8px 24px rgba(15,23,42,.06);
 }
-.icone-merci{
-  font-size:56px;
-  margin-bottom:6px;
-  animation: rebondirColis 1.4s ease-in-out infinite;
-}
-@keyframes rebondirColis{
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-.carte-merci h2{ margin:10px 0 6px; }
-.carte-merci p{ color:#555; }
+.carte-merci h2{ margin:0 0 5px; font-size:22px; }
+.carte-merci p{ color:#555; margin:5px 0; }
 .notification-commande-client{
-  margin:18px 0 22px;
-  padding:16px;
+  margin:12px 0 14px;
+  padding:13px;
   text-align:left;
-  border:1px solid #dbeafe;
-  border-radius:18px;
+  border:1px solid #bfdbfe;
+  border-radius:16px;
   background:linear-gradient(180deg,#ffffff,#eff6ff);
-  box-shadow:0 8px 22px rgba(37,99,235,.10);
+  box-shadow:0 8px 20px rgba(37,99,235,.09);
 }
-.notification-client-entete{ display:flex; align-items:center; gap:10px; }
-.notification-client-logo{ width:42px; height:42px; display:grid; place-items:center; border-radius:13px; background:linear-gradient(135deg,#f97316,#dc2626); color:#fff; font-size:22px; }
+.notification-client-entete{ display:flex; align-items:center; gap:9px; }
+.notification-client-logo{ width:38px; height:38px; flex:0 0 38px; overflow:hidden; display:grid; place-items:center; border-radius:11px; background:#fff; border:1px solid #dbeafe; box-shadow:0 3px 8px rgba(37,99,235,.12); }
+.notification-client-logo img{ width:100%; height:100%; object-fit:cover; display:block; }
 .notification-client-entete strong{ display:block; color:#1f2937; }
 .notification-client-entete small{ color:#64748b; }
-.notification-client-commande{ margin:14px 0 5px; font-size:18px; color:#1f2937; }
-.notification-client-message{ margin:0 0 12px; color:#475569 !important; line-height:1.45; }
-.notification-client-article{ display:flex; align-items:center; gap:10px; margin-top:8px; padding:9px; border-radius:12px; background:#f8fafc; }
-.notification-client-article-icone{ width:42px; height:42px; flex:0 0 42px; display:grid; place-items:center; border-radius:10px; background:#dbeafe; font-size:21px; }
+.notification-client-commande{ margin:10px 0 4px; font-size:17px; color:#1f2937; }
+.notification-client-message{ margin:0 0 9px; color:#475569 !important; line-height:1.35; font-size:13px; }
+.notification-client-article{ display:flex; align-items:center; gap:9px; margin-top:6px; padding:7px; border-radius:11px; background:#f8fafc; }
+.notification-client-article-icone{ width:48px; height:48px; flex:0 0 48px; overflow:hidden; display:grid; place-items:center; border-radius:10px; background:#fff; border:1px solid #dbeafe; }
+.notification-client-article-icone img{ width:100%; height:100%; object-fit:cover; display:block; }
+.notification-client-article-sans-photo{ background:#f1f5f9; }
 .notification-client-article strong{ display:block; color:#1f2937; font-size:13px; }
-.notification-client-article small{ color:#64748b; }
-.notification-client-total{ display:flex; justify-content:space-between; gap:12px; margin-top:12px; padding-top:10px; border-top:1px dashed #bfdbfe; font-weight:800; color:#1f2937; }
-.notification-client-livraison{ margin-top:12px; padding:10px; border-radius:12px; background:#eff6ff; color:#1e3a8a; font-size:13px; line-height:1.5; }
+.notification-client-article small{ color:#64748b; font-size:12px; }
+.notification-client-total{ display:flex; justify-content:space-between; gap:12px; margin-top:9px; padding-top:8px; border-top:1px dashed #bfdbfe; font-weight:800; color:#1f2937; }
+.notification-client-livraison{ margin-top:9px; padding:8px; border-radius:11px; background:#eff6ff; color:#1e3a8a; font-size:12px; line-height:1.35; }
 .notification-client-livraison a{ color:#1d4ed8; font-weight:800; text-decoration:underline; }
-.notification-client-actions{ display:grid; gap:8px; margin-top:12px; }
-.notification-client-actions button{ width:100%; border:0; border-radius:11px; padding:10px 12px; color:#fff; background:var(--bleu); font-weight:800; cursor:pointer; }
+.notification-client-actions{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:9px; }
+.notification-client-actions button{ width:100%; border:0; border-radius:10px; padding:8px 6px; color:#fff; background:var(--bleu); font-size:11px; font-weight:800; cursor:pointer; }
 .notification-client-actions button.secondaire{ color:#1e3a8a; background:#dbeafe; }
 .notification-client-actions button.noir{ background:#111827; }
-.notification-client-statut{ min-height:20px; margin:8px 0 0 !important; color:#166534 !important; font-size:12px; font-weight:700; text-align:center; }
+.notification-client-statut{ min-height:17px; margin:6px 0 0 !important; color:#166534 !important; font-size:11px; font-weight:700; text-align:center; }
 @media (max-width:480px){
-  .carte-merci{ margin:20px auto; padding:28px 14px; }
-  .notification-commande-client{ padding:13px; }
+  .carte-merci{ margin:8px auto; padding:16px 10px; }
+  .carte-merci h2{ font-size:20px; }
+  .notification-commande-client{ padding:10px; margin:8px 0 10px; }
+  .notification-client-article-icone{ width:44px; height:44px; flex-basis:44px; }
+  .notification-client-actions{ grid-template-columns:1fr 1fr 1fr; }
+  .notification-client-actions button{ font-size:10px; padding:8px 3px; }
 }
 .bloc-paiement{
   background:var(--gris-fond);
   border:1px solid var(--gris-bordure);
   border-radius:var(--rayon);
-  padding:16px;
-  margin:22px 0;
+  padding:11px;
+  margin:10px 0;
 }
-.label-paiement{ margin:0 0 6px; font-size:14px; color:#555; }
+.label-paiement{ margin:0 0 4px; font-size:13px; color:#555; }
 .numero-paiement{
   margin:0;
-  font-size:28px;
+  font-size:24px;
   font-weight:800;
   color:var(--bleu);
   letter-spacing:1px;
@@ -1321,7 +1320,6 @@ window.addEventListener('orientationchange', function() {
   <!-- ===================== PAGE DE REMERCIEMENT ===================== -->
   <section id="vue-merci" class="vue" style="display:none;">
     <div class="carte-merci">
-      <div class="icone-merci">📦</div>
       <h2>Merci pour votre commande !</h2>
       <p id="texteMerci">Votre colis est en cours d'envoi et arrivera très bientôt chez vous.</p>
       <div class="bloc-paiement">
@@ -1560,6 +1558,7 @@ const CONFIG = {
   EMAIL_ADMIN_AUTORISE: "roimtrmt@gmail.com",
   COMMISSION_FCFA: 300,
 };
+const NOTIFICATION_LOGO_URL = new URL("./logo-prime-service.png", window.location.href).href;
 
 // Sécurité : tout texte venant d'un boutiquier ou d'un client (nom
 // d'article, nom de boutique, etc.) DOIT passer par cette fonction avant
@@ -2624,8 +2623,8 @@ async function afficherNotificationSystemeCommandeClient({commandId, total}){
   try{
     const options = {
       body: `Votre commande${commandId ? ` #${String(commandId).slice(-8)}` : ""} est enregistrée — ${Number(total || 0).toLocaleString("fr-FR")} FCFA.`,
-      icon: "./icon-192.png",
-      badge: "./icon-192.png",
+      icon: NOTIFICATION_LOGO_URL,
+      badge: NOTIFICATION_LOGO_URL,
       tag: `prime-service-commande-client-${commandId || Date.now()}`,
       renotify: true,
       vibrate: [180, 90, 180, 90, 380],
@@ -2656,7 +2655,12 @@ function afficherNotificationCommandeClient({commandId = "", total = 0, articles
   entete.className = "notification-client-entete";
   const logo = document.createElement("div");
   logo.className = "notification-client-logo";
-  logo.textContent = "🛍️";
+  const logoImage = document.createElement("img");
+  logoImage.src = NOTIFICATION_LOGO_URL;
+  logoImage.alt = "Prime Service";
+  logoImage.loading = "lazy";
+  logoImage.onerror = () => { logo.replaceChildren(document.createTextNode("PS")); };
+  logo.appendChild(logoImage);
   const identite = document.createElement("div");
   const nomService = document.createElement("strong");
   nomService.textContent = "Prime Service";
@@ -2685,12 +2689,16 @@ function afficherNotificationCommandeClient({commandId = "", total = 0, articles
     if(imageUrl){
       const image = document.createElement("img");
       image.src = imageUrl;
-      image.alt = "";
+      image.alt = String(article?.nom || "Photo de l’article").slice(0, 160);
       image.loading = "lazy";
-      image.style.cssText = "width:42px;height:42px;object-fit:cover;border-radius:10px;";
+      image.onerror = () => {
+        icone.classList.add("notification-client-article-sans-photo");
+        icone.replaceChildren(document.createTextNode("Photo indisponible"));
+      };
       icone.replaceChildren(image);
     } else {
-      icone.textContent = "⌚";
+      icone.classList.add("notification-client-article-sans-photo");
+      icone.textContent = "Photo indisponible";
     }
     const details = document.createElement("div");
     const nom = document.createElement("strong");
@@ -2809,40 +2817,29 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
       background: #ffffff;
       border: 1px solid #e5e7eb;
       border-radius: 16px;
-      padding: 20px;
-      margin: 16px 0;
+      padding: 11px;
+      margin: 8px 0;
       text-align: left;
-      font-size: 15px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-      line-height: 1.6;
+      font-size: 13px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.04);
+      line-height: 1.35;
     `;
 
     const numeroPaiementSaisi = CONFIG.NUMERO_PAIEMENT.replace(/\D/g, "");
-    const codeOrange = "#144#";
     divInstructions.innerHTML = `
-      <div style="background: #fef2f2; border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; border-left: 4px solid #dc2626;">
-        <strong style="color: #dc2626; display: block;">⚠️ Paiement Orange Money uniquement :</strong>
-        <span style="color: #991b1b; font-size: 14px;">N'envoyez pas d'argent au livreur. Le paiement se fait au numéro Prime Service ci-dessous. Les frais éventuels affichés par Orange sont à vérifier avant validation.</span>
+      <div style="background:#fef2f2;border-radius:9px;padding:7px 9px;margin-bottom:7px;border-left:3px solid #dc2626;">
+        <strong style="color:#dc2626;display:block;font-size:12px;">⚠️ Orange Money uniquement</strong>
+        <span style="color:#991b1b;font-size:11px;">Ne payez pas le livreur. Vérifiez le bénéficiaire, le montant et les frais.</span>
       </div>
-
-      <div style="margin-bottom: 16px;">
-        <div style="font-weight: 700; font-size: 16px; margin-bottom: 8px; color: #1f2937;">💳 Transfert Orange Money sans connexion Internet</div>
-        <p style="margin: 0 0 10px; color: #374151;">Utilisez le menu USSD officiel Orange Mali :</p>
-        <ol style="margin: 0; padding-left: 20px; color: #374151;">
-          <li style="margin-bottom: 6px;">Ouvrez l’application <strong>Téléphone</strong>.</li>
-          <li style="margin-bottom: 6px;">Composez directement <strong style="color: #dc2626;">#144*1*${numeroPaiementSaisi}*${Math.round(montantReel)}*1*CODE_SECRET#</strong>.</li>
-          <li style="margin-bottom: 6px;">Remplacez uniquement <strong>CODE_SECRET</strong> par votre code secret Orange Money, puis appuyez sur <strong>Appeler / Envoyer</strong>.</li>
-          <li style="margin-bottom: 6px;">Relisez le numéro <strong style="color: #2563eb;">${numeroPaiementSaisi}</strong>, le montant <strong style="color: #16a34a;">${montantAffiche}</strong> et les frais affichés, puis validez avec <strong>OK / Envoyer</strong>.</li>
-          <li>Attendez le SMS de confirmation et conservez-le. Ne communiquez jamais votre code secret à quelqu’un d’autre.</li>
-        </ol>
-        <p style="margin: 10px 0 0; color: #6b7280; font-size: 13px;">Le code direct officiel est indiqué ci-dessus. Vous pouvez aussi composer <strong>#144#</strong>, choisir « Transfert d'argent » et suivre le menu. Ne validez jamais si le bénéficiaire ou le montant affiché est incorrect.</p>
+      <div style="margin-bottom:7px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px;color:#1f2937;">💳 Par téléphone, sans Internet</div>
+        <span style="font-size:11px;color:#374151;">Téléphone → composez exactement :</span>
+        <strong style="display:block;margin:5px 0;padding:7px 4px;border-radius:7px;background:#172033;color:#fff;text-align:center;font:800 11px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:0;white-space:nowrap;">#144*1*${numeroPaiementSaisi}*${Math.round(montantReel)}*1*CODE_SECRET#</strong>
+        <span style="display:block;color:#374151;font-size:11px;line-height:1.3;">Remplacez <strong>CODE_SECRET</strong> → <strong>Appeler/OK</strong> → vérifiez <strong>${numeroPaiementSaisi}</strong>, <strong>${montantAffiche}</strong> et le nom → validez → attendez le SMS.</span>
+        <details style="margin-top:5px;color:#6b7280;font-size:11px;"><summary style="cursor:pointer;color:#1d4ed8;font-weight:700;">Voir les étapes détaillées</summary><p style="margin:5px 0 0;">Le menu fonctionne aussi avec <strong>#144#</strong> → <strong>Transfert d’argent</strong> → numéro → montant → code secret.</p></details>
       </div>
-
-      <div style="border-top: 1px solid #e5e7eb; padding-top: 14px; margin-top: 8px;">
-        <div style="font-weight: 600; font-size: 14px; color: #374151; margin-bottom: 4px;">🏪 Alternative Kiosque Orange Money :</div>
-        <div style="color: #4b5563; font-size: 14px;">
-          Donnez au vendeur le numéro <strong style="color: #2563eb;">${numeroPaiementSaisi}</strong> et le montant <strong style="color: #16a34a;">${montantAffiche}</strong>. Vérifiez le SMS de confirmation avant de quitter le kiosque.
-        </div>
+      <div style="border-top:1px solid #fed7aa;padding-top:7px;margin-top:5px;color:#4b5563;font-size:11px;line-height:1.3;">
+        <strong style="color:#9a3412;">🏪 Point de vente Orange Money :</strong> demandez un transfert/dépôt vers <strong>${numeroPaiementSaisi}</strong> de <strong>${montantAffiche}</strong>, vérifiez le bénéficiaire, payez en espèces et gardez le reçu/SMS. Ne donnez jamais votre code secret.
       </div>
     `;
 
@@ -2859,11 +2856,11 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
     const apercuUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${encodeURIComponent(`${lat},${lng}`)}&zoom=16&size=600x300&maptype=mapnik&markers=${encodeURIComponent(`${lat},${lng},red-pushpin`)}`;
     carteElement = document.createElement("div");
     carteElement.id = "carteClientMerci";
-    carteElement.style.cssText = "background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:14px;margin:16px 0;text-align:left;";
+    carteElement.style.cssText = "background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:9px;margin:8px 0;text-align:left;";
     carteElement.innerHTML = `
       <div style="font-weight:700;color:#1f2937;margin-bottom:8px;">📍 Position de livraison</div>
       <a href="${carteUrl}" target="_blank" rel="noopener noreferrer" style="display:block;color:#2563eb;font-weight:600;margin-bottom:10px;">Ouvrir l’itinéraire dans Google Maps</a>
-      <img src="${apercuUrl}" alt="Aperçu de la position de livraison" loading="lazy" style="display:block;width:100%;max-height:220px;object-fit:cover;border-radius:10px;background:#e5e7eb;" onerror="this.style.display='none';">
+      <img src="${apercuUrl}" alt="Aperçu de la position de livraison" loading="lazy" style="display:block;width:100%;max-height:120px;object-fit:cover;border-radius:8px;background:#e5e7eb;" onerror="this.style.display='none';">
       <div style="font-size:12px;color:#6b7280;margin-top:8px;">L’aperçu peut nécessiter Internet ; le bouton ouvre la carte détaillée.</div>
     `;
     document.getElementById("instructionsPaiementMerci").after(carteElement);
@@ -3780,7 +3777,7 @@ async function envoyerNotification(){
       body: JSON.stringify({
         titre: "Prime Service 🚀",
         message,
-        image: articlesSelectionnesNotif[0]?.image_url || null,
+        image: NOTIFICATION_LOGO_URL,
         url: window.location.origin + window.location.pathname,
       }),
     });

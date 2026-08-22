@@ -51,7 +51,7 @@
     <div id="photos" class="photos" hidden></div>
     <p id="compteur" class="compteur" hidden></p>
     <button id="btnAccuser" type="button" disabled>🔒 Lecture en cours…</button>
-    <p><small>Le bouton sera activé après 60 secondes de lecture. Après confirmation, les relances automatiques s’arrêtent.</small></p>
+    <p><small>Le bouton sera activé après 1 min 30 s de lecture. Après confirmation, les relances automatiques s’arrêtent.</small></p>
     <p><a href="./">Retourner sur Prime Service</a></p>
   </main>
   <script>
@@ -218,7 +218,7 @@
           canAcknowledge = true;
           button.disabled = false;
           button.textContent = "🟥 J’AI VU LA COMMANDE";
-          counter.textContent = "✅ Une minute de lecture est terminée. Vous pouvez confirmer.";
+          counter.textContent = "✅ 1 min 30 s de lecture est terminée. Vous pouvez confirmer.";
           if (countdownTimer) clearInterval(countdownTimer);
           return;
         }
