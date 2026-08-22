@@ -56,6 +56,7 @@ type Shop = {
   items: CanonicalItem[];
   amount: number;
   commission: number;
+  adresse: string | null;
   lat: number | null;
   lng: number | null;
 };
@@ -289,6 +290,11 @@ async function sendBoutiqueSms(
   return results;
 }
 
+function googleMapsUrl(latitude: number | null, longitude: number | null): string {
+  if(!Number.isFinite(latitude) || !Number.isFinite(longitude)) return "";
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latitude},${longitude}`)}`;
+}
+
 function groupByShop(items: CanonicalItem[]): Shop[] {
   const shops = new Map<string, Shop>();
   for (const item of items) {
@@ -407,7 +413,7 @@ async function notifyInBackground(input: {
 }): Promise<void> {
   try {
     const address = await reverseGeocode(input.lat, input.lng);
-    const mapUrl = `https://www.google.com/maps?q=${input.lat},${input.lng}`;
+    const mapUrl = googleMapsUrl(input.lat, input.lng);
     const shops = groupByShop(input.items);
     const activationByPhone = await queueBoutiqueNotifications(input.commandId, shops, input.nom, input.tel, input.quartier, input.precision, mapUrl);
     const commissionTotal = input.items.reduce(
@@ -425,12 +431,16 @@ async function notifyInBackground(input: {
         `  Commission Prime Service : ${commissionAmount.toLocaleString("fr-FR")} FCFA`,
       ].join("\n");
     });
-    const shopLines = shops.map((shop) => [
-      `🏪 **${clip(shop.name, 80)}**`,
-      `   Adresse boutique : ${clip(shop.adresse || "Non renseignée", 240)}`,
-      `   À remettre à la boutique : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
-      `   Commission à garder : ${Math.round(shop.commission).toLocaleString("fr-FR")} FCFA`,
-    ].join("\n"));
+    const shopLines = shops.map((shop) => {
+      const shopMapUrl = googleMapsUrl(shop.lat, shop.lng);
+      return [
+        `🏪 **${clip(shop.name, 80)}**`,
+        `   Adresse boutique : ${clip(shop.adresse || "Non renseignée", 240)}`,
+        ...(shopMapUrl ? [`   🗺️ **Carte boutique :** ${shopMapUrl}`] : []),
+        `   À remettre à la boutique : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+        `   Commission à garder : ${Math.round(shop.commission).toLocaleString("fr-FR")} FCFA`,
+      ].join("\n");
+    });
     const created = new Date(input.createdAt).toLocaleString("fr-FR", {
       timeZone: "Africa/Bamako",
     });

@@ -2385,7 +2385,19 @@ function recupererPosition(){
    LIENS GOOGLE MAPS (remplace les anciennes fonctions ArcGIS)
    ===================================================================== */
 function construireLienGoogleMaps(latitude, longitude){
-  return `https://www.google.com/maps?q=${latitude},${longitude}`;
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if(!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180){
+    return "";
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
+}
+
+function lienCarteGoogleMapsHtml(latitude, longitude, libelle = "Ouvrir la carte Google Maps"){
+  const url = construireLienGoogleMaps(latitude, longitude);
+  return url
+    ? `<a href="${echapperHtml(url)}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;font-weight:700;text-decoration:underline;">${echapperHtml(libelle)}</a>`
+    : "";
 }
 
 function construireLienItineraire(latDep, lngDep, latArr, lngArr){
@@ -3885,6 +3897,25 @@ async function chargerHistoriqueAchats(){
       const idJs = echapperPourOnclick(cmd.id);
       const nomClient = echapperHtml(cmd.nom_client || "—");
       const telephoneClient = echapperHtml(cmd.telephone_client || "—");
+      const quartierClient = echapperHtml(cmd.quartier_client || "Quartier non renseigné");
+      const carteClient = lienCarteGoogleMapsHtml(cmd.lat_client, cmd.lng_client, "Ouvrir la carte Google Maps");
+      const boutiques = [];
+      const boutiquesVues = new Set();
+      articles.forEach((article) => {
+        const nomBoutique = String(article?.nom_boutique || "Boutique");
+        const telephone = String(article?.telephone_boutique || article?.telephone || "");
+        const cle = `${nomBoutique}|${telephone}`;
+        if(boutiquesVues.has(cle)) return;
+        boutiquesVues.add(cle);
+        const adresse = String(article?.adresse || "").trim();
+        const carte = lienCarteGoogleMapsHtml(article?.lat, article?.lng, "Ouvrir la carte de la boutique");
+        if(adresse || carte) boutiques.push({ nom: nomBoutique, adresse, carte });
+      });
+      const adressesBoutiques = boutiques.length > 0 ? `
+                <div style="font-size:13px;color:#666;margin-bottom:6px;">
+                  <strong>🏪 Adresse(s) boutique(s) :</strong>
+                  ${boutiques.map((boutique) => `<div style="margin-top:4px;">${echapperHtml(boutique.nom)} : ${echapperHtml(boutique.adresse || "Non renseignée")}${boutique.carte ? `<br>${boutique.carte}` : ""}</div>`).join("")}
+                </div>` : "";
       return `
         <div style="border:1px solid var(--gris-bordure);border-radius:12px;padding:12px;margin-bottom:10px;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -3893,9 +3924,11 @@ async function chargerHistoriqueAchats(){
               <div style="font-size:13px;color:#666;margin:4px 0;">
                 👤 ${nomClient} · 📞 ${telephoneClient} · 📦 ${nb} article(s)
               </div>
-              <div style="font-size:13px;color:#666;margin-bottom:4px;">
-                📍 ${echapperHtml(cmd.quartier_client || "Quartier non renseigné")}${cmd.precision_livraison ? ` · ${echapperHtml(cmd.precision_livraison)}` : ""}
+              <div style="font-size:13px;color:#666;margin-bottom:2px;">
+                📍 Quartier de livraison : ${quartierClient}${cmd.precision_livraison ? ` · ${echapperHtml(cmd.precision_livraison)}` : ""}
               </div>
+              ${carteClient ? `<div style="font-size:13px;margin-bottom:6px;">${carteClient}</div>` : ""}
+              ${adressesBoutiques}
               <div style="font-size:13px;color:#666;margin-bottom:4px;">
                 💰 ${Number(cmd.total || 0).toLocaleString("fr-FR")} FCFA
               </div>
@@ -3943,6 +3976,8 @@ function preparerNotifBoutiquier(commande){
   msg += `📞 Téléphone: ${commande.telephone_client || "—"}\n`;
   msg += `📍 Adresse boutique: ${adresseBoutique}\n`;
   msg += `📍 Quartier de livraison: ${commande.quartier_client || "Non renseigné"}\n`;
+  const carteClient = construireLienGoogleMaps(commande.lat_client, commande.lng_client);
+  if(carteClient) msg += `🗺️ Carte Google Maps de livraison: ${carteClient}\n`;
   msg += `🧭 Précision de livraison: ${commande.precision_livraison || "Aucune précision fournie"}\n\n`;
   msg += `📦 Articles:\n`;
 

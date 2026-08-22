@@ -74,6 +74,24 @@
       detailsBox.appendChild(line);
     }
 
+    function addGoogleMapsLink(label, latitude, longitude) {
+      const lat = Number(latitude);
+      const lng = Number(longitude);
+      if(!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
+      const line = document.createElement("div");
+      line.className = "ligne";
+      const strong = document.createElement("strong");
+      strong.textContent = `${label} `;
+      const link = document.createElement("a");
+      link.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Ouvrir la carte Google Maps";
+      link.style.cssText = "color:#2563eb;font-weight:700;text-decoration:underline;";
+      line.append(strong, link);
+      detailsBox.appendChild(line);
+    }
+
     function renderDetails(command) {
       detailsBox.replaceChildren();
       photosBox.replaceChildren();
@@ -82,6 +100,7 @@
       addLine("Client :", command.nom_client);
       addLine("Téléphone client :", command.telephone_client);
       addLine("Quartier de livraison :", command.quartier_client);
+      addGoogleMapsLink("Carte de livraison :", command.lat_client, command.lng_client);
       addLine("Précision de livraison :", command.precision_livraison);
       addLine("Montant NET à recevoir :", `${Number(command.montant_net_total || 0).toLocaleString("fr-FR")} FCFA`);
 
