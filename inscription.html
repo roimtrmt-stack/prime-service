@@ -1368,9 +1368,17 @@ async function envoyerSoumission(event){
   const statut = document.getElementById("statutInscription");
   const bouton = document.getElementById("btnEnvoyerInscription");
 
-  if(!nomBoutique || !telephone || !adresse || photosAjoutees.length === 0 || !lat || !lng) {
+  const positionValide = Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+  const champsManquants = [];
+  if(!nom) champsManquants.push("votre nom");
+  if(!nomBoutique) champsManquants.push("le nom de votre boutique");
+  if(!telephone) champsManquants.push("votre téléphone");
+  if(!adresse) champsManquants.push("l’adresse de votre boutique");
+  if(photosAjoutees.length === 0) champsManquants.push("au moins une photo");
+  if(!positionValide) champsManquants.push("votre position GPS");
+  if(champsManquants.length > 0) {
     statut.style.color = "#dc2626";
-    statut.textContent = "⚠️ Remplissez tout, ajoutez une photo et votre position.";
+    statut.textContent = `⚠️ Complétez : ${champsManquants.join(", ")}.`;
     return false;
   }
 

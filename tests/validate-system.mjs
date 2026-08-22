@@ -126,6 +126,8 @@ assert.doesNotMatch(inscriptionPage, /class="champ nom-photo"[^>]*required/);
 assert.match(inscriptionPage, /telephone_boutique: telephone/);
 assert.match(inscriptionPage, /lat: Number\(lat\)/);
 assert.match(inscriptionPage, /lng: Number\(lng\)/);
+assert.match(inscriptionPage, /positionValide/);
+assert.match(inscriptionPage, /l’adresse de votre boutique/);
 assert.match(inscriptionPage, /masque: false/);
 assert.doesNotMatch(inscriptionFunction, /TEXTBEE_API_KEY/);
 assert.doesNotMatch(inscriptionFunction, /telephone_boutique/);
