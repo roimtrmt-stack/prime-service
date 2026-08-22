@@ -1104,15 +1104,27 @@ function recupererPositionInscription(){
 }
 
 // --- 4. AGENT DE NOMMAGE STYLÉ (automatique, sans coût ni clé API) ---
-function styliserNomArticle(source, fallback = "Article") {
-  const brut = String(source || fallback)
+function nettoyerNomTechnique(source) {
+  return String(source || "")
     .replace(/\.(jpg|jpeg|png|webp)$/i, "")
-    .replace(/\b(photo|image|article|produit|nouveau|new)\b/gi, " ")
+    .replace(/capture\s*(?:d['’]?\s*écran)?|screenshot|screen\s*shot|copie|copy/gi, " ")
+    .replace(/\b(photo|image|article|produit|nouveau|new|img|dsc|whatsapp)\b/gi, " ")
     .replace(/[0-9a-f]{8,}/gi, " ")
+    .replace(/\b(?:19|20)\d{2}(?:[\s_-]+\d{1,2}){0,2}\b/g, " ")
+    .replace(/\b\d{6,}\b/g, " ")
     .replace(/[-_]+/g, " ")
     .replace(/[^\p{L}\p{N}\s&'’.-]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function nettoyerNomArticleManuel(source, fallback = "Article") {
+  const nom = String(source || "").replace(/\s+/g, " ").trim().slice(0, 140);
+  return nom || fallback;
+}
+
+function styliserNomArticle(source, fallback = "Article") {
+  const brut = nettoyerNomTechnique(source);
   const titre = (brut || fallback || "Sélection Prime Service")
     .split(" ")
     .filter(Boolean)
@@ -1131,7 +1143,7 @@ function styliserNomArticle(source, fallback = "Article") {
 
 function nomIAEstGenerique(value) {
   const nom = String(value || "").trim();
-  return !nom || /nouvel article|boutique prime|^photo$|^image$|^[0-9a-f-]{12,}$/i.test(nom) || /^\d{8,}/.test(nom);
+  return !nom || /nouvel article|boutique prime|capture|screenshot|screen\s*shot|copie|^photo$|^image$|^[0-9a-f-]{12,}$/i.test(nom) || /^\d{8,}/.test(nom);
 }
 
 // Analyse visuelle locale et gratuite : aucun envoi de la photo à un service payant.
@@ -1204,12 +1216,11 @@ function analyserAspectsPhotoGratuite(fichier) {
 }
 
 function genererNomArticleGratuit(articleData, aspects) {
-  const source = String(articleData.nomArticle || articleData.nomFichier || "")
-    .replace(/\.(jpg|jpeg|png|webp)$/i, "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\b(photo|image|article|produit|nouveau|new|img|dsc)\b/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const source = nettoyerNomTechnique(articleData.nomArticle || articleData.nomFichier || "");
+  const normalisee = source.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr-FR");
+  if (/\b(montre|watch)\b/.test(normalisee)) {
+    return `Montre ${aspects.couleur}`.slice(0, 100);
+  }
   const base = !nomIAEstGenerique(source) ? source : "Sélection";
   return styliserNomArticle(`${base} ${aspects.couleur} ${aspects.cadrage}`, "Sélection Prime Service");
 }
@@ -1275,7 +1286,10 @@ function classerArticleLocal(articleData) {
   if(contient("chaussure", "chaussures", "basket", "sandale", "talon", "bottine")) {
     return { categorie_id: "mode", sous_categorie_id: "chaussures" };
   }
-  if(contient("bijou", "bijoux", "montre")) {
+  if(contient("montre", "watch")) {
+    return { categorie_id: "mode", sous_categorie_id: "montres" };
+  }
+  if(contient("bijou", "bijoux")) {
     return { categorie_id: "mode", sous_categorie_id: "bijoux" };
   }
   if(contient("sac", "ceinture", "portefeuille", "accessoire")) {
@@ -1327,7 +1341,7 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
 
   // 3. Nom final et catégorie : calculés localement, sans clé ni quota externe.
   const nomFinal = articleData.nomArticle
-    ? styliserNomArticle(articleData.nomArticle)
+    ? nettoyerNomArticleManuel(articleData.nomArticle)
     : genererNomArticleGratuit(articleData, aspects);
   const classement = classerArticleLocal(articleData);
 

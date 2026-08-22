@@ -1457,11 +1457,12 @@ window.addEventListener('orientationchange', function() {
       <label class="label">Numéro de contact pour cet article</label>
       <input type="tel" id="telephoneArticleAdmin" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" required>
 
-      <label class="label">Prix (FCFA)</label>
-      <input type="number" id="prixArticleAdmin" class="champ" placeholder="Ex : 65000" required>
+      <label class="label">Prix de base boutique (FCFA, hors commission)</label>
+      <input type="number" id="prixArticleAdmin" class="champ" placeholder="Ex : 65000" min="1000" step="1" oninput="actualiserPrixFinalAdmin()" required>
+      <p id="prixFinalApercuAdmin" style="margin:-8px 0 12px;color:#166534;font-weight:700;">Prix affiché au client : — FCFA</p>
 
-      <label class="label">Votre commission sur cet article (FCFA)</label>
-      <input type="number" id="commissionArticleAdmin" class="champ" value="300" min="0" required>
+      <label class="label">Commission fixe Prime Service (ajoutée au prix client)</label>
+      <input type="number" id="commissionArticleAdmin" class="champ" value="300" min="300" max="300" readonly required>
 
       <label class="label">Stock disponible (l'article disparaît automatiquement à 0)</label>
       <input type="number" id="stockArticleAdmin" class="champ" placeholder="Ex : 3" min="1" required>
@@ -1526,6 +1527,7 @@ const CONFIG = {
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
   NUMERO_PAIEMENT: "94134408",
   EMAIL_ADMIN_AUTORISE: "roimtrmt@gmail.com",
+  COMMISSION_FCFA: 300,
 };
 
 // Sécurité : tout texte venant d'un boutiquier ou d'un client (nom
@@ -1793,7 +1795,8 @@ const CATEGORIES = [
       { id: "vetements", nom: "Vêtements", icone: "👕" },
       { id: "pagnes-tissus", nom: "Pagnes & tissus (bazin, wax)", icone: "🧵" },
       { id: "foulards", nom: "Foulards & écharpes", icone: "🧣" },
-      { id: "bijoux", nom: "Bijoux & montres", icone: "📿" },
+      { id: "bijoux", nom: "Bijoux & accessoires", icone: "📿" },
+      { id: "montres", nom: "Montres", icone: "⌚" },
       { id: "chaussures", nom: "Chaussures", icone: "👟" },
       { id: "accessoires-mode", nom: "Sacs & accessoires", icone: "👜" },
     ]
@@ -1812,7 +1815,6 @@ const CATEGORIES = [
     sousCategories: [
       { id: "telephones", nom: "Téléphones", icone: "📱" },
       { id: "ordinateurs", nom: "Ordinateurs & tablettes", icone: "💻" },
-      { id: "montres-connectees", nom: "Montres connectées", icone: "⌚" },
       { id: "accessoires-electroniques", nom: "Accessoires électroniques", icone: "🔌" },
       { id: "energie-solaire", nom: "Solaire & groupes électrogènes", icone: "🔋" },
     ]
@@ -2702,7 +2704,7 @@ function ouvrirFormulaireArticle(articleAModifier){
     document.getElementById("nomArticleAdmin").value = articleAModifier.nom || "";
     document.getElementById("nomBoutiqueAdmin").value = articleAModifier.nom_boutique || "";
     document.getElementById("telephoneArticleAdmin").value = articleAModifier.telephone || articleAModifier.telephone_boutique || "";
-    document.getElementById("prixArticleAdmin").value = articleAModifier.prix || "";
+    document.getElementById("prixArticleAdmin").value = Math.max(0, Number(articleAModifier.prix || 0) - (Number(articleAModifier.commission) || CONFIG.COMMISSION_FCFA));
     document.getElementById("commissionArticleAdmin").value = articleAModifier.commission ?? 300;
     document.getElementById("stockArticleAdmin").value = articleAModifier.stock || 1;
     document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || articleAModifier.adresse_boutique || "";
@@ -2729,7 +2731,7 @@ function ouvrirFormulaireArticle(articleAModifier){
 
     document.getElementById("nomBoutiqueAdmin").value = articleAModifier.nom_boutique || "";
     document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || articleAModifier["texte d'adresse"] || "";
-    document.getElementById("prixArticleAdmin").value = articleAModifier.prix || "";
+    document.getElementById("prixArticleAdmin").value = Math.max(0, Number(articleAModifier.prix || 0) - (Number(articleAModifier.commission) || CONFIG.COMMISSION_FCFA));
     document.getElementById("commissionArticleAdmin").value = articleAModifier.commission ?? 300;
     document.getElementById("stockArticleAdmin").value = articleAModifier.stock || 1;
     document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || "";
@@ -2820,6 +2822,11 @@ function compresserImage(fichier, tailleMax = 1000, qualite = 0.7){
   });
 }
 
+function nettoyerNomArticleManuel(source, fallback = "Article") {
+  const nom = String(source || "").replace(/\s+/g, " ").trim().slice(0, 140);
+  return nom || fallback;
+}
+
 function styliserNomArticleAdmin(source, fallback = "Article") {
   const brut = String(source || fallback)
     .replace(/\.(jpg|jpeg|png|webp)$/i, "")
@@ -2841,6 +2848,16 @@ function styliserNomArticleAdmin(source, fallback = "Article") {
   else if (/maison|cuisine|meuble|décoration|matelas|rideau/.test(lower)) prefix = "Harmonie Maison";
   else if (/nourriture|aliment|riz|huile|boisson|gâteau|épice/.test(lower)) prefix = "Saveur Authentique";
   return `${prefix} — ${titre}`.slice(0, 140);
+}
+
+async function actualiserPrixFinalAdmin(){
+  const champ = document.getElementById("prixArticleAdmin");
+  const apercu = document.getElementById("prixFinalApercuAdmin");
+  if(!champ || !apercu) return;
+  const prixBase = Number(champ.value);
+  apercu.textContent = Number.isFinite(prixBase) && prixBase > 0
+    ? `Prix affiché au client : ${(prixBase + CONFIG.COMMISSION_FCFA).toLocaleString("fr-FR")} FCFA (commission ${CONFIG.COMMISSION_FCFA} FCFA incluse)`
+    : "Prix affiché au client : — FCFA";
 }
 
 async function previsualiserPhoto(event){
@@ -2908,11 +2925,12 @@ async function publierArticle(event){
   event.preventDefault();
 
   const nomSaisi = document.getElementById("nomArticleAdmin").value.trim();
-  const nom = styliserNomArticleAdmin(nomSaisi, "Article Prime Service");
+  const nom = nettoyerNomArticleManuel(nomSaisi, "Article Prime Service");
   const nomBoutique = document.getElementById("nomBoutiqueAdmin").value.trim();
   const telephone = document.getElementById("telephoneArticleAdmin").value.trim();
-  const prix = parseInt(document.getElementById("prixArticleAdmin").value, 10);
-  const commission = parseInt(document.getElementById("commissionArticleAdmin").value, 10) || 0;
+  const prixBase = parseInt(document.getElementById("prixArticleAdmin").value, 10);
+  const commission = CONFIG.COMMISSION_FCFA;
+  const prix = prixBase + commission;
   const stock = parseInt(document.getElementById("stockArticleAdmin").value, 10);
   const adresse = document.getElementById("adresseBoutiqueAdmin").value.trim();
   const lat = parseFloat(document.getElementById("latBoutiqueAdmin").value) || null;
@@ -2930,6 +2948,12 @@ async function publierArticle(event){
   if(!/^[0-9+ ]{8,15}$/.test(telephone)){
     statutPublication.style.color = "#dc2626";
     statutPublication.textContent = "⚠️ Entrez un vrai numéro de téléphone (chiffres uniquement).";
+    return false;
+  }
+
+  if(!Number.isFinite(prixBase) || prixBase < 1000){
+    statutPublication.style.color = "#dc2626";
+    statutPublication.textContent = "⚠️ Indiquez un prix de base d’au moins 1000 FCFA.";
     return false;
   }
 
