@@ -17,6 +17,16 @@
     .error { color: #991b1b; }
     .details { display: grid; gap: 8px; text-align: left; }
     .ligne { padding: 10px 12px; border-radius: 10px; background: #f9fafb; }
+    .carte-visuelle { padding: 10px; border-radius: 12px; background: #eff6ff; border: 1px solid #bfdbfe; }
+    .carte-visuelle img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 9px; display: block; background: #dbeafe; }
+    .carte-visuelle .secours { margin: 0; padding: 22px 12px; border-radius: 9px; background: linear-gradient(135deg, #dbeafe, #f0f9ff); color: #1e3a8a; text-align: center; font-weight: 700; }
+    @media (max-width: 480px) {
+      main { width: calc(100vw - 24px); box-sizing: border-box; padding: 18px 14px; border-radius: 16px; }
+      .photos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .article { padding: 8px; }
+      .article strong { font-size: .92rem; }
+      .article small { font-size: .78rem; }
+    }
     .photos { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
     .article { border: 1px solid #e5e7eb; border-radius: 14px; padding: 10px; background: #fff; }
     .article img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; display: block; background: #f3f4f6; }
@@ -78,6 +88,7 @@
       const lat = Number(latitude);
       const lng = Number(longitude);
       if(!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
+
       const line = document.createElement("div");
       line.className = "ligne";
       const strong = document.createElement("strong");
@@ -87,9 +98,36 @@
       link.target = "_blank";
       link.rel = "noopener noreferrer";
       link.textContent = "Ouvrir la carte Google Maps";
+      link.title = "Connexion Internet requise pour ouvrir Google Maps";
       link.style.cssText = "color:#2563eb;font-weight:700;text-decoration:underline;";
+      link.addEventListener("click", (event) => {
+        if(!navigator.onLine){
+          event.preventDefault();
+          box.textContent = "⚠️ Une connexion Internet est nécessaire pour ouvrir Google Maps.";
+          box.className = "alerte error";
+        }
+      });
       line.append(strong, link);
       detailsBox.appendChild(line);
+
+      const preview = document.createElement("div");
+      preview.className = "carte-visuelle";
+      preview.style.marginTop = "-2px";
+      const image = document.createElement("img");
+      image.src = `https://staticmap.openstreetmap.de/staticmap.php?center=${encodeURIComponent(`${lat},${lng}`)}&zoom=16&size=640x280&maptype=mapnik&markers=${encodeURIComponent(`${lat},${lng},red-pushpin`)}`;
+      image.alt = "Aperçu visuel de la zone de livraison";
+      image.loading = "lazy";
+      image.referrerPolicy = "no-referrer";
+      const fallback = document.createElement("p");
+      fallback.className = "secours";
+      fallback.hidden = true;
+      fallback.textContent = "📍 Aperçu visuel indisponible hors connexion. Le lien Google Maps ci-dessus nécessite Internet.";
+      image.addEventListener("error", () => {
+        image.hidden = true;
+        fallback.hidden = false;
+      });
+      preview.append(image, fallback);
+      detailsBox.appendChild(preview);
     }
 
     function renderDetails(command) {
