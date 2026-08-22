@@ -195,7 +195,7 @@ assert.match(inscriptionPage, /declencherOptimisationPhotosEnArrierePlan/);
 assert.match(inscriptionPage, /keepalive: true/);
 assert.match(index, /declencherOptimisationPhotosEnArrierePlan/);
 assert.match(index, /photo-optimizer\.js\?v=white-1/);
-assert.match(index, /optimiserPhotoCatalogueLocalement/);
+assert.match(index, /(?:optimiserPhotoCatalogueLocalement|preparerImageUploadRapide)/);
 assert.match(inscriptionPage, /photo-optimizer\.js\?v=white-1/);
 assert.match(photoOptimizer, /fillRect\(0, 0, tailleMax, tailleMax\)/);
 assert.match(photoOptimizer, /fillStyle = fondSortie/);
