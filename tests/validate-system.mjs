@@ -116,7 +116,8 @@ assert.match(index, /COMMISSION_FCFA: 300/);
 assert.match(index, /nettoyerNomArticleManuel/);
 assert.match(index, /prixBase \+ commission/);
 assert.match(index, /Prix affiché au client/);
-assert.match(index, /id: "montres", nom: "Montres"/);
+assert.match(index, /id: "bijoux", nom: "Bijoux & accessoires"/);
+assert.doesNotMatch(index, /id: "montres", nom: "Montres"/);
 assert.doesNotMatch(index, /id: "montres-connectees"/);
 
 assert.match(inscriptionFunction, /DISCORD_WEBHOOK_INSCRIPTION/);
@@ -140,6 +141,7 @@ assert.match(inscriptionPage, /nettoyerNomTechnique/);
 assert.match(inscriptionPage, /capture/);
 assert.match(inscriptionPage, /screenshot/);
 assert.match(inscriptionPage, /Montre \$\{aspects\.couleur\}/);
+assert.match(inscriptionPage, /sous_categorie_id: "bijoux"/);
 assert.match(inscriptionPage, /classerArticleLocal/);
 assert.match(inscriptionPage, /sauvegarderChampsArticles/);
 assert.match(inscriptionPage, /restaurerChampsArticles/);
@@ -217,5 +219,8 @@ const catalogueMigration = await read("supabase/migrations/202608220002_catalogu
 assert.match(catalogueMigration, /sous_categorie_id = 'montres'/);
 assert.match(catalogueMigration, /montres-connectees/);
 assert.match(catalogueMigration, /Capture/);
+const watchesToBijouxMigration = await read("supabase/migrations/202608220004_move_watches_to_bijoux.sql");
+assert.match(watchesToBijouxMigration, /sous_categorie_id = 'bijoux'/);
+assert.match(watchesToBijouxMigration, /WHERE sous_categorie_id = 'montres'/);
 
 console.log("OK: frontend syntax, secure order path, push preserved, Orange SMS paths, owner-only inscription path and Storage upload checks");
