@@ -1004,6 +1004,9 @@ async function ajouterPhoto(event){
       id: compteurPhoto,
       fichier: fichierCompresse,
       nomFichier: fichierOriginal.name,
+      nomArticle: "",
+      prixSaisi: "",
+      stockSaisi: "",
       apercuUrl: urlTemp,
     });
     redessinerPhotos();
@@ -1014,7 +1017,32 @@ async function ajouterPhoto(event){
   }
 }
 
+function sauvegarderChampsArticles(){
+  // Les cartes sont reconstruites pour permettre plusieurs photos : on conserve
+  // d’abord les saisies déjà présentes dans le DOM avant ce nouveau rendu.
+  photosAjoutees.forEach((photo) => {
+    const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
+    const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
+    const champStock = document.querySelector(`.stock-photo[data-photo-id="${photo.id}"]`);
+    if(champNom) photo.nomArticle = champNom.value;
+    if(champPrix) photo.prixSaisi = champPrix.value;
+    if(champStock) photo.stockSaisi = champStock.value;
+  });
+}
+
+function restaurerChampsArticles(){
+  photosAjoutees.forEach((photo) => {
+    const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
+    const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
+    const champStock = document.querySelector(`.stock-photo[data-photo-id="${photo.id}"]`);
+    if(champNom) champNom.value = photo.nomArticle || "";
+    if(champPrix) champPrix.value = photo.prixSaisi || "";
+    if(champStock) champStock.value = photo.stockSaisi || "";
+  });
+}
+
 function redessinerPhotos(){
+  sauvegarderChampsArticles();
   const grille = document.getElementById("grillePhotos");
   const statut = document.getElementById("statutPhotos");
 
@@ -1040,6 +1068,7 @@ function redessinerPhotos(){
   `;
 
   grille.innerHTML = cartesPhotos + boutonAjouter;
+  restaurerChampsArticles();
   
   // Le label associé au champ fichier déclenche nativement le sélecteur.
   // Aucun déclenchement programmatique supplémentaire : cela évite les doubles ouvertures.

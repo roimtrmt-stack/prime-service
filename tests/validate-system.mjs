@@ -117,6 +117,8 @@ assert.match(inscriptionPage, /Moteur local gratuit/);
 assert.match(inscriptionPage, /analyserAspectsPhotoGratuite/);
 assert.match(inscriptionPage, /genererNomArticleGratuit/);
 assert.match(inscriptionPage, /classerArticleLocal/);
+assert.match(inscriptionPage, /sauvegarderChampsArticles/);
+assert.match(inscriptionPage, /restaurerChampsArticles/);
 assert.doesNotMatch(inscriptionPage, /donneesIA|confiance IA|generativelanguage|api\\.groq|openrouter\\.ai|api\\.cloudflare/i);
 assert.match(inscriptionPage, /nomFichier/);
 assert.match(inscriptionPage, /Laissez vide pour un nom automatique/);
