@@ -1285,7 +1285,7 @@ function classerArticleLocal(articleData) {
   if(contient("moto", "scooter")) {
     return { categorie_id: "moto", sous_categorie_id: "motos" };
   }
-  if(contient("telephone", "smartphone", "iphone", "android", "mobile")) {
+  if(contient("telephone", "smartphone", "iphone", "android", "mobile", "phone", "gsm", "nokia", "3310", "t353", "oking", "sim", "dual sim")) {
     return { categorie_id: "electronique", sous_categorie_id: "telephones" };
   }
   if(contient("ordinateur", "laptop", "tablette", "pc")) {
@@ -1351,9 +1351,142 @@ function classerArticleLocal(articleData) {
   return { categorie_id: "mode", sous_categorie_id: "vetements" };
 }
 
-// --- 6. FONCTION SÉCURISÉE POUR PUBLIER UN ARTICLE ---
+function normaliserNomBoutiquePourComparaison(source) {
+  return String(source || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("fr-FR")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160);
+}
+
+function chargerSignaturePhoto(source) {
+  const taille = 20;
+  return new Promise(async (resolve) => {
+    let objectUrl = "";
+    try {
+      let blob = source instanceof Blob ? source : null;
+      if(!blob && typeof source === "string") {
+        const url = new URL(source, window.location.href);
+        const origineSupabase = new URL(CONFIG.SUPABASE_URL).origin;
+        if(url.protocol !== "https:" || url.origin !== origineSupabase || !url.pathname.startsWith("/storage/v1/object/public/photos-articles/")) {
+          resolve(null);
+          return;
+        }
+        const reponse = await fetch(url.href, { method: "GET", cache: "no-store", redirect: "error" });
+        if(!reponse.ok) { resolve(null); return; }
+        blob = await reponse.blob();
+      }
+      if(!blob || !String(blob.type || "").startsWith("image/")) { resolve(null); return; }
+      objectUrl = URL.createObjectURL(blob);
+      const image = new Image();
+      image.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = taille;
+          canvas.height = taille;
+          const contexte = canvas.getContext("2d", { willReadFrequently: true });
+          if(!contexte) { resolve(null); return; }
+          contexte.drawImage(image, 0, 0, taille, taille);
+          const pixels = contexte.getImageData(0, 0, taille, taille).data;
+          const gris = [];
+          let moyenneR = 0, moyenneG = 0, moyenneB = 0;
+          for(let i = 0; i < pixels.length; i += 4) {
+            const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+            gris.push((0.299 * r + 0.587 * g + 0.114 * b) / 255);
+            moyenneR += r; moyenneG += g; moyenneB += b;
+          }
+          const total = pixels.length / 4;
+          resolve({ gris, couleur: [moyenneR / total / 255, moyenneG / total / 255, moyenneB / total / 255] });
+        } catch(error) {
+          console.warn("Signature photo indisponible :", error);
+          resolve(null);
+        } finally {
+          if(objectUrl) URL.revokeObjectURL(objectUrl);
+        }
+      };
+      image.onerror = () => {
+        if(objectUrl) URL.revokeObjectURL(objectUrl);
+        resolve(null);
+      };
+      image.src = objectUrl;
+    } catch(error) {
+      if(objectUrl) URL.revokeObjectURL(objectUrl);
+      console.warn("Téléchargement photo équivalente impossible :", error);
+      resolve(null);
+    }
+  });
+}
+
+function scoreRessemblancePhoto(signatureA, signatureB) {
+  if(!signatureA || !signatureB || signatureA.gris.length !== signatureB.gris.length) return 0;
+  let differenceStructure = 0;
+  for(let i = 0; i < signatureA.gris.length; i++) differenceStructure += Math.abs(signatureA.gris[i] - signatureB.gris[i]);
+  differenceStructure /= signatureA.gris.length;
+  const differenceCouleur = signatureA.couleur.reduce((total, valeur, index) => total + Math.abs(valeur - signatureB.couleur[index]), 0) / 3;
+  return Math.max(0, Math.min(1, (1 - differenceStructure) * 0.8 + (1 - differenceCouleur) * 0.2));
+}
+
+async function trouverArticleEquivalent(articleData, classement) {
+  if(!supabaseClient || !articleData?.photo?.fichier) return null;
+  const signatureNouvelle = await chargerSignaturePhoto(articleData.photo.fichier);
+  if(!signatureNouvelle) return null;
+  const { data: candidats, error } = await supabaseClient
+    .from("produits")
+    .select("id, nom, stock, nom_boutique, image_url, categorie_id, sous_categorie_id")
+    .eq("categorie_id", classement.categorie_id)
+    .eq("sous_categorie_id", classement.sous_categorie_id)
+    .eq("masque", false)
+    .not("image_url", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(80);
+  if(error) throw new Error(`Recherche d’article similaire impossible : ${error.message}`);
+  let meilleur = null;
+  for(const candidat of (candidats || [])) {
+    const signatureExistante = await chargerSignaturePhoto(candidat.image_url);
+    const score = scoreRessemblancePhoto(signatureNouvelle, signatureExistante);
+    if(score >= 0.90 && (!meilleur || score > meilleur.score)) meilleur = { ...candidat, score };
+  }
+  return meilleur;
+}
+
+// --- 6. FONCTION SÉCURISÉE POUR PUBLIER OU FUSIONNER UN ARTICLE ---
 async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adresse, lat, lng) {
-  // 1. Upload sécurisé de la photo brute dans le bucket public modéré.
+  // Moteur local gratuit : la fusion et le nommage de secours n’envoient pas la photo à un service externe.
+  // 1. Nom et catégorie déterminés localement avant tout upload.
+  const aspects = !articleData.nomArticle
+    ? await analyserAspectsPhotoGratuite(articleData.photo.fichier)
+    : null;
+  const nomFinal = articleData.nomArticle
+    ? nettoyerNomArticleManuel(articleData.nomArticle)
+    : genererNomArticleGratuit(articleData, aspects);
+  const classement = classerArticleLocal({ ...articleData, nomArticle: nomFinal });
+
+  // 2. La photo est comparée aux articles visibles de la même sous-catégorie.
+  // Aucun stock n’est fusionné sans ressemblance visuelle forte et même boutique.
+  const equivalent = await trouverArticleEquivalent({ ...articleData, nomArticle: nomFinal }, classement);
+  if(equivalent && normaliserNomBoutiquePourComparaison(equivalent.nom_boutique) === normaliserNomBoutiquePourComparaison(nomBoutique)) {
+    const { data: fusionData, error: erreurFusion } = await supabaseClient.rpc("fusionner_stock_si_meme_boutique", {
+      p_produit_id: equivalent.id,
+      p_stock: Number(articleData.stockSaisi),
+      p_nom_boutique: nomBoutique,
+    });
+    if(erreurFusion) throw new Error(`Fusion de stock refusée : ${erreurFusion.message}`);
+    const ligneFusion = Array.isArray(fusionData) ? fusionData[0] : fusionData;
+    if(!ligneFusion) throw new Error("La boutique ne correspond plus ; aucune nouvelle offre n’a été créée pour éviter un doublon.");
+    return {
+      action: "fusion",
+      produitId: equivalent.id,
+      nom: equivalent.nom || nomFinal,
+      stock: ligneFusion.stock,
+      scorePhoto: equivalent.score,
+    };
+  }
+
+  // 3. Si la boutique est différente ou si la ressemblance est insuffisante,
+  // publier une offre indépendante avec sa propre photo et son propre stock.
   const fichier = articleData.photo.fichier;
   const nomSecurise = fichier.name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(-120);
   const cheminFichier = `${Date.now()}-${crypto.randomUUID()}-${nomSecurise || "article.jpg"}`;
@@ -1371,18 +1504,6 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
   const imageUrl = urlPublique?.publicUrl;
   if(!imageUrl) throw new Error("URL publique de photo introuvable");
 
-  // 2. Moteur local gratuit : aucune clé, aucun quota externe et aucun appel réseau.
-  // Il analyse la photo dans le navigateur (couleur, luminosité et cadrage).
-  const aspects = !articleData.nomArticle
-    ? await analyserAspectsPhotoGratuite(articleData.photo.fichier)
-    : null;
-
-  // 3. Nom final et catégorie : calculés localement, sans clé ni quota externe.
-  const nomFinal = articleData.nomArticle
-    ? nettoyerNomArticleManuel(articleData.nomArticle)
-    : genererNomArticleGratuit(articleData, aspects);
-  const classement = classerArticleLocal(articleData);
-
   const nouvelArticle = {
     nom: nomFinal,
     prix: Number(articleData.prixSaisi) + CONFIG.COMMISSION_FCFA,
@@ -1394,18 +1515,21 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
     adresse: adresse,
     lat: Number(lat),
     lng: Number(lng),
-    // Une demande validée est publiée immédiatement dans sa catégorie locale.
     masque: false,
     categorie_id: classement.categorie_id,
     sous_categorie_id: classement.sous_categorie_id
   };
 
-  // 4. Insertion dans Supabase
   const { error: erreurInsertion } = await supabaseClient
     .from("produits")
     .insert(nouvelArticle);
   if(erreurInsertion) throw new Error(`Article non enregistré : ${erreurInsertion.message}`);
-  return true;
+  return {
+    action: "creation",
+    nom: nomFinal,
+    categorie_id: classement.categorie_id,
+    sous_categorie_id: classement.sous_categorie_id,
+  };
 }
 
 // --- 5. ENVOI FINAL (Boucle pour plusieurs articles) ---
@@ -1451,6 +1575,7 @@ async function envoyerSoumission(event){
   try {
     // 🛡️ On boucle sur tous les articles et on appelle la fonction sécurisée
     let echecs = 0;
+    const resultatsArticles = [];
     for(const photo of photosAjoutees) {
       try {
         const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
@@ -1465,7 +1590,8 @@ async function envoyerSoumission(event){
           stockSaisi: Number(champStock.value)
         };
 
-        await traiterEtPublierArticle(articleData, nomBoutique, telephone, adresse, lat, lng);
+        const resultatArticle = await traiterEtPublierArticle(articleData, nomBoutique, telephone, adresse, lat, lng);
+        resultatsArticles.push({ ...resultatArticle, stockSaisi: articleData.stockSaisi });
         
         // Mise à jour du statut pour montrer l'avancement
         statut.textContent = `✅ ${photosAjoutees.indexOf(photo) + 1}/${photosAjoutees.length} article(s) envoyé(s)...`;
@@ -1514,18 +1640,22 @@ async function envoyerSoumission(event){
 
       // On récupère les détails de chaque article pour le message
       photosAjoutees.forEach((photo, index) => {
+          const resultat = resultatsArticles[index] || { action: "creation" };
+          const actionLabel = resultat.action === "fusion"
+            ? `Stock fusionné : ${Number(resultat.stock || 0).toLocaleString("fr-FR")}`
+            : "Nouvelle offre";
           const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
           const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
           const nomArticle = champNom ? champNom.value.trim() : "Article";
           const prixSaisi = Number(champPrix?.value) || 0;
           const prixFinal = prixSaisi + CONFIG.COMMISSION_FCFA;
 
-          discordTexte += `\n▪️ **${nomArticle}** — ${prixFinal.toLocaleString("fr-FR")} FCFA`;
+          discordTexte += `\n▪️ **${resultat.nom || nomArticle}** — ${prixFinal.toLocaleString("fr-FR")} FCFA — ${actionLabel}`;
 
           // Préparer l'embed pour Discord (Le titre de l'article)
           embedsPayload.push({
               title: `📦 ${nomArticle}`,
-              description: `Prix affiché : ${prixFinal.toLocaleString("fr-FR")} FCFA`,
+              description: `Prix affiché : ${prixFinal.toLocaleString("fr-FR")} FCFA — ${actionLabel}`,
               color: 0x2563eb // Bleu
           });
 

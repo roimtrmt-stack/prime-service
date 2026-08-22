@@ -26,6 +26,7 @@ const watchNamesMigration = await read("supabase/migrations/202608220005_rename_
 const watchSignatureMigration = await read("supabase/migrations/202608220006_remove_watch_signature_name.sql");
 const fiveCommissionMigration = await read("supabase/migrations/202608220007_add_commission_to_five_products.sql");
 const watchAddressMigration = await read("supabase/migrations/202608220008_set_watch_address_maps.sql");
+const mergeStockMigration = await read("supabase/migrations/202608220008_merge_stock_same_shop.sql");
 const supabaseConfig = await read("supabase/config.toml");
 const envExample = await read("supabase/functions/.env.example");
 
@@ -174,6 +175,11 @@ assert.match(inscriptionPage, /screenshot/);
 assert.match(inscriptionPage, /Montre \$\{aspects\.couleur\}/);
 assert.match(inscriptionPage, /sous_categorie_id: "bijoux"/);
 assert.match(inscriptionPage, /classerArticleLocal/);
+assert.match(inscriptionPage, /normaliserNomBoutiquePourComparaison/);
+assert.match(inscriptionPage, /trouverArticleEquivalent/);
+assert.match(inscriptionPage, /score >= 0\.90/);
+assert.match(inscriptionPage, /fusionner_stock_si_meme_boutique/);
+assert.match(inscriptionPage, /action: "fusion"/);
 assert.match(inscriptionPage, /sauvegarderChampsArticles/);
 assert.match(inscriptionPage, /restaurerChampsArticles/);
 assert.doesNotMatch(inscriptionPage, /donneesIA|confiance IA|generativelanguage|api\\.groq|openrouter\\.ai|api\\.cloudflare/i);
@@ -257,5 +263,9 @@ assert.match(catalogueMigration, /Capture/);
 const watchesToBijouxMigration = await read("supabase/migrations/202608220004_move_watches_to_bijoux.sql");
 assert.match(watchesToBijouxMigration, /sous_categorie_id = 'bijoux'/);
 assert.match(watchesToBijouxMigration, /WHERE sous_categorie_id = 'montres'/);
+assert.match(mergeStockMigration, /security definer/);
+assert.match(mergeStockMigration, /coalesce\(p\.stock, 0\) \+ p_stock/);
+assert.match(mergeStockMigration, /nom_boutique/);
+assert.match(mergeStockMigration, /grant execute on function public\.fusionner_stock_si_meme_boutique/);
 
 console.log("OK: frontend syntax, secure order path, push preserved, Orange SMS paths, owner-only inscription path and Storage upload checks");
