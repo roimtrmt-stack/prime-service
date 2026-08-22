@@ -133,6 +133,9 @@ assert.match(inscriptionPage, /function positionGPSValide/);
 assert.match(inscriptionPage, /Position déjà récupérée/);
 assert.match(inscriptionPage, /Après un refus/);
 assert.match(inscriptionPage, /maximumAge: 0/);
+assert.match(inscriptionPage, /type="file"[^>]*multiple/);
+assert.match(inscriptionPage, /Array\.from\(event\.target\.files/);
+assert.match(inscriptionPage, /for\(const fichierOriginal of fichiersSelectionnes\)/);
 assert.doesNotMatch(index, /id: "montres-connectees"/);
 
 assert.match(inscriptionFunction, /DISCORD_WEBHOOK_INSCRIPTION/);

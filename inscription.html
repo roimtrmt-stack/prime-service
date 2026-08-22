@@ -823,10 +823,11 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
     <form id="formInscription" class="carte-formulaire" onsubmit="return envoyerSoumission(event)">
 
       <label class="label">Vos photos d'articles (une photo = un article)</label>
+      <p class="texte-info-conditions" style="margin:6px 0 10px;">Vous pouvez sélectionner plusieurs photos en une seule fois.</p>
       <div id="grillePhotos" class="grille-photos-inscription">
         <label class="cadre-photo cadre-photo-inscription" id="boutonAjouterPhoto">
           <span id="signePlusInscription">+</span>
-          <input type="file" accept="image/*" id="inputPhoto" aria-label="Choisir une photo d’article" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;" onchange="ajouterPhoto(event)">
+          <input type="file" accept="image/*" multiple id="inputPhoto" aria-label="Choisir une ou plusieurs photos d’article" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;" onchange="ajouterPhoto(event)">
         </label>
       </div>
       <p id="statutPhotos" class="statut-position">Ajoutez au moins une photo pour continuer.</p>
@@ -990,30 +991,48 @@ function compresserImage(fichier, tailleMax = 1000, qualite = 0.7){
 }
 
 async function ajouterPhoto(event){
-  const fichierOriginal = event.target.files[0];
-  if(!fichierOriginal) return;
+  const fichiersSelectionnes = Array.from(event.target.files || []);
+  if(fichiersSelectionnes.length === 0) return;
+  // Réinitialise immédiatement le champ pour permettre de resélectionner les mêmes fichiers.
   event.target.value = "";
+  const statut = document.getElementById("statutPhotos");
+  let ajoutees = 0;
+  let echec = 0;
 
-  try {
-    // Compression instantanée, entièrement locale.
-    const blobCompresse = await compresserImage(fichierOriginal);
-    const fichierCompresse = new File([blobCompresse], "photo.jpg", { type: "image/jpeg" });
-    const urlTemp = URL.createObjectURL(fichierCompresse);
-    compteurPhoto++;
-    photosAjoutees.push({
-      id: compteurPhoto,
-      fichier: fichierCompresse,
-      nomFichier: fichierOriginal.name,
-      nomArticle: "",
-      prixSaisi: "",
-      stockSaisi: "",
-      apercuUrl: urlTemp,
-    });
-    redessinerPhotos();
-  } catch(error) {
-    console.error("Impossible de préparer la photo :", error);
-    const statut = document.getElementById("statutPhotos");
-    if(statut) statut.textContent = "❌ Cette photo n’a pas pu être préparée. Choisissez une image JPG, PNG ou WEBP.";
+  for(const fichierOriginal of fichiersSelectionnes){
+    try {
+      if(statut){
+        statut.textContent = `📷 Préparation de la photo ${ajoutees + echec + 1}/${fichiersSelectionnes.length}...`;
+        statut.style.color = "#2563eb";
+      }
+      // Compression locale séquentielle : plusieurs photos sans saturer le téléphone.
+      const blobCompresse = await compresserImage(fichierOriginal);
+      const fichierCompresse = new File([blobCompresse], `photo-${compteurPhoto + 1}.jpg`, { type: "image/jpeg" });
+      const urlTemp = URL.createObjectURL(fichierCompresse);
+      compteurPhoto++;
+      photosAjoutees.push({
+        id: compteurPhoto,
+        fichier: fichierCompresse,
+        nomFichier: fichierOriginal.name,
+        nomArticle: "",
+        prixSaisi: "",
+        stockSaisi: "",
+        apercuUrl: urlTemp,
+      });
+      ajoutees++;
+    } catch(error) {
+      echec++;
+      console.error("Impossible de préparer la photo :", fichierOriginal.name, error);
+    }
+  }
+
+  redessinerPhotos();
+  if(statut && echec > 0){
+    statut.style.color = "#dc2626";
+    statut.textContent = `⚠️ ${ajoutees} photo(s) ajoutée(s), ${echec} échec(s). Choisissez des images JPG, PNG ou WEBP.`;
+  } else if(statut){
+    statut.style.color = "#16a34a";
+    statut.textContent = `${photosAjoutees.length} article(s) prêt(s) à être envoyé(s).`;
   }
 }
 
