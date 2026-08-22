@@ -76,3 +76,9 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: supabase functions deploy lier-notification-push --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+
+      - name: Déployer enregistrer-visite
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: supabase functions deploy enregistrer-visite --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
