@@ -116,12 +116,15 @@ assert.doesNotMatch(inscriptionPage, /ia-remplir-formulaire/);
 assert.match(inscriptionPage, /Moteur local gratuit/);
 assert.match(inscriptionPage, /analyserAspectsPhotoGratuite/);
 assert.match(inscriptionPage, /genererNomArticleGratuit/);
+assert.match(inscriptionPage, /classerArticleLocal/);
+assert.doesNotMatch(inscriptionPage, /donneesIA|confiance IA|generativelanguage|api\\.groq|openrouter\\.ai|api\\.cloudflare/i);
 assert.match(inscriptionPage, /nomFichier/);
 assert.match(inscriptionPage, /Laissez vide pour un nom automatique/);
 assert.doesNotMatch(inscriptionPage, /class="champ nom-photo"[^>]*required/);
 assert.match(inscriptionPage, /telephone_boutique: telephone/);
 assert.match(inscriptionPage, /lat: Number\(lat\)/);
 assert.match(inscriptionPage, /lng: Number\(lng\)/);
+assert.match(inscriptionPage, /masque: false/);
 assert.doesNotMatch(inscriptionFunction, /TEXTBEE_API_KEY/);
 assert.doesNotMatch(inscriptionFunction, /telephone_boutique/);
 

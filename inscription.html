@@ -826,7 +826,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       <div id="grillePhotos" class="grille-photos-inscription">
         <label class="cadre-photo cadre-photo-inscription" id="boutonAjouterPhoto">
           <span id="signePlusInscription">+</span>
-          <input type="file" accept="image/*" id="inputPhoto" style="display:none;" onchange="ajouterPhoto(event)">
+          <input type="file" accept="image/*" id="inputPhoto" aria-label="Choisir une photo d’article" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;" onchange="ajouterPhoto(event)">
         </label>
       </div>
       <p id="statutPhotos" class="statut-position">Ajoutez au moins une photo pour continuer.</p>
@@ -992,25 +992,26 @@ function compresserImage(fichier, tailleMax = 1000, qualite = 0.7){
 async function ajouterPhoto(event){
   const fichierOriginal = event.target.files[0];
   if(!fichierOriginal) return;
-  event.target.value = ""; 
+  event.target.value = "";
 
-  // Compression instantanée
-  const blobCompresse = await compresserImage(fichierOriginal);
-  const fichierCompresse = new File([blobCompresse], "photo.jpg", { type: "image/jpeg" });
-  
-  const urlTemp = URL.createObjectURL(fichierCompresse);
-  
-  compteurPhoto++;
-  const id = compteurPhoto;
-
-  photosAjoutees.push({
-    id,
-    fichier: fichierCompresse,
-    nomFichier: fichierOriginal.name,
-    apercuUrl: urlTemp,
-  });
-  
-  redessinerPhotos();
+  try {
+    // Compression instantanée, entièrement locale.
+    const blobCompresse = await compresserImage(fichierOriginal);
+    const fichierCompresse = new File([blobCompresse], "photo.jpg", { type: "image/jpeg" });
+    const urlTemp = URL.createObjectURL(fichierCompresse);
+    compteurPhoto++;
+    photosAjoutees.push({
+      id: compteurPhoto,
+      fichier: fichierCompresse,
+      nomFichier: fichierOriginal.name,
+      apercuUrl: urlTemp,
+    });
+    redessinerPhotos();
+  } catch(error) {
+    console.error("Impossible de préparer la photo :", error);
+    const statut = document.getElementById("statutPhotos");
+    if(statut) statut.textContent = "❌ Cette photo n’a pas pu être préparée. Choisissez une image JPG, PNG ou WEBP.";
+  }
 }
 
 function redessinerPhotos(){
@@ -1034,24 +1035,14 @@ function redessinerPhotos(){
   const boutonAjouter = `
     <label class="cadre-photo cadre-photo-inscription" id="boutonAjouterPhoto">
       <span id="signePlusInscription">+</span>
-      <input type="file" accept="image/*" id="inputPhoto" style="display:none;" onchange="ajouterPhoto(event)">
+      <input type="file" accept="image/*" id="inputPhoto" aria-label="Choisir une photo d’article" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;" onchange="ajouterPhoto(event)">
     </label>
   `;
 
   grille.innerHTML = cartesPhotos + boutonAjouter;
   
-  // ✅ CORRECTION ICI : Attacher l'événement directement sur le label du bouton
-  const boutonLabel = document.getElementById("boutonAjouterPhoto");
-  if(boutonLabel) {
-      // On enlève les anciens écouteurs pour éviter les doublons
-      const newLabel = boutonLabel.cloneNode(true);
-      boutonLabel.parentNode.replaceChild(newLabel, boutonLabel);
-      
-      newLabel.addEventListener("click", function(e){
-          const input = document.getElementById("inputPhoto");
-          if(input) input.click();
-      });
-  }
+  // Le label associé au champ fichier déclenche nativement le sélecteur.
+  // Aucun déclenchement programmatique supplémentaire : cela évite les doubles ouvertures.
 
   statut.textContent = photosAjoutees.length === 0 
     ? "Ajoutez au moins une photo." 
@@ -1194,7 +1185,92 @@ function genererNomArticleGratuit(articleData, aspects) {
   return styliserNomArticle(`${base} ${aspects.couleur} ${aspects.cadrage}`, "Sélection Prime Service");
 }
 
-// --- 5. FONCTION SÉCURISÉE POUR PUBLIER UN ARTICLE (Plus propre) ---
+// --- 5. CLASSEMENT LOCAL DE SECOURS (sans service externe) ---
+function classerArticleLocal(articleData) {
+  const texte = `${articleData.nomArticle || ""} ${articleData.nomFichier || ""}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("fr-FR");
+  const contient = (...mots) => mots.some((mot) => {
+    const motif = mot.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b${motif}\\b`, "i").test(texte);
+  });
+
+  // Les catégories très explicites passent avant les mots ambigus du nom de fichier.
+  if(contient("piece moto", "frein", "pneu")) {
+    return { categorie_id: "moto", sous_categorie_id: "pieces-moto" };
+  }
+  if(contient("casque moto")) {
+    return { categorie_id: "moto", sous_categorie_id: "casques-accessoires" };
+  }
+  if(contient("moto", "scooter")) {
+    return { categorie_id: "moto", sous_categorie_id: "motos" };
+  }
+  if(contient("telephone", "smartphone", "iphone", "android", "mobile")) {
+    return { categorie_id: "electronique", sous_categorie_id: "telephones" };
+  }
+  if(contient("ordinateur", "laptop", "tablette", "pc")) {
+    return { categorie_id: "electronique", sous_categorie_id: "ordinateurs" };
+  }
+  if(contient("chargeur", "ecouteur", "casque audio", "cable", "usb", "batterie", "solaire", "groupe")) {
+    return { categorie_id: "electronique", sous_categorie_id: "accessoires-electroniques" };
+  }
+  if(contient("riz", "mil", "sorgho", "farine", "cereale")) {
+    return { categorie_id: "alimentation", sous_categorie_id: "cereales" };
+  }
+  if(contient("jus", "boisson", "eau", "lait")) {
+    return { categorie_id: "alimentation", sous_categorie_id: "boissons" };
+  }
+  if(contient("tomate", "oignon", "legume")) {
+    return { categorie_id: "alimentation", sous_categorie_id: "legumes" };
+  }
+  if(contient("fruit", "mangue", "banane", "orange")) {
+    return { categorie_id: "alimentation", sous_categorie_id: "fruits" };
+  }
+  if(contient("epice", "sel", "huile", "condiment")) {
+    return { categorie_id: "alimentation", sous_categorie_id: "condiments" };
+  }
+  if(contient("parfum", "eau de toilette")) {
+    return { categorie_id: "beaute", sous_categorie_id: "parfums" };
+  }
+  if(contient("cheveu", "cheveux", "meche", "meches", "perruque", "shampoing")) {
+    return { categorie_id: "beaute", sous_categorie_id: "cheveux" };
+  }
+  if(contient("savon", "hygiene", "gel douche", "dentifrice")) {
+    return { categorie_id: "beaute", sous_categorie_id: "hygiene" };
+  }
+  if(contient("maquillage", "cosmetique", "creme", "lotion", "rouge a levres")) {
+    return { categorie_id: "beaute", sous_categorie_id: "cosmetiques" };
+  }
+  if(contient("chaussure", "chaussures", "basket", "sandale", "talon", "bottine")) {
+    return { categorie_id: "mode", sous_categorie_id: "chaussures" };
+  }
+  if(contient("bijou", "bijoux", "montre")) {
+    return { categorie_id: "mode", sous_categorie_id: "bijoux" };
+  }
+  if(contient("sac", "ceinture", "portefeuille", "accessoire")) {
+    return { categorie_id: "mode", sous_categorie_id: "accessoires-mode" };
+  }
+  if(contient("foulard", "foulards", "echarpe")) {
+    return { categorie_id: "mode", sous_categorie_id: "foulards" };
+  }
+  if(contient("pagne", "bazin", "wax", "tissu")) {
+    return { categorie_id: "mode", sous_categorie_id: "pagnes-tissus" };
+  }
+  if(contient("cuisine", "poele", "marmite", "assiette", "ustensile")) {
+    return { categorie_id: "maison", sous_categorie_id: "ustensiles-cuisine" };
+  }
+  if(contient("matelas", "drap", "linge", "literie")) {
+    return { categorie_id: "maison", sous_categorie_id: "literie" };
+  }
+  if(contient("rideau", "decoration", "meuble")) {
+    return { categorie_id: "maison", sous_categorie_id: "decoration" };
+  }
+  return { categorie_id: "mode", sous_categorie_id: "vetements" };
+}
+
+// --- 6. FONCTION SÉCURISÉE POUR PUBLIER UN ARTICLE ---
 async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adresse, lat, lng) {
   // 1. Upload sécurisé de la photo brute dans le bucket public modéré.
   const fichier = articleData.photo.fichier;
@@ -1220,10 +1296,11 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
     ? await analyserAspectsPhotoGratuite(articleData.photo.fichier)
     : null;
 
-  // 3. Nom final : nom saisi par le vendeur, sinon nom généré localement.
+  // 3. Nom final et catégorie : calculés localement, sans clé ni quota externe.
   const nomFinal = articleData.nomArticle
     ? styliserNomArticle(articleData.nomArticle)
     : genererNomArticleGratuit(articleData, aspects);
+  const classement = classerArticleLocal(articleData);
 
   const nouvelArticle = {
     nom: nomFinal,
@@ -1236,10 +1313,10 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
     adresse: adresse,
     lat: Number(lat),
     lng: Number(lng),
-    // Si la confiance IA est > 70%, on publie direct, sinon on met en masqué
-    masque: (donneesIA.confiance && donneesIA.confiance > 0.70) ? false : true,
-    categorie_id: donneesIA.categorie_id || null,
-    sous_categorie_id: donneesIA.sous_categorie_id || null
+    // Une demande validée est publiée immédiatement dans sa catégorie locale.
+    masque: false,
+    categorie_id: classement.categorie_id,
+    sous_categorie_id: classement.sous_categorie_id
   };
 
   // 4. Insertion dans Supabase
