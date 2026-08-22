@@ -1699,6 +1699,36 @@ try{
   console.error("Supabase indisponible (réseau ou CDN) :", erreur);
 }
 
+/* =====================================================================
+   MESURE ANONYMISÉE DES VISITES
+   L’identifiant local reste dans le navigateur et n’est jamais envoyé brut.
+   La fonction Edge le transforme en HMAC journalier avant stockage.
+   ===================================================================== */
+async function enregistrerVisiteAnonymisee(){
+  if(!supabaseClient) return;
+  try{
+    const cleVisiteur = "primeservice_visiteur_id";
+    let visitorId = localStorage.getItem(cleVisiteur);
+    if(!visitorId){
+      const octets = new Uint8Array(24);
+      crypto.getRandomValues(octets);
+      visitorId = Array.from(octets, octet => octet.toString(16).padStart(2, "0")).join("");
+      localStorage.setItem(cleVisiteur, visitorId);
+    }
+    const cleSession = `primeservice_visite_${new Date().toISOString().slice(0, 10)}`;
+    if(sessionStorage.getItem(cleSession)) return;
+    const { error } = await supabaseClient.functions.invoke("enregistrer-visite", {
+      body: { visitor_id: visitorId, path: window.location.pathname || "/" }
+    });
+    if(!error) sessionStorage.setItem(cleSession, "1");
+  } catch(erreur){
+    // La mesure ne doit jamais bloquer le catalogue ou le panier.
+    console.debug("Mesure de visite indisponible :", erreur);
+  }
+}
+
+enregistrerVisiteAnonymisee();
+
 async function obtenirTokenAdmin(){
   if(!supabaseClient) throw new Error("Connexion Supabase indisponible.");
   const { data: { session } } = await supabaseClient.auth.getSession();
