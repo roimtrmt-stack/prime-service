@@ -24,6 +24,7 @@ const readDelayMigration = await read("supabase/migrations/202608210005_boutiqui
 const addressMigration = await read("supabase/migrations/202608220001_customer_delivery_address.sql");
 const watchNamesMigration = await read("supabase/migrations/202608220005_rename_watch_products_stylish.sql");
 const watchSignatureMigration = await read("supabase/migrations/202608220006_remove_watch_signature_name.sql");
+const fiveCommissionMigration = await read("supabase/migrations/202608220007_add_commission_to_five_products.sql");
 const supabaseConfig = await read("supabase/config.toml");
 const envExample = await read("supabase/functions/.env.example");
 
@@ -124,6 +125,10 @@ assert.match(watchNamesMigration, /Montre Squelette Bleu Acier/);
 assert.match(watchNamesMigration, /p\.id = v\.id/);
 assert.match(watchSignatureMigration, /Montre Carbone Bleu/);
 assert.doesNotMatch(watchSignatureMigration, /SET nom = 'Montre Bleu Nuit Signature'/);
+assert.match(fiveCommissionMigration, /\(94, 60000\)/);
+assert.match(fiveCommissionMigration, /\(109, 7000\)/);
+assert.match(fiveCommissionMigration, /p\.prix \+ 300/);
+assert.match(fiveCommissionMigration, /p\.commission = 300/);
 assert.match(inscriptionPage, /function positionGPSValide/);
 assert.match(inscriptionPage, /Position déjà récupérée/);
 assert.match(inscriptionPage, /Après un refus/);
