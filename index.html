@@ -529,6 +529,37 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 }
 .carte-merci h2{ margin:10px 0 6px; }
 .carte-merci p{ color:#555; }
+.notification-commande-client{
+  margin:18px 0 22px;
+  padding:16px;
+  text-align:left;
+  border:1px solid #dbeafe;
+  border-radius:18px;
+  background:linear-gradient(180deg,#ffffff,#eff6ff);
+  box-shadow:0 8px 22px rgba(37,99,235,.10);
+}
+.notification-client-entete{ display:flex; align-items:center; gap:10px; }
+.notification-client-logo{ width:42px; height:42px; display:grid; place-items:center; border-radius:13px; background:linear-gradient(135deg,#f97316,#dc2626); color:#fff; font-size:22px; }
+.notification-client-entete strong{ display:block; color:#1f2937; }
+.notification-client-entete small{ color:#64748b; }
+.notification-client-commande{ margin:14px 0 5px; font-size:18px; color:#1f2937; }
+.notification-client-message{ margin:0 0 12px; color:#475569 !important; line-height:1.45; }
+.notification-client-article{ display:flex; align-items:center; gap:10px; margin-top:8px; padding:9px; border-radius:12px; background:#f8fafc; }
+.notification-client-article-icone{ width:42px; height:42px; flex:0 0 42px; display:grid; place-items:center; border-radius:10px; background:#dbeafe; font-size:21px; }
+.notification-client-article strong{ display:block; color:#1f2937; font-size:13px; }
+.notification-client-article small{ color:#64748b; }
+.notification-client-total{ display:flex; justify-content:space-between; gap:12px; margin-top:12px; padding-top:10px; border-top:1px dashed #bfdbfe; font-weight:800; color:#1f2937; }
+.notification-client-livraison{ margin-top:12px; padding:10px; border-radius:12px; background:#eff6ff; color:#1e3a8a; font-size:13px; line-height:1.5; }
+.notification-client-livraison a{ color:#1d4ed8; font-weight:800; text-decoration:underline; }
+.notification-client-actions{ display:grid; gap:8px; margin-top:12px; }
+.notification-client-actions button{ width:100%; border:0; border-radius:11px; padding:10px 12px; color:#fff; background:var(--bleu); font-weight:800; cursor:pointer; }
+.notification-client-actions button.secondaire{ color:#1e3a8a; background:#dbeafe; }
+.notification-client-actions button.noir{ background:#111827; }
+.notification-client-statut{ min-height:20px; margin:8px 0 0 !important; color:#166534 !important; font-size:12px; font-weight:700; text-align:center; }
+@media (max-width:480px){
+  .carte-merci{ margin:20px auto; padding:28px 14px; }
+  .notification-commande-client{ padding:13px; }
+}
 .bloc-paiement{
   background:var(--gris-fond);
   border:1px solid var(--gris-bordure);
@@ -2529,9 +2560,15 @@ async function envoyerCommande(event){
       }
     } catch(e){}
 
+    const articlesPourConfirmation = panier.map(article => ({
+      nom: article.nom,
+      prix: Number(article.prix) || 0,
+      quantite: Number(article.quantite) || 1,
+      image_url: article.image_url || null,
+    }));
     panier = [];
     mettreAJourCompteur();
-    afficherPageMerci(paiement, Number(donnees.total) || totalCommande, false, lat, lng);
+    afficherPageMerci(paiement, Number(donnees.total) || totalCommande, false, lat, lng, articlesPourConfirmation, donnees.commandId || "");
   } catch(erreur){
     console.error("Erreur enregistrement commande:", erreur);
     statutEnvoi.style.color = "#dc2626";
@@ -2542,7 +2579,193 @@ async function envoyerCommande(event){
   return false;
 }
 
-function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClient = null, lngClient = null){
+let contexteAudioNotificationClient = null;
+
+function jouerSonNotificationClient(statutElement){
+  try{
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if(!AudioContextClass) throw new Error("audio_non_supporte");
+    contexteAudioNotificationClient ||= new AudioContextClass();
+    const audio = contexteAudioNotificationClient;
+    const jouer = () => {
+      const debut = audio.currentTime;
+      const oscillateur = audio.createOscillator();
+      const gain = audio.createGain();
+      oscillateur.type = "sine";
+      oscillateur.frequency.setValueAtTime(880, debut);
+      oscillateur.frequency.setValueAtTime(1174.66, debut + 0.09);
+      gain.gain.setValueAtTime(0.0001, debut);
+      gain.gain.exponentialRampToValueAtTime(0.14, debut + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, debut + 0.28);
+      oscillateur.connect(gain).connect(audio.destination);
+      oscillateur.start(debut);
+      oscillateur.stop(debut + 0.3);
+      if(statutElement) statutElement.textContent = "🔊 Aperçu sonore joué.";
+    };
+    if(audio.state === "suspended") void audio.resume().then(jouer);
+    else jouer();
+  } catch(e){
+    if(statutElement) statutElement.textContent = "Le son n’est pas disponible dans ce navigateur.";
+  }
+}
+
+function vibrerNotificationClient(statutElement, automatique = false){
+  if(typeof navigator.vibrate !== "function"){
+    if(statutElement && !automatique) statutElement.textContent = "La vibration n’est pas disponible sur cet appareil.";
+    return false;
+  }
+  navigator.vibrate([180, 90, 180, 90, 380]);
+  if(statutElement && !automatique) statutElement.textContent = "📳 Vibration simulée : rappel de commande activé.";
+  return true;
+}
+
+async function afficherNotificationSystemeCommandeClient({commandId, total}){
+  if(typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  try{
+    const options = {
+      body: `Votre commande${commandId ? ` #${String(commandId).slice(-8)}` : ""} est enregistrée — ${Number(total || 0).toLocaleString("fr-FR")} FCFA.`,
+      icon: "./icon-192.png",
+      badge: "./icon-192.png",
+      tag: `prime-service-commande-client-${commandId || Date.now()}`,
+      renotify: true,
+      vibrate: [180, 90, 180, 90, 380],
+      data: { url: window.location.href },
+    };
+    if("serviceWorker" in navigator){
+      const enregistrement = await navigator.serviceWorker.ready;
+      if(enregistrement?.showNotification){
+        await enregistrement.showNotification("Commande enregistrée", options);
+        return;
+      }
+    }
+    new Notification("Commande enregistrée", options);
+  } catch(e){
+    console.warn("Notification système client indisponible :", e);
+  }
+}
+
+function afficherNotificationCommandeClient({commandId = "", total = 0, articles = [], quartier = "", precision = "", latClient = null, lngClient = null}){
+  const ancienne = document.getElementById("notificationCommandeClient");
+  if(ancienne) ancienne.remove();
+
+  const carte = document.createElement("article");
+  carte.id = "notificationCommandeClient";
+  carte.className = "notification-commande-client";
+
+  const entete = document.createElement("div");
+  entete.className = "notification-client-entete";
+  const logo = document.createElement("div");
+  logo.className = "notification-client-logo";
+  logo.textContent = "🛍️";
+  const identite = document.createElement("div");
+  const nomService = document.createElement("strong");
+  nomService.textContent = "Prime Service";
+  const instant = document.createElement("small");
+  instant.textContent = "À l’instant";
+  identite.append(nomService, instant);
+  entete.append(logo, identite);
+  carte.appendChild(entete);
+
+  const titre = document.createElement("h3");
+  titre.className = "notification-client-commande";
+  titre.textContent = "Commande enregistrée";
+  carte.appendChild(titre);
+  const message = document.createElement("p");
+  message.className = "notification-client-message";
+  message.textContent = "Votre commande a bien été reçue et transmise aux boutiquiers concernés.";
+  carte.appendChild(message);
+
+  const liste = document.createElement("div");
+  (Array.isArray(articles) ? articles : []).slice(0, 20).forEach((article) => {
+    const ligne = document.createElement("div");
+    ligne.className = "notification-client-article";
+    const icone = document.createElement("div");
+    icone.className = "notification-client-article-icone";
+    const imageUrl = urlImageSecurisee(article?.image_url);
+    if(imageUrl){
+      const image = document.createElement("img");
+      image.src = imageUrl;
+      image.alt = "";
+      image.loading = "lazy";
+      image.style.cssText = "width:42px;height:42px;object-fit:cover;border-radius:10px;";
+      icone.replaceChildren(image);
+    } else {
+      icone.textContent = "⌚";
+    }
+    const details = document.createElement("div");
+    const nom = document.createElement("strong");
+    nom.textContent = `${String(article?.nom || "Article").slice(0, 160)} × ${Math.max(1, Number(article?.quantite) || 1)}`;
+    const prix = document.createElement("small");
+    prix.textContent = `${(Math.max(0, Number(article?.prix) || 0) * Math.max(1, Number(article?.quantite) || 1)).toLocaleString("fr-FR")} FCFA`;
+    details.append(nom, prix);
+    ligne.append(icone, details);
+    liste.appendChild(ligne);
+  });
+  carte.appendChild(liste);
+
+  const totalElement = document.createElement("div");
+  totalElement.className = "notification-client-total";
+  const totalLabel = document.createElement("span");
+  totalLabel.textContent = "Total client";
+  const totalValue = document.createElement("span");
+  totalValue.textContent = `${Number(total || 0).toLocaleString("fr-FR")} FCFA`;
+  totalElement.append(totalLabel, totalValue);
+  carte.appendChild(totalElement);
+
+  const livraison = document.createElement("div");
+  livraison.className = "notification-client-livraison";
+  const livraisonTitre = document.createElement("strong");
+  livraisonTitre.textContent = "Livraison";
+  livraison.append(livraisonTitre, document.createElement("br"));
+  livraison.append(document.createTextNode(`Quartier : ${quartier || "Non renseigné"}`), document.createElement("br"));
+  livraison.append(document.createTextNode(`Précision : ${precision || "Aucune précision fournie"}`));
+  const carteUrl = construireLienGoogleMaps(latClient, lngClient);
+  if(carteUrl){
+    livraison.append(document.createElement("br"));
+    const lien = document.createElement("a");
+    lien.href = carteUrl;
+    lien.target = "_blank";
+    lien.rel = "noopener noreferrer";
+    lien.textContent = "Ouvrir la carte Google Maps";
+    lien.title = "Connexion Internet requise pour ouvrir Google Maps";
+    livraison.appendChild(lien);
+  }
+  carte.appendChild(livraison);
+
+  const actions = document.createElement("div");
+  actions.className = "notification-client-actions";
+  const statut = document.createElement("p");
+  statut.className = "notification-client-statut";
+  const boutonSon = document.createElement("button");
+  boutonSon.type = "button";
+  boutonSon.textContent = "🔊 Écouter le son de notification";
+  boutonSon.addEventListener("click", () => jouerSonNotificationClient(statut));
+  const boutonVibration = document.createElement("button");
+  boutonVibration.type = "button";
+  boutonVibration.className = "secondaire";
+  boutonVibration.textContent = "📳 Tester la vibration";
+  boutonVibration.addEventListener("click", () => vibrerNotificationClient(statut));
+  const boutonRejouer = document.createElement("button");
+  boutonRejouer.type = "button";
+  boutonRejouer.className = "noir";
+  boutonRejouer.textContent = "🔔 Rejouer la notification";
+  boutonRejouer.addEventListener("click", () => {
+    jouerSonNotificationClient(statut);
+    vibrerNotificationClient(statut);
+    statut.textContent = "🔔 Notification rejouée avec son et vibration si l’appareil les autorise.";
+  });
+  actions.append(boutonSon, boutonVibration, boutonRejouer);
+  carte.append(actions, statut);
+
+  const pointInsertion = document.querySelector("#vue-merci .bloc-paiement");
+  if(pointInsertion) pointInsertion.before(carte);
+  else document.querySelector("#vue-merci .carte-merci")?.appendChild(carte);
+
+  vibrerNotificationClient(statut, true);
+  void afficherNotificationSystemeCommandeClient({commandId, total});
+}
+
+function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClient = null, lngClient = null, articlesClient = [], commandId = ""){
   cacherToutesLesVues();
   document.getElementById("vue-merci").style.display = "block";
 
@@ -2660,6 +2883,17 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
 
   // La page de confirmation reste navigable immédiatement.
   history.replaceState({ vue: "merci" }, "");
+  if(!envoyeeHorsLigne){
+    afficherNotificationCommandeClient({
+      commandId,
+      total: montantReel,
+      articles: articlesClient,
+      quartier: document.getElementById("quartierClient")?.value?.trim() || "",
+      precision: document.getElementById("precisionLivraison")?.value?.trim() || "",
+      latClient,
+      lngClient,
+    });
+  }
 }
 
 /* =====================================================================

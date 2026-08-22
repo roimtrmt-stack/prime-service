@@ -126,16 +126,18 @@ self.addEventListener("notificationclick", (event) => {
   const data = notification.data || {};
   notification.close();
 
+  const targetUrl = data.url || data.ackUrl || `${self.location.origin}/prime-service/boutique-notification.html`;
+
   if (parseExpiry(data.expiresAt) && Date.now() >= parseExpiry(data.expiresAt)) {
-    event.waitUntil(self.clients.openWindow(data.ackUrl || `${self.location.origin}/prime-service/boutique-notification.html`));
+    event.waitUntil(self.clients.openWindow(data.ackUrl || targetUrl));
     return;
   }
 
   // Le bouton rouge conserve son action existante, mais ouvre d’abord les détails.
   // La page impose ensuite 60 secondes de lecture et l’endpoint serveur revérifie le délai.
   if (event.action === "ack") {
-    event.waitUntil(self.clients.openWindow(data.ackUrl || `${self.location.origin}/prime-service/boutique-notification.html`));
+    event.waitUntil(self.clients.openWindow(data.ackUrl || targetUrl));
     return;
   }
-  event.waitUntil(self.clients.openWindow(data.ackUrl || `${self.location.origin}/prime-service/boutique-notification.html`));
+  event.waitUntil(self.clients.openWindow(targetUrl));
 });
