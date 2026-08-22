@@ -1170,13 +1170,13 @@ function styliserNomArticle(source, fallback = "Article") {
     .join(" ")
     .slice(0, 110);
   const lower = titre.toLocaleLowerCase("fr-FR");
-  let prefix = "Sélection Signature";
+  let prefix = "";
   if (/robe|pantalon|chemise|jupe|vêtement|chaussure|sac|bijou|mode/.test(lower)) prefix = "Élégance";
   else if (/parfum|crème|beauté|cheveux|maquillage|cosmétique/.test(lower)) prefix = "Éclat";
   else if (/téléphone|smartphone|chargeur|écouteur|ordinateur|électronique/.test(lower)) prefix = "Essentiel Tech";
   else if (/maison|cuisine|meuble|décoration|matelas|rideau/.test(lower)) prefix = "Harmonie Maison";
   else if (/nourriture|aliment|riz|huile|boisson|gâteau|épice/.test(lower)) prefix = "Saveur Authentique";
-  return `${prefix} — ${titre}`.slice(0, 140);
+  return `${prefix ? `${prefix} — ` : ""}${titre}`.slice(0, 140);
 }
 
 function nomIAEstGenerique(value) {
@@ -1259,8 +1259,8 @@ function genererNomArticleGratuit(articleData, aspects) {
   if (/\b(montre|watch)\b/.test(normalisee)) {
     return `Montre ${aspects.couleur}`.slice(0, 100);
   }
-  const base = !nomIAEstGenerique(source) ? source : "Sélection";
-  return styliserNomArticle(`${base} ${aspects.couleur} ${aspects.cadrage}`, "Sélection Prime Service");
+  const base = !nomIAEstGenerique(source) ? source : "Article";
+  return styliserNomArticle(`${base} ${aspects.couleur} ${aspects.cadrage}`, "Article Prime Service");
 }
 
 // --- 5. CLASSEMENT LOCAL DE SECOURS (sans service externe) ---
@@ -1285,7 +1285,7 @@ function classerArticleLocal(articleData) {
   if(contient("moto", "scooter")) {
     return { categorie_id: "moto", sous_categorie_id: "motos" };
   }
-  if(contient("telephone", "smartphone", "iphone", "android", "mobile", "phone", "gsm", "nokia", "3310", "t353", "oking", "sim", "dual sim")) {
+  if(contient("telephone", "smartphone", "iphone", "android", "mobile", "phone", "gsm", "nokia", "3310", "t353", "oking", "oks28", "v50", "v50s", "sim", "dual sim")) {
     return { categorie_id: "electronique", sous_categorie_id: "telephones" };
   }
   if(contient("ordinateur", "laptop", "tablette", "pc")) {

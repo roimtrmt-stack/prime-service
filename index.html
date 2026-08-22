@@ -2033,6 +2033,16 @@ function lancerRecherche(){
   afficherRecherche(query);
 }
 
+function nomProduitAffichable(source) {
+  return String(source || "Article")
+    .replace(/^\s*Sélection\s+Signature\s*[—-]\s*/i, "")
+    .replace(/^\s*Sélection\s*[—-]\s*/i, "")
+    .replace(/^\s*Sélection\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 140) || "Article";
+}
+
 function afficherRecherche(query, pousserHistorique = true){
   const recherche = String(query || "").trim();
   vueEnCours = { nom: "recherche", query: recherche };
@@ -2052,12 +2062,13 @@ function afficherRecherche(query, pousserHistorique = true){
   } else {
     grille.innerHTML = resultats.map(p => {
       const imageUrl = urlImageSecurisee(p.image_url);
+      const nomAffiche = nomProduitAffichable(p.nom);
       return `
       <div class="carte-produit">
-        <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(p.nom)})"` : ""}>
-          ${imageUrl ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(p.nom)}" loading="lazy">` : `<span class="icone-produit">📦</span>`}
+        <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(nomAffiche)})"` : ""}>
+          ${imageUrl ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(nomAffiche)}" loading="lazy">` : `<span class="icone-produit">📦</span>`}
         </div>
-        <h4>${echapperHtml(p.nom)}</h4>
+        <h4>${echapperHtml(nomAffiche)}</h4>
         ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(p.nom_boutique)}</p>` : ""}
         <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
         <p class="stock-produit">📦 ${p.stock} en stock</p>
@@ -2149,14 +2160,15 @@ function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pouss
   } else {
     grille.innerHTML = produits.map((p, index) => {
       const imageUrl = urlImageSecurisee(p.image_url);
+      const nomAffiche = nomProduitAffichable(p.nom);
       return `
       <div class="carte-produit">
-        <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(p.nom)})"` : ""}>
+        <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(nomAffiche)})"` : ""}>
           ${imageUrl
-            ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(p.nom)}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
+            ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(nomAffiche)}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
             : `<span class="icone-produit">📦</span>`}
         </div>
-        <h4>${echapperHtml(p.nom)}</h4>
+        <h4>${echapperHtml(nomAffiche)}</h4>
         ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(p.nom_boutique)}</p>` : ""}
         <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
         <p class="stock-produit">📦 ${p.stock} en stock</p>
