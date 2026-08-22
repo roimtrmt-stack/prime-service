@@ -546,8 +546,6 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 .notification-client-total{ display:flex; justify-content:space-between; gap:12px; margin-top:9px; padding-top:8px; border-top:1px dashed #bfdbfe; font-weight:800; color:#1f2937; }
 .notification-client-livraison{ margin-top:9px; padding:8px; border-radius:11px; background:#eff6ff; color:#1e3a8a; font-size:12px; line-height:1.35; }
 .notification-client-livraison a{ color:#1d4ed8; font-weight:800; text-decoration:underline; }
-.bouton-appel-hors-connexion{ display:flex; align-items:center; justify-content:center; min-height:38px; margin:8px 0; padding:9px 12px; border-radius:11px; background:#16a34a; color:#fff !important; font-size:12px; font-weight:800; text-decoration:none !important; box-shadow:0 2px 0 #15803d; }
-.bouton-appel-hors-connexion:active{ transform:translateY(1px); box-shadow:0 1px 0 #15803d; }
 .notification-client-appels{ display:grid; gap:7px; margin-top:9px; }
 .notification-client-appel{ display:flex; align-items:center; justify-content:center; min-height:36px; padding:8px 10px; border-radius:10px; background:#16a34a; color:#fff !important; font-size:12px; font-weight:800; text-decoration:none !important; box-shadow:0 2px 0 #15803d; }
 .notification-client-appel:active{ transform:translateY(1px); box-shadow:0 1px 0 #15803d; }
@@ -1355,7 +1353,6 @@ window.addEventListener('orientationchange', function() {
         <p class="sous-texte-paiement" id="modePaiementAffiche">Orange Money ou Wave</p>
       </div>
 
-      <a id="btnAppelClientMerci" class="bouton-appel-hors-connexion" href="tel:+22394134408">📞 Appeler Prime Service hors connexion</a>
       <button id="btnRetourMerci" class="btn-principal" onclick="afficherAccueil()">Retour à l'accueil</button>
     </div>
   </section>
@@ -2942,8 +2939,6 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
   const numero = numeroPaiementBrut.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
   document.getElementById("numeroPaiementAffiche").textContent = numero;
   document.getElementById("modePaiementAffiche").textContent = "Orange Money";
-  const boutonAppelClient = document.getElementById("btnAppelClientMerci");
-  if(boutonAppelClient && numeroPaiementBrut) boutonAppelClient.href = `tel:+223${numeroPaiementBrut}`;
 
   // Le bouton Retour est désactivé pendant le délai de lecture client.
   const btnRetourAccueil = document.querySelector('#vue-merci .btn-principal');
