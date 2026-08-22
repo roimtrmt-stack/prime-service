@@ -1084,22 +1084,41 @@ function retirerPhoto(id){
 }
 
 // --- 3. GÉOLOCALISATION ---
+function positionGPSValide(lat, lng){
+  return lat !== "" && lng !== "" && Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+}
+
 function recupererPositionInscription(){
   const statut = document.getElementById("statutPositionInscription");
-  if(!navigator.geolocation) { statut.textContent = "❌ Géoloc non supportée."; return; }
-  statut.textContent = "📡 Recherche...";
+  const latChamp = document.getElementById("latInscription");
+  const lngChamp = document.getElementById("lngInscription");
+  if(positionGPSValide(latChamp?.value, lngChamp?.value)){
+    statut.textContent = "✅ Position déjà récupérée.";
+    statut.style.color = "#16a34a";
+    return;
+  }
+  if(!navigator.geolocation) {
+    statut.textContent = "❌ Géolocalisation non supportée sur cet appareil.";
+    statut.style.color = "#dc2626";
+    return;
+  }
+  statut.textContent = "📡 Demande d’autorisation GPS...";
+  // Après un refus, les champs restent vides : le clic suivant relance getCurrentPosition.
   navigator.geolocation.getCurrentPosition(
     (position) => {
-      document.getElementById("latInscription").value = position.coords.latitude;
-      document.getElementById("lngInscription").value = position.coords.longitude;
+      latChamp.value = position.coords.latitude;
+      lngChamp.value = position.coords.longitude;
       statut.textContent = "✅ Position récupérée.";
       statut.style.color = "#16a34a";
     },
-    () => {
-      statut.textContent = "❌ Impossible. Activez votre GPS.";
+    (erreur) => {
+      const bloque = erreur && erreur.code === 1;
+      statut.textContent = bloque
+        ? "❌ Autorisation GPS refusée. Cliquez à nouveau pour réessayer ; si le navigateur bloque la demande, autorisez la position dans les réglages du site puis recliquez."
+        : "❌ Impossible de récupérer la position. Cliquez à nouveau pour réessayer.";
       statut.style.color = "#dc2626";
     },
-    { enableHighAccuracy: true, timeout: 55000 }
+    { enableHighAccuracy: true, timeout: 55000, maximumAge: 0 }
   );
 }
 

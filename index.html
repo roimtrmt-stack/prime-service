@@ -1795,7 +1795,7 @@ const CATEGORIES = [
       { id: "vetements", nom: "Vêtements", icone: "👕" },
       { id: "pagnes-tissus", nom: "Pagnes & tissus (bazin, wax)", icone: "🧵" },
       { id: "foulards", nom: "Foulards & écharpes", icone: "🧣" },
-      { id: "bijoux", nom: "Bijoux & accessoires", icone: "📿" },
+      { id: "bijoux", nom: "Montres", icone: "⌚" },
       { id: "chaussures", nom: "Chaussures", icone: "👟" },
       { id: "accessoires-mode", nom: "Sacs & accessoires", icone: "👜" },
     ]
@@ -2881,27 +2881,43 @@ async function previsualiserPhoto(event){
   lecteur.readAsDataURL(fichierPhotoSelectionne);
 }
 
+function positionGPSValide(lat, lng){
+  return lat !== "" && lng !== "" && Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+}
+
 function enregistrerPositionBoutique(){
   const statut = document.getElementById("statutPositionAdmin");
-  if(!navigator.geolocation){
-    statut.textContent = "❌ Géolocalisation non supportée sur cet appareil.";
+  const latChamp = document.getElementById("latBoutiqueAdmin");
+  const lngChamp = document.getElementById("lngBoutiqueAdmin");
+  if(positionGPSValide(latChamp?.value, lngChamp?.value)){
+    statut.textContent = "✅ Position de la boutique déjà enregistrée.";
+    statut.style.color = "#16a34a";
     return;
   }
-  statut.textContent = "📡 Recherche de la position...";
+  if(!navigator.geolocation){
+    statut.textContent = "❌ Géolocalisation non supportée sur cet appareil.";
+    statut.style.color = "#dc2626";
+    return;
+  }
+  statut.textContent = "📡 Demande d’autorisation GPS...";
+  // Aucun refus n’est mémorisé par le site : chaque clic sans position relance la demande.
   navigator.geolocation.getCurrentPosition(
     (position) => {
-      document.getElementById("latBoutiqueAdmin").value = position.coords.latitude;
-      document.getElementById("lngBoutiqueAdmin").value = position.coords.longitude;
+      latChamp.value = position.coords.latitude;
+      lngChamp.value = position.coords.longitude;
       document.getElementById("adresseBoutiqueAdmin").value =
         `Position GPS : ${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`;
       statut.textContent = "✅ Position de la boutique enregistrée.";
       statut.style.color = "#16a34a";
     },
-    () => {
-      statut.textContent = "❌ Impossible de récupérer la position. Réessayez devant la boutique.";
+    (erreur) => {
+      const bloque = erreur && erreur.code === 1;
+      statut.textContent = bloque
+        ? "❌ Autorisation GPS refusée. Cliquez à nouveau pour réessayer ; si le navigateur bloque la demande, autorisez la position dans les réglages du site puis recliquez."
+        : "❌ Impossible de récupérer la position. Cliquez à nouveau pour réessayer.";
       statut.style.color = "#dc2626";
     },
-    { enableHighAccuracy: true, timeout: 10000 }
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
   );
 }
 

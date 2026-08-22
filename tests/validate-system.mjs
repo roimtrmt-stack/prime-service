@@ -22,6 +22,7 @@ const photoMigration = await read("supabase/migrations/202608210002_fix_public_p
 const retryMigration = await read("supabase/migrations/202608210003_boutiquier_notification_retries.sql");
 const readDelayMigration = await read("supabase/migrations/202608210005_boutiquier_read_delay.sql");
 const addressMigration = await read("supabase/migrations/202608220001_customer_delivery_address.sql");
+const watchNamesMigration = await read("supabase/migrations/202608220005_rename_watch_products_stylish.sql");
 const supabaseConfig = await read("supabase/config.toml");
 const envExample = await read("supabase/functions/.env.example");
 
@@ -116,8 +117,14 @@ assert.match(index, /COMMISSION_FCFA: 300/);
 assert.match(index, /nettoyerNomArticleManuel/);
 assert.match(index, /prixBase \+ commission/);
 assert.match(index, /Prix affiché au client/);
-assert.match(index, /id: "bijoux", nom: "Bijoux & accessoires"/);
+assert.match(index, /id: "bijoux", nom: "Montres"/);
 assert.doesNotMatch(index, /id: "montres", nom: "Montres"/);
+assert.match(watchNamesMigration, /Montre Squelette Bleu Acier/);
+assert.match(watchNamesMigration, /p\.id = v\.id/);
+assert.match(inscriptionPage, /function positionGPSValide/);
+assert.match(inscriptionPage, /Position déjà récupérée/);
+assert.match(inscriptionPage, /Après un refus/);
+assert.match(inscriptionPage, /maximumAge: 0/);
 assert.doesNotMatch(index, /id: "montres-connectees"/);
 
 assert.match(inscriptionFunction, /DISCORD_WEBHOOK_INSCRIPTION/);
