@@ -252,6 +252,8 @@ function orangeCommandMessage(
   shop: Shop,
   clientName: string,
   clientPhone: string,
+  quartier: string,
+  precision: string | null,
   mapUrl: string,
   activationUrl: string,
 ): string {
@@ -263,6 +265,8 @@ function orangeCommandMessage(
     `Articles: ${articleSummary}`,
     `Net boutique: ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
     `Client: ${clip(clientName, 38)} ${clip(clientPhone, 18)}`,
+    `Quartier: ${clip(quartier, 70)}`,
+    `Précision: ${clip(precision || "Aucune", 70)}`,
     `Carte: ${mapUrl}`,
   ].join(" | ");
   return clipWithSuffix(prefix, `Activer: ${activationUrl}`, 160);
@@ -316,6 +320,8 @@ async function queueBoutiqueNotifications(
   shops: Shop[],
   clientName: string,
   clientPhone: string,
+  quartier: string,
+  precision: string | null,
   mapUrl: string,
 ): Promise<Map<string, string>> {
   const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -336,6 +342,8 @@ async function queueBoutiqueNotifications(
         ...shop.items.map((item) => `• ${clip(item.nom, 100)} x${item.quantite}`),
         `Montant NET à recevoir : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
         `Client : ${clip(clientName, 60)} — ${clip(clientPhone, 24)}`,
+        `Quartier de livraison : ${clip(quartier, 160)}`,
+        `Précision de livraison : ${clip(precision || "Aucune précision fournie", 240)}`,
         `Carte client : ${mapUrl}`,
         `Activer les relances du site : ${activationUrl}`,
       ].join("\n"),
@@ -390,6 +398,8 @@ async function notifyInBackground(input: {
   createdAt: string;
   nom: string;
   tel: string;
+  quartier: string;
+  precision: string | null;
   lat: number;
   lng: number;
   total: number;
@@ -399,7 +409,7 @@ async function notifyInBackground(input: {
     const address = await reverseGeocode(input.lat, input.lng);
     const mapUrl = `https://www.google.com/maps?q=${input.lat},${input.lng}`;
     const shops = groupByShop(input.items);
-    const activationByPhone = await queueBoutiqueNotifications(input.commandId, shops, input.nom, input.tel, mapUrl);
+    const activationByPhone = await queueBoutiqueNotifications(input.commandId, shops, input.nom, input.tel, input.quartier, input.precision, mapUrl);
     const commissionTotal = input.items.reduce(
       (sum, item) => sum + item.commission * item.quantite,
       0,
@@ -507,6 +517,8 @@ async function notifyInBackground(input: {
         ...shop.items.map((item) => `• ${clip(item.nom, 100)} x${item.quantite}`),
         `Montant NET à recevoir : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
         `Client : ${clip(input.nom, 60)} — ${clip(input.tel, 24)}`,
+        `Quartier de livraison : ${clip(input.quartier, 160)}`,
+        `Précision de livraison : ${clip(input.precision || "Aucune précision fournie", 240)}`,
         `Carte client : ${mapUrl}`,
         `Activer les relances du site : ${activationByPhone.get(shop.phone) || `${SITE_ORIGIN}/`}`,
       ].join(" | ");
@@ -516,6 +528,8 @@ async function notifyInBackground(input: {
         shop,
         input.nom,
         input.tel,
+        input.quartier,
+        input.precision,
         mapUrl,
         activationUrl,
       );
@@ -555,12 +569,14 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const nom = text(body?.nom, 120);
     const tel = text(body?.tel, 40);
+    const quartier = text(body?.quartier_client, 160);
+    const precision = text(body?.precision_livraison, 300) || null;
     const paiement = text(body?.paiement, 40) || "À la livraison";
     const lat = numberOrNull(body?.lat);
     const lng = numberOrNull(body?.lng);
     const declaredTotal = numberOrNull(body?.totalCommande);
     const rawPanier = Array.isArray(body?.panier) ? body.panier as RawItem[] : [];
-    if (!nom || !tel || !lat || !lng || lat < -90 || lat > 90 || lng < -180 || lng > 180 ||
+    if (!nom || !tel || !quartier || !Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0) || lat < -90 || lat > 90 || lng < -180 || lng > 180 ||
       declaredTotal === null || declaredTotal <= 0 || rawPanier.length < 1 || rawPanier.length > MAX_PANIER_ITEMS) {
       return jsonResponse(req, { error: "Données de commande invalides" }, 400);
     }
@@ -630,6 +646,8 @@ Deno.serve(async (req: Request) => {
         .insert({
           nom_client: nom,
           telephone_client: tel,
+          quartier_client: quartier,
+          precision_livraison: precision,
           paiement,
           lat_client: lat,
           lng_client: lng,
@@ -652,6 +670,8 @@ Deno.serve(async (req: Request) => {
       createdAt,
       nom,
       tel,
+      quartier,
+      precision,
       lat,
       lng,
       total: Math.round(canonicalTotal),

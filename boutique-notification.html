@@ -81,6 +81,8 @@
       addLine("Adresse boutique :", command.adresse_boutique);
       addLine("Client :", command.nom_client);
       addLine("Téléphone client :", command.telephone_client);
+      addLine("Quartier de livraison :", command.quartier_client);
+      addLine("Précision de livraison :", command.precision_livraison);
       addLine("Montant NET à recevoir :", `${Number(command.montant_net_total || 0).toLocaleString("fr-FR")} FCFA`);
 
       const articles = Array.isArray(command.articles) ? command.articles : [];

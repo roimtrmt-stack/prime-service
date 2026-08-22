@@ -98,7 +98,7 @@ Deno.serve(async (req: Request) => {
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data: command, error: commandError } = await supabaseAdmin
       .from("commandes")
-      .select("id, nom_client, telephone_client, lat_client, lng_client, articles")
+      .select("id, nom_client, telephone_client, quartier_client, precision_livraison, lat_client, lng_client, articles")
       .eq("id", commandeId)
       .limit(1)
       .maybeSingle();
@@ -152,6 +152,8 @@ Deno.serve(async (req: Request) => {
         ...shop.items.map((item) => `• ${item.name} x${item.quantity}`),
         `Montant NET à recevoir : ${Math.round(shop.net).toLocaleString("fr-FR")} FCFA`,
         `Client : ${text(command.nom_client, 60) || "—"} — ${text(command.telephone_client, 24) || "—"}`,
+        `Quartier de livraison : ${text(command.quartier_client, 160) || "Non renseigné"}`,
+        `Précision de livraison : ${text(command.precision_livraison, 300) || "Aucune précision fournie"}`,
         `Carte client : ${mapUrl}`,
         `Activer les relances du site : ${activationUrl}`,
       ].join("\n");

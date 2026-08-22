@@ -59,7 +59,7 @@ async function loadDetails(
 ): Promise<Record<string, unknown> | null> {
   const { data: command, error } = await supabase
     .from("commandes")
-    .select("id, nom_client, telephone_client, lat_client, lng_client, articles, created_at")
+    .select("id, nom_client, telephone_client, quartier_client, precision_livraison, lat_client, lng_client, articles, created_at")
     .eq("id", String(notification.commande_id || ""))
     .limit(1)
     .maybeSingle();
@@ -100,6 +100,8 @@ async function loadDetails(
     adresse_boutique: adresse,
     nom_client: safeText(command.nom_client, 120),
     telephone_client: safeText(command.telephone_client, 40),
+    quartier_client: safeText(command.quartier_client, 160) || "Non renseigné",
+    precision_livraison: safeText(command.precision_livraison, 300) || "Aucune précision fournie",
     lat_client: numberOrZero(command.lat_client) || null,
     lng_client: numberOrZero(command.lng_client) || null,
     montant_net_total: Math.round(totalNet),

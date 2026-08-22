@@ -1255,6 +1255,12 @@ window.addEventListener('orientationchange', function() {
       <label class="label">Votre numéro (Orange / Wave / autre)</label>
       <input type="tel" id="telClient" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" title="Entrez un vrai numéro de téléphone (8 à 15 chiffres)" required>
 
+      <label class="label" for="quartierClient">Votre quartier (obligatoire)</label>
+      <input type="text" id="quartierClient" class="champ" placeholder="Ex : Hamdallaye ACI 2000" maxlength="160" autocomplete="address-level3" required>
+
+      <label class="label" for="precisionLivraison">Précision pour trouver l’adresse (facultatif)</label>
+      <input type="text" id="precisionLivraison" class="champ" placeholder="Ex : près du marché, porte bleue" maxlength="300" autocomplete="street-address">
+
       <label class="label">Mode de paiement</label>
       <select id="paiementClient" class="champ">
         <option value="Orange Money">Orange Money</option>
@@ -2371,6 +2377,8 @@ async function envoyerCommande(event){
 
   const nom = document.getElementById("nomClient").value.trim();
   const tel = document.getElementById("telClient").value.trim();
+  const quartier = document.getElementById("quartierClient").value.trim();
+  const precision = document.getElementById("precisionLivraison").value.trim();
   const paiement = document.getElementById("paiementClient").value;
   const lat = Number(document.getElementById("latClient").value);
   const lng = Number(document.getElementById("lngClient").value);
@@ -2380,7 +2388,12 @@ async function envoyerCommande(event){
     statutEnvoi.textContent = "⚠️ Entrez un vrai numéro de téléphone.";
     return false;
   }
-  if(!Number.isFinite(lat) || !Number.isFinite(lng) || !lat || !lng){
+  if(!quartier){
+    statutEnvoi.style.color = "#dc2626";
+    statutEnvoi.textContent = "⚠️ Indiquez votre quartier pour la livraison.";
+    return false;
+  }
+  if(!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)){
     statutEnvoi.style.color = "#dc2626";
     statutEnvoi.textContent = "⚠️ Merci de récupérer votre position avant de valider.";
     return false;
@@ -2414,6 +2427,8 @@ async function envoyerCommande(event){
       body: JSON.stringify({
         nom,
         tel,
+        quartier_client: quartier,
+        precision_livraison: precision || null,
         paiement,
         lat,
         lng,
@@ -3810,6 +3825,9 @@ async function chargerHistoriqueAchats(){
                 👤 ${nomClient} · 📞 ${telephoneClient} · 📦 ${nb} article(s)
               </div>
               <div style="font-size:13px;color:#666;margin-bottom:4px;">
+                📍 ${echapperHtml(cmd.quartier_client || "Quartier non renseigné")}${cmd.precision_livraison ? ` · ${echapperHtml(cmd.precision_livraison)}` : ""}
+              </div>
+              <div style="font-size:13px;color:#666;margin-bottom:4px;">
                 💰 ${Number(cmd.total || 0).toLocaleString("fr-FR")} FCFA
               </div>
             </div>
@@ -3855,7 +3873,8 @@ function preparerNotifBoutiquier(commande){
   msg += `👤 Client: ${commande.nom_client || "—"}\n`;
   msg += `📞 Téléphone: ${commande.telephone_client || "—"}\n`;
   msg += `📍 Adresse boutique: ${adresseBoutique}\n`;
-  msg += `📍 Quartier: ${commande.lat_client ? "Voir carte ci-dessous" : "Non précisé"}\n\n`;
+  msg += `📍 Quartier de livraison: ${commande.quartier_client || "Non renseigné"}\n`;
+  msg += `🧭 Précision de livraison: ${commande.precision_livraison || "Aucune précision fournie"}\n\n`;
   msg += `📦 Articles:\n`;
 
   articles.forEach(a => {
