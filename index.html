@@ -1895,7 +1895,8 @@ function cleSousCategorie(idCategorie, idSousCategorie){
    En cas d'échec (pas de connexion), on retombe sur la dernière copie
    sauvegardée sur cet appareil, pour que le catalogue reste consultable.
    ===================================================================== */
-const CLE_CACHE_PRODUITS = "primeservice_produits_cache";
+const CLE_CACHE_PRODUITS = "primeservice_produits_cache_v2";
+const VERSION_CACHE_PRODUITS = 2;
 
 async function chargerProduits(tentative = 1){
   // 1. AFFICHER IMMÉDIATEMENT LE CATALOGUE ENREGISTRÉ (pour éviter l'écran blanc)
@@ -1907,7 +1908,7 @@ async function chargerProduits(tentative = 1){
     if(error) throw error;
 
     repartirProduitsParCle(data);
-    try{ localStorage.setItem(CLE_CACHE_PRODUITS, JSON.stringify(data)); } catch(e){}
+    try{ localStorage.setItem(CLE_CACHE_PRODUITS, JSON.stringify({ version: VERSION_CACHE_PRODUITS, data })); } catch(e){}
     rafraichirVueEnCoursSiBesoin();
     cacherBandeauHorsLigne();
   } catch(erreur){
@@ -1936,15 +1937,31 @@ function afficherEchecChargementCatalogue(){
   `;
 }
 
+function normaliserNomProduitPourAffichage(produit){
+  const copie = { ...produit };
+  copie.nom = String(copie.nom || "")
+    .replace(/^\s*Sélection Signature\s*(—|–|-)?\s*/i, "")
+    .replace(/^\s*Selection Signature\s*(—|–|-)?\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim() || "Article";
+  return copie;
+}
+
 function chargerProduitsDepuisCache(){
   try{
     const donneesBrutes = localStorage.getItem(CLE_CACHE_PRODUITS);
     if(!donneesBrutes) return false;
-    repartirProduitsParCle(JSON.parse(donneesBrutes));
+    const enveloppe = JSON.parse(donneesBrutes);
+    if(!enveloppe || enveloppe.version !== VERSION_CACHE_PRODUITS || !Array.isArray(enveloppe.data)){
+      localStorage.removeItem(CLE_CACHE_PRODUITS);
+      return false;
+    }
+    repartirProduitsParCle(enveloppe.data);
     rafraichirVueEnCoursSiBesoin();
     afficherBandeauHorsLigne();
     return true;
   } catch(e){
+    localStorage.removeItem(CLE_CACHE_PRODUITS);
     console.error("Impossible de lire le catalogue hors-ligne :", e);
     return false;
   }
@@ -1952,7 +1969,8 @@ function chargerProduitsDepuisCache(){
 
 function repartirProduitsParCle(data){
   produitsParCle = {};
-  data.forEach(p => {
+  data.forEach((produitBrut) => {
+    const p = normaliserNomProduitPourAffichage(produitBrut);
     const cle = cleSousCategorie(p.categorie_id, p.sous_categorie_id);
     if(!produitsParCle[cle]) produitsParCle[cle] = [];
     produitsParCle[cle].push(p);
