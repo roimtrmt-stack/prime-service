@@ -39,6 +39,8 @@
     button:disabled { opacity: .65; cursor: not-allowed; }
     .compteur { text-align: center; font-weight: 800; color: #b91c1c; }
     a { color: #2563eb; font-weight: 700; }
+    .bouton-appel-client { display:flex; align-items:center; justify-content:center; min-height:46px; margin:12px 0; padding:12px 14px; border-radius:14px; background:#16a34a; color:#fff; font-size:1.05rem; font-weight:900; text-decoration:none; box-shadow:0 5px 0 #15803d; }
+    .bouton-appel-client:active { transform:translateY(3px); box-shadow:0 2px 0 #15803d; }
     small { color: #6b7280; }
   </style>
 </head>
@@ -83,6 +85,27 @@
       const strong = document.createElement("strong");
       strong.textContent = `${label} `;
       line.append(strong, document.createTextNode(value || "—"));
+      detailsBox.appendChild(line);
+    }
+
+    function normaliserTelephoneMali(value) {
+      let digits = String(value || "").replace(/\D/g, "");
+      if (digits.startsWith("00223")) digits = digits.slice(5);
+      else if (digits.startsWith("223") && digits.length === 11) digits = digits.slice(3);
+      return /^\d{8}$/.test(digits) ? `+223${digits}` : "";
+    }
+
+    function addCallLink(label, phone) {
+      const normalized = normaliserTelephoneMali(phone);
+      if (!normalized) return;
+      const line = document.createElement("div");
+      line.className = "ligne";
+      const link = document.createElement("a");
+      link.className = "bouton-appel-client";
+      link.href = `tel:${normalized}`;
+      link.setAttribute("aria-label", `${label} ${phone}`);
+      link.textContent = "📞 Appeler le client hors connexion";
+      line.appendChild(link);
       detailsBox.appendChild(line);
     }
 
@@ -164,6 +187,7 @@
       addLine("Adresse boutique :", command.adresse_boutique);
       addLine("Client :", command.nom_client);
       addLine("Téléphone client :", command.telephone_client);
+      addCallLink("Appeler le client :", command.telephone_client);
       addLine("Quartier de livraison :", command.quartier_client);
       addGoogleMapsLink("Carte de livraison :", command.lat_client, command.lng_client);
       addLine("Précision de livraison :", command.precision_livraison);
