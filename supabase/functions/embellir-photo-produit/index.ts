@@ -190,11 +190,8 @@ function buildStudioImage(source: Image): Promise<Uint8Array> {
   const cropWidth = bounds.right - bounds.left + 1;
   const cropHeight = bounds.bottom - bounds.top + 1;
   const crop = source.clone().crop(bounds.left, bounds.top, cropWidth, cropHeight);
-  const border = borderBackground(source);
-  const borderAverage = (border.r + border.g + border.b) / 3;
-  const studio = border.spread < 70 && borderAverage > 175
-    ? { r: Math.round(clamp(border.r, 225, 252)), g: Math.round(clamp(border.g, 225, 252)), b: Math.round(clamp(border.b, 225, 252)) }
-    : { r: 244, g: 244, b: 242 };
+  // Fond catalogue uniforme : blanc pur pour toutes les cartes produit.
+  const studio = { r: 255, g: 255, b: 255 };
 
   if (bounds.reliable) {
     const innerLeft = Math.max(0, Math.round((bounds.left === 0 ? 0 : cropWidth * 0.10)));

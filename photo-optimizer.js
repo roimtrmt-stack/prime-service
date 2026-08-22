@@ -62,6 +62,7 @@
       const grilleLargeur = Math.ceil(width / pasDetection);
       const grilleHauteur = Math.ceil(height / pasDetection);
       const masque = new Uint8Array(grilleLargeur * grilleHauteur);
+      const etiquettes = new Uint32Array(masque.length);
       const file = new Int32Array(masque.length);
       const composantes = [];
       const estPremierPlan = (x, y) => {
@@ -82,6 +83,8 @@
           const debut = y * grilleLargeur + x;
           if(masque[debut] || !estPremierPlan(x, y)) continue;
           masque[debut] = 1;
+          const identifiant = composantes.length + 1;
+          etiquettes[debut] = identifiant;
           let tete = 0, queue = 0, aire = 0, gaucheComp = x, hautComp = y, droiteComp = x, basComp = y;
           file[queue++] = debut;
           while(tete < queue){
@@ -99,17 +102,62 @@
                 const suivant = ny * grilleLargeur + nx;
                 if(!masque[suivant] && estPremierPlan(nx, ny)){
                   masque[suivant] = 1;
+                  etiquettes[suivant] = identifiant;
                   file[queue++] = suivant;
                 }
               }
             }
           }
-          composantes.push({ aire, gauche: gaucheComp, haut: hautComp, droite: droiteComp, bas: basComp });
+          composantes.push({ identifiant, aire, gauche: gaucheComp, haut: hautComp, droite: droiteComp, bas: basComp });
         }
       }
       const plusGrandeAire = composantes.reduce((max, composante) => Math.max(max, composante.aire), 0);
       const aireMinimale = Math.max(12, Math.floor(plusGrandeAire * 0.04));
       const retenues = composantes.filter((composante) => composante.aire >= aireMinimale);
+      if(retenues.length){
+        // Ne blanchit que le fond connecté aux bords : les détails clairs à
+        // l’intérieur du produit restent ainsi intacts.
+        const identifiantsRetenus = new Set(retenues.map((composante) => composante.identifiant));
+        const masqueProduit = new Uint8Array(masque.length);
+        for(let i = 0; i < etiquettes.length; i++){
+          if(identifiantsRetenus.has(etiquettes[i])) masqueProduit[i] = 1;
+        }
+        const fondConnecte = new Uint8Array(masque.length);
+        let teteFond = 0, queueFond = 0;
+        const ajouterFond = (x, y) => {
+          if(x < 0 || y < 0 || x >= grilleLargeur || y >= grilleHauteur) return;
+          const cellule = y * grilleLargeur + x;
+          if(fondConnecte[cellule] || masqueProduit[cellule]) return;
+          fondConnecte[cellule] = 1;
+          file[queueFond++] = cellule;
+        };
+        for(let x = 0; x < grilleLargeur; x++){
+          ajouterFond(x, 0); ajouterFond(x, grilleHauteur - 1);
+        }
+        for(let y = 1; y < grilleHauteur - 1; y++){
+          ajouterFond(0, y); ajouterFond(grilleLargeur - 1, y);
+        }
+        while(teteFond < queueFond){
+          const cellule = file[teteFond++];
+          const cx = cellule % grilleLargeur;
+          const cy = Math.floor(cellule / grilleLargeur);
+          ajouterFond(cx - 1, cy); ajouterFond(cx + 1, cy);
+          ajouterFond(cx, cy - 1); ajouterFond(cx, cy + 1);
+        }
+        const imageFondBlanc = contexteTravail.getImageData(0, 0, width, height);
+        for(let y = 0; y < height; y++){
+          for(let x = 0; x < width; x++){
+            const cellule = Math.min(grilleHauteur - 1, Math.floor(y / pasDetection)) * grilleLargeur + Math.min(grilleLargeur - 1, Math.floor(x / pasDetection));
+            if(!fondConnecte[cellule]) continue;
+            const i = (y * width + x) * 4;
+            imageFondBlanc.data[i] = 255;
+            imageFondBlanc.data[i + 1] = 255;
+            imageFondBlanc.data[i + 2] = 255;
+            imageFondBlanc.data[i + 3] = 255;
+          }
+        }
+        contexteTravail.putImageData(imageFondBlanc, 0, 0);
+      }
       let gauche, haut, droite, bas;
       if(!retenues.length){
         gauche = 0; haut = 0; droite = width - 1; bas = height - 1;
