@@ -551,6 +551,35 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 .notification-client-actions button.secondaire{ color:#1e3a8a; background:#dbeafe; }
 .notification-client-actions button.noir{ background:#111827; }
 .notification-client-statut{ min-height:17px; margin:6px 0 0 !important; color:#166534 !important; font-size:11px; font-weight:700; text-align:center; }
+.verrouillage-page-merci{
+  margin:7px 0 10px;
+  padding:7px 9px;
+  border-radius:10px;
+  background:#fff7ed;
+  border:1px solid #fed7aa;
+  color:#9a3412;
+  font-size:11px;
+  font-weight:700;
+  line-height:1.3;
+}
+.verrouillage-page-merci.termine{
+  background:#f0fdf4;
+  border-color:#bbf7d0;
+  color:#166534;
+}
+#vue-merci .btn-principal:disabled{
+  opacity:.58;
+  cursor:not-allowed;
+  filter:saturate(.65);
+}
+body.merci-client-verrouillee .header-left,
+body.merci-client-verrouillee .btn-panier,
+body.merci-client-verrouillee .btn-options{
+  pointer-events:none !important;
+}
+@media (max-width:480px){
+  .verrouillage-page-merci{ margin:5px 0 7px; padding:6px 8px; font-size:10px; }
+}
 @media (max-width:480px){
   .carte-merci{ margin:8px auto; padding:16px 10px; }
   .carte-merci h2{ font-size:20px; }
@@ -1328,7 +1357,7 @@ window.addEventListener('orientationchange', function() {
         <p class="sous-texte-paiement" id="modePaiementAffiche">Orange Money ou Wave</p>
       </div>
 
-      <button class="btn-principal" onclick="afficherAccueil()">Retour à l'accueil</button>
+      <button id="btnRetourMerci" class="btn-principal" onclick="afficherAccueil()">Retour à l'accueil</button>
     </div>
   </section>
 
@@ -2074,6 +2103,7 @@ function nomProduitAffichable(source) {
 }
 
 function afficherRecherche(query, pousserHistorique = true){
+  if(clientMerciEstVerrouillee()){ afficherMessageVerrouillageMerci(); return; }
   const recherche = String(query || "").trim();
   vueEnCours = { nom: "recherche", query: recherche };
   cacherToutesLesVues();
@@ -2132,6 +2162,7 @@ function ajouterAuPanierDepuisRecherche(id, event){
 }
 
 function afficherAccueil(pousserHistorique = true){
+  if(clientMerciEstVerrouillee()){ afficherMessageVerrouillageMerci(); return; }
   vueEnCours = { nom: "accueil", idCategorie: null, idSousCategorie: null };
   cacherToutesLesVues();
   document.getElementById("vue-accueil").style.display = "block";
@@ -2140,6 +2171,7 @@ function afficherAccueil(pousserHistorique = true){
 }
 
 function afficherSousCategories(idCategorie, changerVue = true, pousserHistorique = true){
+  if(clientMerciEstVerrouillee()){ afficherMessageVerrouillageMerci(); return; }
   const categorie = CATEGORIES.find(c => c.id === idCategorie);
   if(!categorie) return;
   if(changerVue) vueEnCours = { nom: "souscategories", idCategorie, idSousCategorie: null };
@@ -2169,6 +2201,7 @@ function afficherSousCategories(idCategorie, changerVue = true, pousserHistoriqu
 }
 
 function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pousserHistorique = true){
+  if(clientMerciEstVerrouillee()){ afficherMessageVerrouillageMerci(); return; }
   const categorie = CATEGORIES.find(c => c.id === idCategorie);
   const sousCategorie = categorie.sousCategories.find(sc => sc.id === idSousCategorie);
   if(!sousCategorie) return;
@@ -2214,6 +2247,7 @@ function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pouss
 }
 
 function afficherPanier(pousserHistorique = true){
+  if(clientMerciEstVerrouillee()){ afficherMessageVerrouillageMerci(); return; }
   cacherToutesLesVues();
   document.getElementById("vue-panier").style.display = "block";
   const btnRetour = document.getElementById("btnRetour");
@@ -2224,6 +2258,7 @@ function afficherPanier(pousserHistorique = true){
 }
 
 function afficherCheckout(pousserHistorique = true){
+  if(clientMerciEstVerrouillee()){ afficherMessageVerrouillageMerci(); return; }
   if(panier.length === 0) return;
   cacherToutesLesVues();
   document.getElementById("vue-checkout").style.display = "block";
@@ -2773,11 +2808,177 @@ function afficherNotificationCommandeClient({commandId = "", total = 0, articles
   void afficherNotificationSystemeCommandeClient({commandId, total});
 }
 
-function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClient = null, lngClient = null, articlesClient = [], commandId = ""){
+const CLE_VERROUILLAGE_CLIENT_MERCI = "primeservice_client_merci_verrou";
+const DUREE_VERROUILLAGE_CLIENT_MERCI_MS = 90 * 1000;
+let minuterieVerrouillageClientMerci = null;
+let etatVerrouillageClientMerci = null;
+
+function lireVerrouillageClientMerci(){
+  try{
+    const brut = sessionStorage.getItem(CLE_VERROUILLAGE_CLIENT_MERCI);
+    if(!brut) return null;
+    const donnees = JSON.parse(brut);
+    if(!donnees || !Number.isFinite(Number(donnees.expireAt)) || !donnees.payload){
+      sessionStorage.removeItem(CLE_VERROUILLAGE_CLIENT_MERCI);
+      return null;
+    }
+    if(Number(donnees.expireAt) <= Date.now()){
+      sessionStorage.removeItem(CLE_VERROUILLAGE_CLIENT_MERCI);
+      return null;
+    }
+    return donnees;
+  } catch(e){
+    return null;
+  }
+}
+
+function effacerVerrouillageClientMerci(){
+  try{ sessionStorage.removeItem(CLE_VERROUILLAGE_CLIENT_MERCI); } catch(e){}
+}
+
+function sauvegarderVerrouillageClientMerci(expireAt, payload){
+  try{
+    sessionStorage.setItem(CLE_VERROUILLAGE_CLIENT_MERCI, JSON.stringify({ expireAt, payload }));
+  } catch(e){}
+}
+
+function clientMerciEstVerrouillee(){
+  const vueMerci = document.getElementById("vue-merci");
+  return Boolean(
+    vueMerci && vueMerci.style.display !== "none" &&
+    etatVerrouillageClientMerci &&
+    Number(etatVerrouillageClientMerci.expireAt) > Date.now()
+  );
+}
+
+function afficherMessageVerrouillageMerci(){
+  const message = document.getElementById("verrouillagePageMerci");
+  if(message && clientMerciEstVerrouillee()){
+    message.scrollIntoView({ block: "nearest" });
+  }
+}
+
+function activerVerrouillageClientMerci(expireAt){
+  const btnRetour = document.getElementById("btnRetourMerci");
+  const carteMerci = document.querySelector("#vue-merci .carte-merci");
+  if(!carteMerci) return;
+
+  etatVerrouillageClientMerci = { expireAt: Number(expireAt) };
+  document.body.classList.add("merci-client-verrouillee");
+
+  let message = document.getElementById("verrouillagePageMerci");
+  if(!message){
+    message = document.createElement("div");
+    message.id = "verrouillagePageMerci";
+    message.className = "verrouillage-page-merci";
+    if(btnRetour) btnRetour.before(message);
+    else carteMerci.appendChild(message);
+  }
+
+  if(minuterieVerrouillageClientMerci) clearInterval(minuterieVerrouillageClientMerci);
+  const actualiser = () => {
+    const secondesRestantes = Math.max(0, Math.ceil((Number(expireAt) - Date.now()) / 1000));
+    if(secondesRestantes > 0){
+      const minutes = Math.floor(secondesRestantes / 60);
+      const secondes = String(secondesRestantes % 60).padStart(2, "0");
+      message.classList.remove("termine");
+      message.textContent = `🔒 Confirmation protégée : retour et actualisation bloqués encore ${minutes} min ${secondes} s.`;
+      if(btnRetour){
+        btnRetour.disabled = true;
+        btnRetour.setAttribute("aria-disabled", "true");
+        btnRetour.style.opacity = ".58";
+        btnRetour.style.cursor = "not-allowed";
+        btnRetour.textContent = `Patientez ${minutes}:${secondes}`;
+        btnRetour.onclick = (event) => {
+          event.preventDefault();
+          afficherMessageVerrouillageMerci();
+          return false;
+        };
+      }
+      return;
+    }
+
+    clearInterval(minuterieVerrouillageClientMerci);
+    minuterieVerrouillageClientMerci = null;
+    etatVerrouillageClientMerci = null;
+    effacerVerrouillageClientMerci();
+    document.body.classList.remove("merci-client-verrouillee");
+    message.classList.add("termine");
+    message.textContent = "✅ Vous pouvez maintenant revenir à l’accueil.";
+    if(btnRetour){
+      btnRetour.disabled = false;
+      btnRetour.removeAttribute("aria-disabled");
+      btnRetour.style.opacity = "1";
+      btnRetour.style.cursor = "pointer";
+      btnRetour.textContent = "Retour à l’accueil";
+      btnRetour.onclick = () => afficherAccueil();
+    }
+    history.replaceState({ vue: "merci" }, "");
+  };
+  actualiser();
+  if(etatVerrouillageClientMerci) minuterieVerrouillageClientMerci = setInterval(actualiser, 250);
+}
+
+function restaurerPageMerciClient(){
+  const verrou = lireVerrouillageClientMerci();
+  if(!verrou || !verrou.payload) return;
+  const p = verrou.payload;
+  const quartier = document.getElementById("quartierClient");
+  const precision = document.getElementById("precisionLivraison");
+  if(quartier) quartier.value = p.quartier || "";
+  if(precision) precision.value = p.precision || "";
+  afficherPageMerci(
+    p.paiement,
+    p.montant,
+    Boolean(p.envoyeeHorsLigne),
+    p.latClient,
+    p.lngClient,
+    Array.isArray(p.articlesClient) ? p.articlesClient : [],
+    p.commandId || "",
+    Number(verrou.expireAt)
+  );
+}
+
+function gererClavierPendantMerci(event){
+  if(!clientMerciEstVerrouillee()) return;
+  const touche = String(event.key || "").toLowerCase();
+  const actualisation = touche === "f5" || ((event.ctrlKey || event.metaKey) && touche === "r");
+  const retourNavigateur = (event.altKey && touche === "arrowleft") || (touche === "backspace" && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName));
+  if(actualisation || retourNavigateur){
+    event.preventDefault();
+    afficherMessageVerrouillageMerci();
+  }
+}
+
+window.addEventListener("keydown", gererClavierPendantMerci, true);
+window.addEventListener("beforeunload", (event) => {
+  if(!clientMerciEstVerrouillee()) return;
+  event.preventDefault();
+  event.returnValue = "Votre confirmation est encore protégée. Voulez-vous vraiment quitter ?";
+  return event.returnValue;
+});
+
+function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClient = null, lngClient = null, articlesClient = [], commandId = "", verrouExpireAt = null){
+  const estRestauration = verrouExpireAt !== null && verrouExpireAt !== undefined && Number.isFinite(Number(verrouExpireAt));
+  const expireAt = estRestauration ? Number(verrouExpireAt) : Date.now() + DUREE_VERROUILLAGE_CLIENT_MERCI_MS;
+  const quartierSaisi = document.getElementById("quartierClient")?.value?.trim() || "";
+  const precisionSaisie = document.getElementById("precisionLivraison")?.value?.trim() || "";
+  sauvegarderVerrouillageClientMerci(expireAt, {
+    paiement,
+    montant: Number(montant) || 0,
+    envoyeeHorsLigne: Boolean(envoyeeHorsLigne),
+    latClient,
+    lngClient,
+    articlesClient: Array.isArray(articlesClient) ? articlesClient : [],
+    commandId: commandId || "",
+    quartier: quartierSaisi,
+    precision: precisionSaisie,
+  });
+
   cacherToutesLesVues();
   document.getElementById("vue-merci").style.display = "block";
 
-  // La confirmation est immédiatement navigable : les notifications continuent côté serveur.
+  // La confirmation est verrouillée temporairement côté client : les notifications continuent côté serveur.
   const logoHeader = document.querySelector('.header-left');
   const btnPanier = document.querySelector('.btn-panier');
   const btnOptions = document.querySelector('.btn-options');
@@ -2798,7 +2999,7 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
   document.getElementById("numeroPaiementAffiche").textContent = numero;
   document.getElementById("modePaiementAffiche").textContent = "Orange Money";
 
-  // Le bouton Retour reste disponible immédiatement : l’enregistrement serveur est déjà terminé.
+  // Le bouton Retour est désactivé pendant le délai de lecture client.
   const btnRetourAccueil = document.querySelector('#vue-merci .btn-principal');
   if(btnRetourAccueil){
     btnRetourAccueil.disabled = false;
@@ -2866,7 +3067,7 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
     document.getElementById("instructionsPaiementMerci").after(carteElement);
   }
 
-  // Message informatif non bloquant : les notifications sont traitées côté serveur.
+  // Message de statut : les notifications sont traitées côté serveur.
   let compteurElement = document.getElementById("compteurPageMerci");
   if(!compteurElement){
     compteurElement = document.createElement("p");
@@ -2878,9 +3079,11 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
 
   document.getElementById("btnRetour").style.display = "none";
 
-  // La page de confirmation reste navigable immédiatement.
-  history.replaceState({ vue: "merci" }, "");
-  if(!envoyeeHorsLigne){
+  // La page de confirmation devient l’écran principal pendant le verrouillage.
+  history.replaceState({ vue: "merci", merciVerrouillee: true }, "");
+  history.pushState({ vue: "merci", merciVerrouillee: true, sentinelle: true }, "");
+  activerVerrouillageClientMerci(expireAt);
+  if(!envoyeeHorsLigne && !estRestauration){
     afficherNotificationCommandeClient({
       commandId,
       total: montantReel,
@@ -2897,6 +3100,7 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
    ESPACE VENDEUR — vraie connexion Supabase (email + mot de passe)
    ===================================================================== */
 async function ouvrirEspaceAdmin(pousserHistorique = true){
+  if(clientMerciEstVerrouillee()){ afficherMessageVerrouillageMerci(); return false; }
   cacherToutesLesVues();
   document.getElementById("vue-admin").style.display = "block";
   const btnRetour = document.getElementById("btnRetour");
@@ -4340,6 +4544,11 @@ verifierEtatPause();
    lieu de revenir à l'écran précédent à l'intérieur de Prime Service.
    ===================================================================== */
 window.addEventListener("popstate", (event) => {
+  if(clientMerciEstVerrouillee()){
+    history.pushState({ vue: "merci", merciVerrouillee: true, sentinelle: true }, "");
+    afficherMessageVerrouillageMerci();
+    return;
+  }
   const etat = event.state || { vue: "accueil" };
   switch(etat.vue){
     case "souscategories":
@@ -4368,6 +4577,7 @@ window.addEventListener("popstate", (event) => {
 
 // Etat de départ : permet au tout premier clic sur "précédent" de fonctionner correctement.
 history.replaceState({ vue: "accueil" }, "");
+restaurerPageMerciClient();
 
 /* =====================================================================
    DETECTION DES NAVIGATEURS INTEGRES (TikTok, WhatsApp, Instagram...)
