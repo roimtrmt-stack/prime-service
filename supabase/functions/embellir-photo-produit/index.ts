@@ -6,7 +6,8 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "
 const BUCKET = "photos-articles";
 const MAX_BATCH = 4;
 const MAX_ATTEMPTS = 3;
-const MAX_SOURCE_BYTES = 5_000_000;
+const MAX_SOURCE_BYTES = 8_000_000;
+const MAX_WORKING_DIMENSION = 1400;
 const OUTPUT_SIZE = 1000;
 const RETRY_DELAY_MS = 60_000;
 const CLAIM_TIMEOUT_MS = 10 * 60_000;
@@ -110,37 +111,78 @@ function borderBackground(image: Image): { r: number; g: number; b: number; spre
 export function detectContentBounds(image: Image): { left: number; top: number; right: number; bottom: number; reliable: boolean } {
   const { width, height, data } = image;
   const background = borderBackground(image);
+  const backgroundLuma = 0.299 * background.r + 0.587 * background.g + 0.114 * background.b;
   const threshold = clamp(22 + background.spread * 3.5, 30, 78);
-  const step = Math.max(1, Math.floor(Math.min(width, height) / 420));
-  let left = width, top = height, right = -1, bottom = -1, contentCount = 0, samples = 0;
+  const step = Math.max(2, Math.floor(Math.min(width, height) / 250));
+  const gridWidth = Math.ceil(width / step);
+  const gridHeight = Math.ceil(height / step);
+  const mask = new Uint8Array(gridWidth * gridHeight);
+  const visited = new Uint8Array(mask.length);
+  const queue = new Int32Array(mask.length);
+  const components: { area: number; left: number; top: number; right: number; bottom: number }[] = [];
+  const isForeground = (x: number, y: number) => {
+    const px = Math.min(width - 1, x * step);
+    const py = Math.min(height - 1, y * step);
+    const i = (py * width + px) * 4;
+    if (data[i + 3] < 20) return false;
+    const distance = Math.hypot(data[i] - background.r, data[i + 1] - background.g, data[i + 2] - background.b);
+    const pixelLuma = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    return backgroundLuma >= 150
+      ? pixelLuma < backgroundLuma - 30 || (distance > threshold && pixelLuma < backgroundLuma - 12)
+      : backgroundLuma <= 105
+        ? pixelLuma > backgroundLuma + 30 || (distance > threshold && pixelLuma > backgroundLuma + 12)
+        : distance > threshold;
+  };
 
-  for (let y = 0; y < height; y += step) {
-    for (let x = 0; x < width; x += step) {
-      const i = (y * width + x) * 4;
-      samples++;
-      if (data[i + 3] < 20) continue;
-      const distance = Math.hypot(data[i] - background.r, data[i + 1] - background.g, data[i + 2] - background.b);
-      if (distance <= threshold) continue;
-      contentCount++;
-      left = Math.min(left, x); top = Math.min(top, y);
-      right = Math.max(right, x); bottom = Math.max(bottom, y);
+  for (let y = 0; y < gridHeight; y++) {
+    for (let x = 0; x < gridWidth; x++) {
+      const start = y * gridWidth + x;
+      if (mask[start] || !isForeground(x, y)) continue;
+      mask[start] = 1;
+      let head = 0, tail = 0, area = 0, left = x, top = y, right = x, bottom = y;
+      queue[tail++] = start;
+      while (head < tail) {
+        const current = queue[head++];
+        const cx = current % gridWidth;
+        const cy = Math.floor(current / gridWidth);
+        area++;
+        left = Math.min(left, cx); top = Math.min(top, cy);
+        right = Math.max(right, cx); bottom = Math.max(bottom, cy);
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = cx + dx, ny = cy + dy;
+            if (nx < 0 || ny < 0 || nx >= gridWidth || ny >= gridHeight) continue;
+            const next = ny * gridWidth + nx;
+            if (!mask[next] && isForeground(nx, ny)) {
+              mask[next] = 1;
+              queue[tail++] = next;
+            }
+          }
+        }
+      }
+      components.push({ area, left, top, right, bottom });
     }
   }
 
+  const largestArea = components.reduce((max, component) => Math.max(max, component.area), 0);
+  const minimumArea = Math.max(12, Math.floor(largestArea * 0.04));
+  const selected = components.filter((component) => component.area >= minimumArea);
+  if (!largestArea || !selected.length) return { left: 0, top: 0, right: width - 1, bottom: height - 1, reliable: false };
+  const bounds = selected.reduce((current, component) => ({
+    left: Math.min(current.left, component.left), top: Math.min(current.top, component.top),
+    right: Math.max(current.right, component.right), bottom: Math.max(current.bottom, component.bottom),
+  }), { left: gridWidth, top: gridHeight, right: 0, bottom: 0 });
+  const left = bounds.left * step;
+  const top = bounds.top * step;
+  const right = Math.min(width - 1, (bounds.right + 1) * step - 1);
+  const bottom = Math.min(height - 1, (bounds.bottom + 1) * step - 1);
   const boxWidth = right - left + 1;
   const boxHeight = bottom - top + 1;
-  const reliable = contentCount >= samples * 0.008 && boxWidth >= width * 0.08 && boxHeight >= height * 0.08;
-  if (!reliable) return { left: 0, top: 0, right: width - 1, bottom: height - 1, reliable: false };
-
+  if (boxWidth < width * 0.08 || boxHeight < height * 0.08) return { left: 0, top: 0, right: width - 1, bottom: height - 1, reliable: false };
   const padX = Math.max(8, Math.round(boxWidth * 0.10));
   const padY = Math.max(8, Math.round(boxHeight * 0.10));
-  return {
-    left: Math.max(0, left - padX),
-    top: Math.max(0, top - padY),
-    right: Math.min(width - 1, right + padX),
-    bottom: Math.min(height - 1, bottom + padY),
-    reliable: true,
-  };
+  return { left: Math.max(0, left - padX), top: Math.max(0, top - padY), right: Math.min(width - 1, right + padX), bottom: Math.min(height - 1, bottom + padY), reliable: true };
 }
 
 function buildStudioImage(source: Image): Promise<Uint8Array> {
@@ -180,9 +222,19 @@ function buildStudioImage(source: Image): Promise<Uint8Array> {
 }
 
 export async function optimiseSource(bytes: Uint8Array): Promise<Uint8Array> {
-  const decoded = await Image.decode(bytes, { tolerantDecoding: true });
-  const oriented = applyExifOrientation(decoded);
-  return buildStudioImage(oriented);
+  // On réduit très tôt les photos de téléphone afin de rester rapide et peu gourmand.
+  let working = applyExifOrientation(await Image.decode(bytes, { tolerantDecoding: true }));
+  const largestSide = Math.max(working.width, working.height);
+  if (largestSide > MAX_WORKING_DIMENSION) {
+    const scale = MAX_WORKING_DIMENSION / largestSide;
+    working = working.resize({
+      width: Math.max(1, Math.round(working.width * scale)),
+      height: Math.max(1, Math.round(working.height * scale)),
+      method: "bilinear",
+      fit: "stretch",
+    });
+  }
+  return buildStudioImage(working);
 }
 
 async function markFailed(

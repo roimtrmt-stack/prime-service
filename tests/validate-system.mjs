@@ -13,6 +13,7 @@ const cleverProcessor = await read("supabase/functions/clever-processor/index.ts
 const manualNotificationFunction = await read("supabase/functions/notifier-commande-manuellement/index.ts");
 const inscriptionFunction = await read("supabase/functions/envoyer-inscription/index.ts");
 const inscriptionPage = await read("inscription.html");
+const photoOptimizer = await read("photo-optimizer.js");
 const retryFunction = await read("supabase/functions/notifier-boutiquier/index.ts");
 const imageOptimizationFunction = await read("supabase/functions/embellir-photo-produit/index.ts");
 const ackFunction = await read("supabase/functions/accuser-notification/index.ts");
@@ -48,6 +49,7 @@ for (const [name, html] of [["index.html", index], ["inscription.html", inscript
     }
   }
 }
+assert.doesNotThrow(() => Function(photoOptimizer));
 
 assert.match(index, /functions\/v1\/envoyer-commande/);
 assert.match(index, /panier\.map\(article => \(\{[\s\S]*?id: article\.id/);
@@ -192,6 +194,8 @@ assert.match(inscriptionPage, /normaliserNomBoutiquePourComparaison/);
 assert.match(inscriptionPage, /declencherOptimisationPhotosEnArrierePlan/);
 assert.match(inscriptionPage, /keepalive: true/);
 assert.match(index, /declencherOptimisationPhotosEnArrierePlan/);
+assert.match(index, /photo-optimizer\.js/);
+assert.match(index, /optimiserPhotoCatalogueLocalement/);
 assert.match(index, /primeservice_produits_cache_v2/);
 assert.match(index, /VERSION_CACHE_PRODUITS = 2/);
 assert.match(index, /normaliserNomProduitPourAffichage/);

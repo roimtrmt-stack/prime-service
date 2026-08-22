@@ -1,0 +1,3 @@
+# Contrôle visuel de la démonstration montre
+
+La source avant est volontairement mal positionnée, avec une grande zone vide et une montre proche du coin supérieur gauche. Le premier traitement Deno distant a atteint la limite de ressources Supabase. Une seconde sortie locale avec le détecteur par composantes a recentré la zone, mais a révélé des artefacts de décodage sur cette source générée. Pour la démonstration publique, la sortie sera produite avec le pipeline Canvas navigateur, plus léger et plus adapté aux fichiers déjà préparés côté client. Le worker distant reste un filet de sécurité et doit conserver l’original en cas d’échec.
