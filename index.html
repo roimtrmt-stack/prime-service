@@ -546,11 +546,6 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 .notification-client-total{ display:flex; justify-content:space-between; gap:12px; margin-top:9px; padding-top:8px; border-top:1px dashed #bfdbfe; font-weight:800; color:#1f2937; }
 .notification-client-livraison{ margin-top:9px; padding:8px; border-radius:11px; background:#eff6ff; color:#1e3a8a; font-size:12px; line-height:1.35; }
 .notification-client-livraison a{ color:#1d4ed8; font-weight:800; text-decoration:underline; }
-.notification-client-actions{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:9px; }
-.notification-client-actions button{ width:100%; border:0; border-radius:10px; padding:8px 6px; color:#fff; background:var(--bleu); font-size:11px; font-weight:800; cursor:pointer; }
-.notification-client-actions button.secondaire{ color:#1e3a8a; background:#dbeafe; }
-.notification-client-actions button.noir{ background:#111827; }
-.notification-client-statut{ min-height:17px; margin:6px 0 0 !important; color:#166534 !important; font-size:11px; font-weight:700; text-align:center; }
 .verrouillage-page-merci{
   margin:7px 0 10px;
   padding:7px 9px;
@@ -585,8 +580,6 @@ body.merci-client-verrouillee .btn-options{
   .carte-merci h2{ font-size:20px; }
   .notification-commande-client{ padding:10px; margin:8px 0 10px; }
   .notification-client-article-icone{ width:44px; height:44px; flex-basis:44px; }
-  .notification-client-actions{ grid-template-columns:1fr 1fr 1fr; }
-  .notification-client-actions button{ font-size:10px; padding:8px 3px; }
 }
 .bloc-paiement{
   background:var(--gris-fond);
@@ -2613,46 +2606,6 @@ async function envoyerCommande(event){
   return false;
 }
 
-let contexteAudioNotificationClient = null;
-
-function jouerSonNotificationClient(statutElement){
-  try{
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if(!AudioContextClass) throw new Error("audio_non_supporte");
-    contexteAudioNotificationClient ||= new AudioContextClass();
-    const audio = contexteAudioNotificationClient;
-    const jouer = () => {
-      const debut = audio.currentTime;
-      const oscillateur = audio.createOscillator();
-      const gain = audio.createGain();
-      oscillateur.type = "sine";
-      oscillateur.frequency.setValueAtTime(880, debut);
-      oscillateur.frequency.setValueAtTime(1174.66, debut + 0.09);
-      gain.gain.setValueAtTime(0.0001, debut);
-      gain.gain.exponentialRampToValueAtTime(0.14, debut + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, debut + 0.28);
-      oscillateur.connect(gain).connect(audio.destination);
-      oscillateur.start(debut);
-      oscillateur.stop(debut + 0.3);
-      if(statutElement) statutElement.textContent = "🔊 Aperçu sonore joué.";
-    };
-    if(audio.state === "suspended") void audio.resume().then(jouer);
-    else jouer();
-  } catch(e){
-    if(statutElement) statutElement.textContent = "Le son n’est pas disponible dans ce navigateur.";
-  }
-}
-
-function vibrerNotificationClient(statutElement, automatique = false){
-  if(typeof navigator.vibrate !== "function"){
-    if(statutElement && !automatique) statutElement.textContent = "La vibration n’est pas disponible sur cet appareil.";
-    return false;
-  }
-  navigator.vibrate([180, 90, 180, 90, 380]);
-  if(statutElement && !automatique) statutElement.textContent = "📳 Vibration simulée : rappel de commande activé.";
-  return true;
-}
-
 async function afficherNotificationSystemeCommandeClient({commandId, total}){
   if(typeof Notification === "undefined" || Notification.permission !== "granted") return;
   try{
@@ -2762,49 +2715,12 @@ function afficherNotificationCommandeClient({commandId = "", total = 0, articles
   livraison.append(livraisonTitre, document.createElement("br"));
   livraison.append(document.createTextNode(`Quartier : ${quartier || "Non renseigné"}`), document.createElement("br"));
   livraison.append(document.createTextNode(`Précision : ${precision || "Aucune précision fournie"}`));
-  const carteUrl = construireLienGoogleMaps(latClient, lngClient);
-  if(carteUrl){
-    livraison.append(document.createElement("br"));
-    const lien = document.createElement("a");
-    lien.href = carteUrl;
-    lien.target = "_blank";
-    lien.rel = "noopener noreferrer";
-    lien.textContent = "Ouvrir la carte Google Maps";
-    lien.title = "Connexion Internet requise pour ouvrir Google Maps";
-    livraison.appendChild(lien);
-  }
   carte.appendChild(livraison);
-
-  const actions = document.createElement("div");
-  actions.className = "notification-client-actions";
-  const statut = document.createElement("p");
-  statut.className = "notification-client-statut";
-  const boutonSon = document.createElement("button");
-  boutonSon.type = "button";
-  boutonSon.textContent = "🔊 Écouter le son de notification";
-  boutonSon.addEventListener("click", () => jouerSonNotificationClient(statut));
-  const boutonVibration = document.createElement("button");
-  boutonVibration.type = "button";
-  boutonVibration.className = "secondaire";
-  boutonVibration.textContent = "📳 Tester la vibration";
-  boutonVibration.addEventListener("click", () => vibrerNotificationClient(statut));
-  const boutonRejouer = document.createElement("button");
-  boutonRejouer.type = "button";
-  boutonRejouer.className = "noir";
-  boutonRejouer.textContent = "🔔 Rejouer la notification";
-  boutonRejouer.addEventListener("click", () => {
-    jouerSonNotificationClient(statut);
-    vibrerNotificationClient(statut);
-    statut.textContent = "🔔 Notification rejouée avec son et vibration si l’appareil les autorise.";
-  });
-  actions.append(boutonSon, boutonVibration, boutonRejouer);
-  carte.append(actions, statut);
 
   const pointInsertion = document.querySelector("#vue-merci .bloc-paiement");
   if(pointInsertion) pointInsertion.before(carte);
   else document.querySelector("#vue-merci .carte-merci")?.appendChild(carte);
 
-  vibrerNotificationClient(statut, true);
   void afficherNotificationSystemeCommandeClient({commandId, total});
 }
 
@@ -3046,25 +2962,6 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
 
     document.querySelector(".bloc-paiement").after(divInstructions);
     instructionsElement = document.getElementById("instructionsPaiementMerci");
-  }
-
-  // Aperçu cartographique léger : l’image est facultative et le lien reste utilisable en ligne.
-  let carteElement = document.getElementById("carteClientMerci");
-  if(!carteElement && Number.isFinite(Number(latClient)) && Number.isFinite(Number(lngClient))){
-    const lat = Number(latClient);
-    const lng = Number(lngClient);
-    const carteUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
-    const apercuUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${encodeURIComponent(`${lat},${lng}`)}&zoom=16&size=600x300&maptype=mapnik&markers=${encodeURIComponent(`${lat},${lng},red-pushpin`)}`;
-    carteElement = document.createElement("div");
-    carteElement.id = "carteClientMerci";
-    carteElement.style.cssText = "background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:9px;margin:8px 0;text-align:left;";
-    carteElement.innerHTML = `
-      <div style="font-weight:700;color:#1f2937;margin-bottom:8px;">📍 Position de livraison</div>
-      <a href="${carteUrl}" target="_blank" rel="noopener noreferrer" style="display:block;color:#2563eb;font-weight:600;margin-bottom:10px;">Ouvrir l’itinéraire dans Google Maps</a>
-      <img src="${apercuUrl}" alt="Aperçu de la position de livraison" loading="lazy" style="display:block;width:100%;max-height:120px;object-fit:cover;border-radius:8px;background:#e5e7eb;" onerror="this.style.display='none';">
-      <div style="font-size:12px;color:#6b7280;margin-top:8px;">L’aperçu peut nécessiter Internet ; le bouton ouvre la carte détaillée.</div>
-    `;
-    document.getElementById("instructionsPaiementMerci").after(carteElement);
   }
 
   // Message de statut : les notifications sont traitées côté serveur.
