@@ -1,3 +1,5 @@
-# Contrôle visuel local — optimisation photo
+# Contrôle visuel local — compression fidèle
 
-La photo de référence 1000×540 est décodée et transformée en JPEG 1000×1000. Les deux chaussures restent entières, leurs couleurs bleu-vert et l’élément vert central sont conservés, et le cadrage conserve la composition horizontale dans un cadre carré adapté aux cartes du catalogue. Le pipeline applique une détection de contenu fiable, une marge de sécurité, une légère correction de luminosité/contraste/saturation et une netteté modérée, sans texte, logo, filigrane ni génération d’objet. La sortie testée est décodable et pèse environ 275 Ko. Le traitement reste volontairement conservateur : il corrige cadrage et rendu, mais ne prétend pas remplacer une retouche IA générative payante.
+La photo de référence 1000×540 est préparée sans recadrage ni canvas carré. La sortie conserve les proportions 1000×540, le produit entier, la composition horizontale, le fond, les ombres et les couleurs visibles. Elle est redimensionnée seulement si sa plus grande dimension dépasse 1 200 px, puis encodée dans un format adapté à la source avec une compression élevée. La sortie testée est décodable et pèse environ 358 Ko.
+
+Un test synthétique avec un fond coloré confirme que les pixels du fond et du sujet sont conservés exactement lorsqu’une source PNG est traitée. Aucun masque, remplissage, blanchiment, détourage, remplacement de décor, correction d’éclairage ou recadrage automatique n’est appliqué.

@@ -1569,7 +1569,7 @@ window.addEventListener('orientationchange', function() {
   </div>
 </div>
 
-<script src="photo-optimizer.js?v=white-1"></script>
+<script src="photo-optimizer.js?v=natural-1"></script>
 <script>
 /* =====================================================================
    CONFIGURATION
@@ -3215,8 +3215,8 @@ let fichierPhotoSelectionne = null;
 
 /* Prépare localement la photo : traitement gratuit, rapide et non bloquant
    pour le serveur. Le worker distant reste le filet de sécurité. */
-async function compresserImage(fichier, tailleMax = 1000, qualite = 0.82){
-  return await window.optimiserPhotoCatalogueLocalement(fichier, { tailleMax, qualite });
+async function compresserImage(fichier, tailleMax = 1200, qualite = 0.88){
+  return await window.preparerImageUploadFidele(fichier, { maxDimension: tailleMax, quality: qualite });
 }
 
 function nettoyerNomArticleManuel(source, fallback = "Article") {
@@ -3263,7 +3263,9 @@ async function previsualiserPhoto(event){
 
   try{
     const blobCompresse = await compresserImage(fichier);
-    fichierPhotoSelectionne = new File([blobCompresse], "photo.jpg", { type: "image/jpeg" });
+    const typePhoto = blobCompresse.type || "image/jpeg";
+    const extensionPhoto = window.extensionImagePreparee ? window.extensionImagePreparee(typePhoto) : "jpg";
+    fichierPhotoSelectionne = new File([blobCompresse], `photo.${extensionPhoto}`, { type: typePhoto });
   } catch(erreur){
     console.error("Compression impossible, envoi du fichier original :", erreur);
     fichierPhotoSelectionne = fichier;
@@ -3424,7 +3426,7 @@ async function publierArticle(event){
       if(erreurMaj) throw erreurMaj;
 
       statutPublication.style.color = "#16a34a";
-      statutPublication.textContent = "✅ Article modifié ! La photo sera optimisée automatiquement en arrière-plan.";
+      statutPublication.textContent = "✅ Article modifié ! La photo sera compressée fidèlement en arrière-plan.";
       declencherOptimisationPhotosEnArrierePlan();
 
     } else {
@@ -3438,7 +3440,7 @@ async function publierArticle(event){
       if(erreurInsertion) throw erreurInsertion;
 
       statutPublication.style.color = "#16a34a";
-      statutPublication.textContent = "✅ Article publié ! La photo sera optimisée automatiquement en arrière-plan.";
+      statutPublication.textContent = "✅ Article publié ! La photo sera compressée fidèlement en arrière-plan.";
       declencherOptimisationPhotosEnArrierePlan();
     }
 
