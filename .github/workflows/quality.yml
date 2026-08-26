@@ -29,8 +29,11 @@ jobs:
       - name: Vérifier les fichiers et la syntaxe frontend
         run: node tests/validate-system.mjs
 
-      - name: Vérifier le nettoyage différé des originaux
+      - name: Vérifier que le nettoyage des originaux est désactivé
         run: node tests/validate-image-cleanup.mjs
+
+      - name: Vérifier la publication multi-produit
+        run: node tests/validate-multi-product-publish.mjs
 
       - name: Vérifier la propreté du diff
         run: git diff --check

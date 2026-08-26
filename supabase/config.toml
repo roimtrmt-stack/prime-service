@@ -8,6 +8,3 @@ verify_jwt = true
 
 [functions.embellir-photo-produit]
 verify_jwt = true
-
-[functions.nettoyer-originaux-images]
-verify_jwt = true
