@@ -137,8 +137,11 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 .carte-boutique{border:2px solid #fed7aa;border-radius:16px;padding:22px 16px;text-align:center;cursor:pointer;background:linear-gradient(180deg,#fff7ed,#fff);box-shadow:0 3px 14px rgba(234,88,12,.10);transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;}
 .carte-boutique:hover{transform:translateY(-3px);border-color:var(--orange);box-shadow:0 8px 22px rgba(234,88,12,.16);}
 .carte-boutique .icone-boutique{font-size:38px;display:block;margin-bottom:10px;}
+.avatar-boutique{width:78px;height:78px;object-fit:cover;border-radius:50%;display:block;margin:0 auto 10px;border:3px solid #ffedd5;background:#fff7ed;}
+.avatar-boutique-defaut{display:flex;align-items:center;justify-content:center;font-size:38px;}
 .carte-boutique h3{margin:6px 0;color:#9a3412;}
 .carte-boutique p{color:#666;font-size:13px;margin:0;}
+.carte-boutique .nom-boutiquier{color:#374151;font-weight:700;margin-bottom:4px;}
 .bloc-echec-chargement{
   grid-column:1/-1;
   text-align:center;
@@ -2254,14 +2257,14 @@ function afficherBoutiques(idCategorie, idSousCategorie, pousserHistorique = tru
     const cle = cleBoutiquePourProduit(produit);
     if(vues.has(cle)) return;
     vues.add(cle);
-    boutiques.push({ cle, nom: String(produit.nom_boutique || "Boutique").trim() || "Boutique", nombre: produits.filter(p => cleBoutiquePourProduit(p) === cle).length, imageUrl: urlImageSecurisee(produit.image_url) });
+    boutiques.push({ cle,       nom: String(produit.nom_boutique || "Boutique").trim() || "Boutique", nomBoutiquier: String(produit.nom_boutiquier || "").trim(), nombre: produits.filter(p => cleBoutiquePourProduit(p) === cle).length, imageUrl: urlImageSecurisee(produit.image_url) });
   });
   const grille = document.getElementById("grilleBoutiques");
   grille.innerHTML = boutiques.length ? boutiques.map((boutique) => {
     const cleJs = echapperPourOnclick(boutique.cle);
     return `<div class="carte-boutique" role="button" tabindex="0" onclick="afficherProduits('${idCategorie}','${idSousCategorie}',true,true,${cleJs})" onkeydown="if(event.key==='Enter'||event.key===' ') afficherProduits('${idCategorie}','${idSousCategorie}',true,true,${cleJs})">
-      ${boutique.imageUrl ? `<img src="${echapperHtml(boutique.imageUrl)}" alt="${echapperHtml(boutique.nom)}" loading="lazy" style="width:78px;height:78px;object-fit:cover;border-radius:50%;margin-bottom:10px;">` : `<span class="icone-boutique">🏪</span>`}
-      <h3>${echapperHtml(boutique.nom)}</h3><p>${boutique.nombre} article${boutique.nombre > 1 ? "s" : ""} dans ${echapperHtml(sousCategorie.nom)}</p><p style="margin-top:9px;color:#c2410c;font-weight:800;">Voir les articles →</p>
+      ${boutique.imageUrl ? `<img class="avatar-boutique" src="${echapperHtml(boutique.imageUrl)}" alt="Photo de profil de ${echapperHtml(boutique.nom)}" loading="lazy">` : `<span class="avatar-boutique avatar-boutique-defaut">👤</span>`}
+      <h3>${echapperHtml(boutique.nom)}</h3>${boutique.nomBoutiquier ? `<p class="nom-boutiquier">Boutiquier : ${echapperHtml(boutique.nomBoutiquier)}</p>` : ""}<p>${boutique.nombre} article${boutique.nombre > 1 ? "s" : ""} dans ${echapperHtml(sousCategorie.nom)}</p><p style="margin-top:9px;color:#c2410c;font-weight:800;">Voir les articles →</p>
     </div>`;
   }).join("") : `<p style="grid-column:1/-1;text-align:center;color:#666;padding:30px 0;">Aucune boutique ne propose encore d’article dans cette sous-catégorie.</p>`;
   if(pousserHistorique) history.pushState({ vue: "boutiques", idCategorie, idSousCategorie }, "");

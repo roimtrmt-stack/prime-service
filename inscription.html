@@ -1349,7 +1349,7 @@ function classerArticleLocal(articleData) {
 // --- 6. PUBLICATION INDÉPENDANTE DE CHAQUE ARTICLE ---
 // Chaque photo sélectionnée devient une ligne distincte. Aucun calcul de
 // ressemblance et aucune fusion automatique ne peut faire disparaître une offre.
-async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adresse, lat, lng) {
+async function traiterEtPublierArticle(articleData, nomBoutiquier, nomBoutique, telephone, adresse, lat, lng) {
   const aspects = !articleData.nomArticle
     ? await analyserAspectsPhotoGratuite(articleData.photo.fichier)
     : null;
@@ -1381,6 +1381,7 @@ async function traiterEtPublierArticle(articleData, nomBoutique, telephone, adre
     commission: CONFIG.COMMISSION_FCFA,
     stock: Number(articleData.stockSaisi),
     image_url: imageUrl,
+    nom_boutiquier: nomBoutiquier,
     nom_boutique: nomBoutique,
     telephone_boutique: telephone,
     adresse: adresse,
@@ -1463,7 +1464,7 @@ async function envoyerSoumission(event){
           stockSaisi: Number(champStock.value)
         };
 
-        const resultatArticle = await traiterEtPublierArticle(articleData, nomBoutique, telephone, adresse, lat, lng);
+        const resultatArticle = await traiterEtPublierArticle(articleData, nom, nomBoutique, telephone, adresse, lat, lng);
         resultatsArticles.push({ ...resultatArticle, stockSaisi: articleData.stockSaisi });
         
         // Mise à jour du statut pour montrer l'avancement
