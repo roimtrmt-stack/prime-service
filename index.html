@@ -2253,7 +2253,14 @@ const CLE_BOUTIQUES_PREFEREES = "primeservice_boutiques_preferees";
 function lireBoutiquesPreferees(){
   try{
     const donnees = JSON.parse(localStorage.getItem(CLE_BOUTIQUES_PREFEREES) || "[]");
-    return Array.isArray(donnees) ? donnees.filter(cle => typeof cle === "string" && cle.length <= 240) : [];
+    return Array.isArray(donnees)
+      ? donnees.filter(cle => typeof cle === "string" && cle.length <= 240).map(cle => {
+          const separateur = cle.indexOf("|");
+          if(separateur < 0) return cle;
+          const nom = nomBoutiqueAffichable(cle.slice(0, separateur));
+          return nom === "Fala Service" ? "Fala Service|" : `${nom}${cle.slice(separateur)}`;
+        })
+      : [];
   } catch(e){ return []; }
 }
 
@@ -2261,8 +2268,16 @@ function enregistrerBoutiquesPreferees(liste){
   try{ localStorage.setItem(CLE_BOUTIQUES_PREFEREES, JSON.stringify([...new Set(liste)].slice(0, 100))); } catch(e){}
 }
 
+function nomBoutiqueAffichable(source){
+  const brut = String(source || "Boutique").trim().replace(/\s+/g, " ");
+  const normalise = brut.toLocaleLowerCase("fr-FR");
+  if(["service de fala", "sevice de fala", "fala service"].includes(normalise)) return "Fala Service";
+  return brut || "Boutique";
+}
+
 function cleBoutiquePourProduit(produit){
-  const nom = String(produit?.nom_boutique || "Boutique").trim() || "Boutique";
+  const nom = nomBoutiqueAffichable(produit?.nom_boutique);
+  if(nom === "Fala Service") return "Fala Service|";
   const telephone = String(produit?.telephone_boutique || produit?.telephone || "").trim();
   return `${nom}|${telephone}`;
 }
@@ -2296,7 +2311,7 @@ function afficherBoutiquesPreferees(){
   bloc.style.display = favoris.length ? "block" : "none";
   liste.innerHTML = favoris.map(({cle, produit}) => {
     const image = urlImageSecurisee(produit.image_url);
-    const nom = String(produit.nom_boutique || "Boutique").trim() || "Boutique";
+    const nom = nomBoutiqueAffichable(produit.nom_boutique);
     const nomBoutiquier = String(produit.nom_boutiquier || "").trim();
     return `<button class="carte-favori-boutique" onclick="afficherProduits('${echapperPourOnclick(produit.categorie_id)}','${echapperPourOnclick(produit.sous_categorie_id)}',true,true,${echapperPourOnclick(cle)})">
       ${image ? `<img class="avatar-favori-boutique" src="${echapperHtml(image)}" alt="" loading="lazy">` : "<span>👤</span>"}
@@ -2324,7 +2339,7 @@ function afficherBoutiques(idCategorie, idSousCategorie, pousserHistorique = tru
     const cle = cleBoutiquePourProduit(produit);
     if(vues.has(cle)) return;
     vues.add(cle);
-    boutiques.push({ cle,       nom: String(produit.nom_boutique || "Boutique").trim() || "Boutique", nomBoutiquier: String(produit.nom_boutiquier || "").trim(), nombre: produits.filter(p => cleBoutiquePourProduit(p) === cle).length, imageUrl: urlImageSecurisee(produit.image_url) });
+    boutiques.push({ cle,       nom: nomBoutiqueAffichable(produit.nom_boutique), nomBoutiquier: String(produit.nom_boutiquier || "").trim(), nombre: produits.filter(p => cleBoutiquePourProduit(p) === cle).length, imageUrl: urlImageSecurisee(produit.image_url) });
   });
   const grille = document.getElementById("grilleBoutiques");
   grille.innerHTML = boutiques.length ? boutiques.map((boutique) => {
