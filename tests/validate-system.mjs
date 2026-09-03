@@ -148,6 +148,8 @@ assert.match(index, /id="vue-boutiques"/);
 assert.match(index, /function afficherBoutiques\(/);
 assert.match(index, /function cleBoutiquePourProduit\(/);
 assert.match(index, /avatar-boutique/);
+assert.match(index, /\.carte-boutique:hover\{[^}]*border-color:var\(--bleu\)/);
+assert.doesNotMatch(index, /\.carte-boutique:hover\{[^}]*border-color:var\(--orange\)/);
 assert.match(index, /nom_boutiquier/);
 assert.match(inscriptionPage, /nom_boutiquier: nomBoutiquier/);
 assert.match(inscriptionPage, /traiterEtPublierArticle\(articleData, nom, nomBoutique/);
