@@ -133,6 +133,12 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   margin-top:24px;
   min-height: 150px; /* Pour éviter que ça s'écrase si le JS tarde */
 }
+.grille-boutiques{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:24px;}
+.carte-boutique{border:2px solid #fed7aa;border-radius:16px;padding:22px 16px;text-align:center;cursor:pointer;background:linear-gradient(180deg,#fff7ed,#fff);box-shadow:0 3px 14px rgba(234,88,12,.10);transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;}
+.carte-boutique:hover{transform:translateY(-3px);border-color:var(--orange);box-shadow:0 8px 22px rgba(234,88,12,.16);}
+.carte-boutique .icone-boutique{font-size:38px;display:block;margin-bottom:10px;}
+.carte-boutique h3{margin:6px 0;color:#9a3412;}
+.carte-boutique p{color:#666;font-size:13px;margin:0;}
 .bloc-echec-chargement{
   grid-column:1/-1;
   text-align:center;
@@ -1102,12 +1108,12 @@ body.merci-client-verrouillee .btn-options{
   .grille-produits{ grid-template-columns:repeat(3, 1fr); gap:16px; }
 }
 @media (max-width: 600px){
-  .grille-categories{ grid-template-columns:repeat(2, 1fr); gap:14px; }
-  .carte-categorie{ padding:18px 10px; }
+  .grille-categories, .grille-boutiques{ grid-template-columns:repeat(2, 1fr); gap:14px; }
+  .carte-categorie, .carte-boutique{ padding:18px 10px; }
   .badge-icone{ width:52px; height:52px; margin-bottom:8px; }
   .carte-categorie .icone{ font-size:24px; }
-  .carte-categorie h3{ font-size:14px; }
-  .carte-categorie p{ font-size:12px; }
+  .carte-categorie h3, .carte-boutique h3{ font-size:14px; }
+  .carte-categorie p, .carte-boutique p{ font-size:12px; }
   .grille-produits{ grid-template-columns:repeat(3, 1fr); gap:12px; }
   .carte-produit{ padding:10px; }
   .carte-produit .icone-produit{ font-size:34px; margin-bottom:8px; }
@@ -1188,7 +1194,7 @@ window.addEventListener('orientationchange', function() {
     setTimeout(function() {
         // Si on est en train de regarder une catégorie, on redessine la grille proprement
         if(vueEnCours.nom === "produits"){
-            afficherProduits(vueEnCours.idCategorie, vueEnCours.idSousCategorie, false, false);
+            afficherProduits(vueEnCours.idCategorie, vueEnCours.idSousCategorie, false, false, vueEnCours.cleBoutique);
         }
     }, 300); // 300ms est le temps que met le navigateur à finir la rotation
 });
@@ -1264,7 +1270,13 @@ window.addEventListener('orientationchange', function() {
     </div>
   </section>
 
-  <!-- ===================== PRODUITS D'UNE SOUS-CATEGORIE ===================== -->
+  <!-- ===================== BOUTIQUES D'UNE SOUS-CATEGORIE ===================== -->
+  <section id="vue-boutiques" class="vue" style="display:none;">
+    <h2 id="titreBoutiques" class="titre-section"></h2>
+    <div class="grille-boutiques" id="grilleBoutiques"></div>
+  </section>
+
+  <!-- ===================== PRODUITS D'UNE BOUTIQUE ===================== -->
   <section id="vue-produits" class="vue" style="display:none;">
     <h2 id="titreProduits" class="titre-section"></h2>
     <div class="grille-produits" id="grilleProduits">
@@ -1960,7 +1972,7 @@ const CATEGORIES = [
 let panier = [];
 let categoriesMasquees = []; // ex: ["moto", "mode|foulards"] -> catégorie ou sous-catégorie cachée
 let produitsParCle = {}; // ex: "electronique|telephones" -> [ {id, nom, prix, adresse, lat, lng, image_url}, ... ]
-let vueEnCours = { nom: "accueil", idCategorie: null, idSousCategorie: null };
+let vueEnCours = { nom: "accueil", idCategorie: null, idSousCategorie: null, cleBoutique: null };
 
 function cleSousCategorie(idCategorie, idSousCategorie){
   return `${idCategorie}|${idSousCategorie}`;
@@ -2207,7 +2219,7 @@ function afficherSousCategories(idCategorie, changerVue = true, pousserHistoriqu
     .map(sc => {
     const nbProduits = (produitsParCle[cleSousCategorie(categorie.id, sc.id)] || []).filter(p => !p.masque).length;
     return `
-    <div class="carte-categorie" onclick="afficherProduits('${categorie.id}', '${sc.id}')">
+    <div class="carte-categorie" onclick="afficherBoutiques('${categorie.id}', '${sc.id}')">
       <span class="badge-icone badge-${categorie.id}"><span class="icone">${sc.icone}</span></span>
       <h3>${sc.nom}</h3>
       <p>${nbProduits} article(s)</p>
@@ -2217,22 +2229,63 @@ function afficherSousCategories(idCategorie, changerVue = true, pousserHistoriqu
   if(pousserHistorique) history.pushState({ vue: "souscategories", idCategorie }, "");
 }
 
-function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pousserHistorique = true){
+function cleBoutiquePourProduit(produit){
+  const nom = String(produit?.nom_boutique || "Boutique").trim() || "Boutique";
+  const telephone = String(produit?.telephone_boutique || produit?.telephone || "").trim();
+  return `${nom}|${telephone}`;
+}
+
+function afficherBoutiques(idCategorie, idSousCategorie, pousserHistorique = true){
+  if(clientMerciEstVerrouillee()){ afficherMessageVerrouillageMerci(); return; }
+  const categorie = CATEGORIES.find(c => c.id === idCategorie);
+  const sousCategorie = categorie?.sousCategories.find(sc => sc.id === idSousCategorie);
+  if(!sousCategorie) return;
+  vueEnCours = { nom: "boutiques", idCategorie, idSousCategorie, cleBoutique: null };
+  cacherToutesLesVues();
+  document.getElementById("vue-boutiques").style.display = "block";
+  document.getElementById("titreBoutiques").textContent = `Boutiques — ${sousCategorie.nom}`;
+  const btnRetour = document.getElementById("btnRetour");
+  btnRetour.style.display = "inline-block";
+  btnRetour.onclick = () => afficherSousCategories(idCategorie);
+  const produits = (produitsParCle[cleSousCategorie(idCategorie, idSousCategorie)] || []).filter(p => !p.masque);
+  const boutiques = [];
+  const vues = new Set();
+  produits.forEach((produit) => {
+    const cle = cleBoutiquePourProduit(produit);
+    if(vues.has(cle)) return;
+    vues.add(cle);
+    boutiques.push({ cle, nom: String(produit.nom_boutique || "Boutique").trim() || "Boutique", nombre: produits.filter(p => cleBoutiquePourProduit(p) === cle).length, imageUrl: urlImageSecurisee(produit.image_url) });
+  });
+  const grille = document.getElementById("grilleBoutiques");
+  grille.innerHTML = boutiques.length ? boutiques.map((boutique) => {
+    const cleJs = echapperPourOnclick(boutique.cle);
+    return `<div class="carte-boutique" role="button" tabindex="0" onclick="afficherProduits('${idCategorie}','${idSousCategorie}',true,true,${cleJs})" onkeydown="if(event.key==='Enter'||event.key===' ') afficherProduits('${idCategorie}','${idSousCategorie}',true,true,${cleJs})">
+      ${boutique.imageUrl ? `<img src="${echapperHtml(boutique.imageUrl)}" alt="${echapperHtml(boutique.nom)}" loading="lazy" style="width:78px;height:78px;object-fit:cover;border-radius:50%;margin-bottom:10px;">` : `<span class="icone-boutique">🏪</span>`}
+      <h3>${echapperHtml(boutique.nom)}</h3><p>${boutique.nombre} article${boutique.nombre > 1 ? "s" : ""} dans ${echapperHtml(sousCategorie.nom)}</p><p style="margin-top:9px;color:#c2410c;font-weight:800;">Voir les articles →</p>
+    </div>`;
+  }).join("") : `<p style="grid-column:1/-1;text-align:center;color:#666;padding:30px 0;">Aucune boutique ne propose encore d’article dans cette sous-catégorie.</p>`;
+  if(pousserHistorique) history.pushState({ vue: "boutiques", idCategorie, idSousCategorie }, "");
+}
+
+function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pousserHistorique = true, cleBoutique = null){
   if(clientMerciEstVerrouillee()){ afficherMessageVerrouillageMerci(); return; }
   const categorie = CATEGORIES.find(c => c.id === idCategorie);
   const sousCategorie = categorie.sousCategories.find(sc => sc.id === idSousCategorie);
   if(!sousCategorie) return;
-  if(changerVue) vueEnCours = { nom: "produits", idCategorie, idSousCategorie };
+  if(changerVue) vueEnCours = { nom: "produits", idCategorie, idSousCategorie, cleBoutique };
 
   cacherToutesLesVues();
   document.getElementById("vue-produits").style.display = "block";
-  document.getElementById("titreProduits").textContent = sousCategorie.nom;
+  const nomBoutique = cleBoutique ? String(cleBoutique).split("|")[0] : "";
+  document.getElementById("titreProduits").textContent = nomBoutique ? `${sousCategorie.nom} — ${nomBoutique}` : sousCategorie.nom;
 
   const btnRetour = document.getElementById("btnRetour");
   btnRetour.style.display = "inline-block";
-  btnRetour.onclick = () => afficherSousCategories(idCategorie);
+  btnRetour.onclick = () => afficherBoutiques(idCategorie, idSousCategorie);
 
-  const produits = (produitsParCle[cleSousCategorie(idCategorie, idSousCategorie)] || []).filter(p => !p.masque);
+  const produits = (produitsParCle[cleSousCategorie(idCategorie, idSousCategorie)] || [])
+    .filter(p => !p.masque)
+    .filter(p => !cleBoutique || cleBoutiquePourProduit(p) === cleBoutique);
   const grille = document.getElementById("grilleProduits");
 
   if(produits.length === 0){
@@ -2260,7 +2313,7 @@ function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pouss
     }).join("");
   }
 
-  if(pousserHistorique) history.pushState({ vue: "produits", idCategorie, idSousCategorie }, "");
+  if(pousserHistorique) history.pushState({ vue: "produits", idCategorie, idSousCategorie, cleBoutique }, "");
 }
 
 function afficherPanier(pousserHistorique = true){
@@ -4449,8 +4502,11 @@ window.addEventListener("popstate", (event) => {
     case "souscategories":
       afficherSousCategories(etat.idCategorie, true, false);
       break;
+    case "boutiques":
+      afficherBoutiques(etat.idCategorie, etat.idSousCategorie, false);
+      break;
     case "produits":
-      afficherProduits(etat.idCategorie, etat.idSousCategorie, true, false);
+      afficherProduits(etat.idCategorie, etat.idSousCategorie, true, false, etat.cleBoutique || null);
       break;
     case "recherche":
       afficherRecherche(etat.query, false);
@@ -4535,7 +4591,7 @@ setTimeout(() => {
 window.addEventListener('orientationchange', function() {
     setTimeout(function() {
         if(vueEnCours.nom === "produits"){
-            afficherProduits(vueEnCours.idCategorie, vueEnCours.idSousCategorie, false, false);
+            afficherProduits(vueEnCours.idCategorie, vueEnCours.idSousCategorie, false, false, vueEnCours.cleBoutique);
         }
     }, 300);
 });
