@@ -142,6 +142,15 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 .carte-boutique h3{margin:6px 0;color:#9a3412;}
 .carte-boutique p{color:#666;font-size:13px;margin:0;}
 .carte-boutique .nom-boutiquier{color:#374151;font-weight:700;margin-bottom:4px;}
+.btn-favori-boutique{margin-top:12px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:999px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;}
+.btn-favori-boutique:hover{background:#dbeafe;}
+.btn-favori-boutique.est-favori{background:#2563eb;color:#fff;border-color:#2563eb;}
+.bloc-boutiques-preferees{margin:24px 0 8px;padding:18px;border:1px solid #dbeafe;border-radius:16px;background:#f8fbff;}
+.bloc-boutiques-preferees h2{margin:0 0 12px;font-size:20px;}
+.liste-boutiques-preferees{display:flex;flex-wrap:wrap;gap:10px;}
+.carte-favori-boutique{display:inline-flex;align-items:center;gap:8px;border:1px solid #bfdbfe;background:#fff;color:#1d4ed8;border-radius:999px;padding:8px 12px;font-weight:700;cursor:pointer;}
+.carte-favori-boutique:hover{background:#eff6ff;}
+.avatar-favori-boutique{width:30px;height:30px;object-fit:cover;border-radius:50%;border:2px solid #dbeafe;}
 .bloc-echec-chargement{
   grid-column:1/-1;
   text-align:center;
@@ -1244,6 +1253,11 @@ window.addEventListener('orientationchange', function() {
       <p style="grid-column:1/-1;text-align:center;color:#666;padding:30px 0;">⏳ Chargement du catalogue...</p>
     </div>
 
+    <section id="blocBoutiquesPreferees" class="bloc-boutiques-preferees" style="display:none;">
+      <h2>Mes boutiques préférées</h2>
+      <div id="listeBoutiquesPreferees" class="liste-boutiques-preferees"></div>
+    </section>
+
     <div class="bloc-devenir-boutiquier">
       <h3>🏪 Vous vendez quelque chose ?</h3>
       <p>Proposez vos articles gratuitement sur Prime Service et touchez de nouveaux clients.</p>
@@ -2067,6 +2081,7 @@ function repartirProduitsParCle(data){
     produitsParCle[cle].push(p);
   });
   construireCategories();
+  afficherBoutiquesPreferees();
 }
 function rafraichirVueEnCoursSiBesoin(){
   // Si le client est en train de regarder une sous-catégorie, on rafraîchit sa vue
@@ -2199,6 +2214,7 @@ function afficherAccueil(pousserHistorique = true){
   cacherToutesLesVues();
   document.getElementById("vue-accueil").style.display = "block";
   document.getElementById("btnRetour").style.display = "none";
+  afficherBoutiquesPreferees();
   if(pousserHistorique) history.pushState({ vue: "accueil" }, "");
 }
 
@@ -2232,10 +2248,61 @@ function afficherSousCategories(idCategorie, changerVue = true, pousserHistoriqu
   if(pousserHistorique) history.pushState({ vue: "souscategories", idCategorie }, "");
 }
 
+const CLE_BOUTIQUES_PREFEREES = "primeservice_boutiques_preferees";
+
+function lireBoutiquesPreferees(){
+  try{
+    const donnees = JSON.parse(localStorage.getItem(CLE_BOUTIQUES_PREFEREES) || "[]");
+    return Array.isArray(donnees) ? donnees.filter(cle => typeof cle === "string" && cle.length <= 240) : [];
+  } catch(e){ return []; }
+}
+
+function enregistrerBoutiquesPreferees(liste){
+  try{ localStorage.setItem(CLE_BOUTIQUES_PREFEREES, JSON.stringify([...new Set(liste)].slice(0, 100))); } catch(e){}
+}
+
 function cleBoutiquePourProduit(produit){
   const nom = String(produit?.nom_boutique || "Boutique").trim() || "Boutique";
   const telephone = String(produit?.telephone_boutique || produit?.telephone || "").trim();
   return `${nom}|${telephone}`;
+}
+
+function trouverBoutiqueParCle(cle){
+  return Object.values(produitsParCle).flat().find(p => !p.masque && cleBoutiquePourProduit(p) === cle) || null;
+}
+
+function estBoutiquePreferee(cle){ return lireBoutiquesPreferees().includes(cle); }
+
+function basculerBoutiquePreferee(cle, event){
+  if(event) event.stopPropagation();
+  const favoris = lireBoutiquesPreferees();
+  const nouvelleListe = favoris.includes(cle) ? favoris.filter(item => item !== cle) : [...favoris, cle];
+  enregistrerBoutiquesPreferees(nouvelleListe);
+  afficherBoutiquesPreferees();
+  const bouton = document.querySelector(`[data-boutique-favorite="${CSS.escape(cle)}"]`);
+  if(bouton){
+    const actif = nouvelleListe.includes(cle);
+    bouton.classList.toggle("est-favori", actif);
+    bouton.setAttribute("aria-pressed", actif ? "true" : "false");
+    bouton.textContent = actif ? "★ Suivie" : "☆ Suivre";
+  }
+}
+
+function afficherBoutiquesPreferees(){
+  const bloc = document.getElementById("blocBoutiquesPreferees");
+  const liste = document.getElementById("listeBoutiquesPreferees");
+  if(!bloc || !liste) return;
+  const favoris = lireBoutiquesPreferees().map(cle => ({ cle, produit: trouverBoutiqueParCle(cle) })).filter(item => item.produit);
+  bloc.style.display = favoris.length ? "block" : "none";
+  liste.innerHTML = favoris.map(({cle, produit}) => {
+    const image = urlImageSecurisee(produit.image_url);
+    const nom = String(produit.nom_boutique || "Boutique").trim() || "Boutique";
+    const nomBoutiquier = String(produit.nom_boutiquier || "").trim();
+    return `<button class="carte-favori-boutique" onclick="afficherProduits('${echapperPourOnclick(produit.categorie_id)}','${echapperPourOnclick(produit.sous_categorie_id)}',true,true,${echapperPourOnclick(cle)})">
+      ${image ? `<img class="avatar-favori-boutique" src="${echapperHtml(image)}" alt="" loading="lazy">` : "<span>👤</span>"}
+      <span>${echapperHtml(nom)}${nomBoutiquier ? ` — ${echapperHtml(nomBoutiquier)}` : ""}</span>
+    </button>`;
+  }).join("");
 }
 
 function afficherBoutiques(idCategorie, idSousCategorie, pousserHistorique = true){
@@ -2265,6 +2332,7 @@ function afficherBoutiques(idCategorie, idSousCategorie, pousserHistorique = tru
     return `<div class="carte-boutique" role="button" tabindex="0" onclick="afficherProduits('${idCategorie}','${idSousCategorie}',true,true,${cleJs})" onkeydown="if(event.key==='Enter'||event.key===' ') afficherProduits('${idCategorie}','${idSousCategorie}',true,true,${cleJs})">
       ${boutique.imageUrl ? `<img class="avatar-boutique" src="${echapperHtml(boutique.imageUrl)}" alt="Photo de profil de ${echapperHtml(boutique.nom)}" loading="lazy">` : `<span class="avatar-boutique avatar-boutique-defaut">👤</span>`}
       <h3>${echapperHtml(boutique.nom)}</h3>${boutique.nomBoutiquier ? `<p class="nom-boutiquier">Boutiquier : ${echapperHtml(boutique.nomBoutiquier)}</p>` : ""}<p>${boutique.nombre} article${boutique.nombre > 1 ? "s" : ""} dans ${echapperHtml(sousCategorie.nom)}</p><p style="margin-top:9px;color:#c2410c;font-weight:800;">Voir les articles →</p>
+      <button type="button" class="btn-favori-boutique ${estBoutiquePreferee(boutique.cle) ? "est-favori" : ""}" data-boutique-favorite="${echapperHtml(boutique.cle)}" aria-pressed="${estBoutiquePreferee(boutique.cle) ? "true" : "false"}" onclick="basculerBoutiquePreferee(${cleJs}, event)">${estBoutiquePreferee(boutique.cle) ? "★ Suivie" : "☆ Suivre"}</button>
     </div>`;
   }).join("") : `<p style="grid-column:1/-1;text-align:center;color:#666;padding:30px 0;">Aucune boutique ne propose encore d’article dans cette sous-catégorie.</p>`;
   if(pousserHistorique) history.pushState({ vue: "boutiques", idCategorie, idSousCategorie }, "");
@@ -2805,7 +2873,7 @@ function afficherNotificationCommandeClient({commandId = "", total = 0, articles
 }
 
 const CLE_VERROUILLAGE_CLIENT_MERCI = "primeservice_client_merci_verrou";
-const DUREE_VERROUILLAGE_CLIENT_MERCI_MS = 90 * 1000;
+const DUREE_VERROUILLAGE_CLIENT_MERCI_MS = 5 * 60 * 1000 + 30 * 1000;
 let minuterieVerrouillageClientMerci = null;
 let etatVerrouillageClientMerci = null;
 
@@ -2845,6 +2913,20 @@ function clientMerciEstVerrouillee(){
     etatVerrouillageClientMerci &&
     Number(etatVerrouillageClientMerci.expireAt) > Date.now()
   );
+}
+
+function confirmerRetourAccueilDepuisMerci(event){
+  if(event) event.preventDefault();
+  if(clientMerciEstVerrouillee()){
+    afficherMessageVerrouillageMerci();
+    return false;
+  }
+  const numeroPaiementBrut = String(CONFIG.NUMERO_PAIEMENT || "").replace(/\D/g, "");
+  const numero = numeroPaiementBrut.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
+  const confirme = window.confirm(`Êtes-vous sûr d’avoir envoyé l’argent au numéro ${numero} ? Vérifiez aussi le montant avant de continuer.`);
+  if(!confirme) return false;
+  afficherAccueil();
+  return true;
 }
 
 function afficherMessageVerrouillageMerci(){
@@ -2907,7 +2989,7 @@ function activerVerrouillageClientMerci(expireAt){
       btnRetour.style.opacity = "1";
       btnRetour.style.cursor = "pointer";
       btnRetour.textContent = "Retour à l’accueil";
-      btnRetour.onclick = () => afficherAccueil();
+      btnRetour.onclick = confirmerRetourAccueilDepuisMerci;
     }
     history.replaceState({ vue: "merci" }, "");
   };
@@ -3003,6 +3085,7 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
     btnRetourAccueil.style.opacity = "1";
     btnRetourAccueil.style.cursor = "pointer";
     btnRetourAccueil.textContent = "Retour à l'accueil";
+    btnRetourAccueil.onclick = confirmerRetourAccueilDepuisMerci;
   }
 
   // --- CRÉER ET AJOUTER LE BLOC D'INSTRUCTIONS DE PAIEMENT ---
