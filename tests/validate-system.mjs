@@ -20,6 +20,7 @@ const ackFunction = await read("supabase/functions/accuser-notification/index.ts
 const linkFunction = await read("supabase/functions/lier-notification-push/index.ts");
 const serviceWorker = await read("sw.js");
 const boutiquePage = await read("boutique-notification.html");
+const boutiqueSimulation = await read("simulation-page-commande-boutiquier.html");
 const migration = await read("supabase/migrations/202608210001_secure_order_writes.sql");
 const photoMigration = await read("supabase/migrations/202608210002_fix_public_photo_uploads.sql");
 const retryMigration = await read("supabase/migrations/202608210003_boutiquier_notification_retries.sql");
@@ -340,6 +341,8 @@ assert.match(boutiquePage, /J’AI VU LA COMMANDE/);
 assert.match(boutiquePage, /image_url/);
 assert.match(boutiquePage, /remainingSeconds/);
 assert.match(boutiquePage, /1 min 30 s/);
+assert.match(boutiqueSimulation, /1 min 30 s/);
+assert.doesNotMatch(boutiqueSimulation, /Confidentialité|commission|prix total payé par le client|montant conservé par Prime Service/);
 assert.match(boutiquePage, /expiresAt/);
 assert.match(boutiquePage, /Quartier de livraison/);
 assert.match(cleverProcessor, /chrome_web_icon/);

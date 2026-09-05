@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Simulation — Commande boutiquier</title>
+<style>
+:root{--blue:#2563eb;--ink:#162033;--muted:#667085;--line:#dbe4f0;--soft:#f5f8fc;--green:#15803d;--orange:#ea580c}*{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:var(--ink);font-family:Arial,sans-serif}.page{max-width:760px;margin:0 auto;padding:18px 14px 34px}.notice{background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:12px 14px;color:#9a3412;font-size:14px;margin-bottom:14px}.brand{background:#101828;color:#fff;border-radius:16px;padding:18px 16px;margin-bottom:14px}.brand strong{font-size:23px}.brand span{color:#ff7a00}.brand small{display:block;margin-top:6px;color:#d0d5dd}.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 4px 14px #1522380b}.title{margin:0 0 8px;font-size:21px}.meta{color:var(--muted);font-size:14px;line-height:1.55}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.product{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}.product img{display:block;width:100%;height:150px;object-fit:cover;background:#eef2f7}.product .body{padding:11px}.product h3{font-size:15px;margin:0 0 7px}.product p{margin:4px 0;color:var(--muted);font-size:13px}.price{color:var(--green)!important;font-weight:700}.section-title{font-size:17px;margin:0 0 10px}.row{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid #eef2f6;font-size:14px}.row:last-child{border-bottom:0}.label{color:var(--muted)}.call{display:inline-block;background:#16a34a;color:#fff;text-decoration:none;border-radius:11px;padding:12px 15px;font-weight:700;margin-top:8px}.map{display:block;background:#eaf2ff;border:1px solid #bfdbfe;color:#1d4ed8;text-decoration:none;border-radius:12px;padding:13px;margin-top:10px;font-weight:700}.ack{width:100%;border:0;border-radius:13px;background:#94a3b8;color:#fff;padding:15px;font-size:16px;font-weight:700;margin-top:10px}.ack:disabled{opacity:.8;cursor:not-allowed}.privacy{font-size:13px;color:var(--muted);line-height:1.5;background:var(--soft);border-radius:12px;padding:12px;margin-top:12px}@media(max-width:560px){.grid{grid-template-columns:1fr}.product img{height:190px}.page{padding:12px 10px}}
+</style>
+</head>
+<body>
+<main class="page">
+  <div class="notice"><strong>SIMULATION FICTIVE</strong> — Cette page ne correspond pas à une vraie commande et aucun bouton ne déclenche d’action métier.</div>
+  <header class="brand"><strong>Prime<span>Service</span></strong><small>Détail sécurisé d’une commande pour le boutiquier</small></header>
+  <section class="card">
+    <h1 class="title">🛒 Nouvelle commande — Boutique de test</h1>
+    <div class="meta"><strong>Commande :</strong> SIMULATION-2026-001<br><strong>Reçue :</strong> 05/09/2026 à 14:30<br><strong>Statut :</strong> En attente de lecture</div>
+  </section>
+  <section class="card">
+    <h2 class="section-title">📦 Articles de votre boutique</h2>
+    <div class="grid">
+      <article class="product"><img src="https://kfxalpvbtbvkncztjwzc.supabase.co/storage/v1/object/public/photos-articles/1786760589342-photo.jpg" alt="Montre test"><div class="body"><h3>Montre test élégante</h3><p>Quantité : <strong>1</strong></p><p class="price">Net à recevoir : 10 000 FCFA</p></div></article>
+      <article class="product"><img src="https://kfxalpvbtbvkncztjwzc.supabase.co/storage/v1/object/public/photos-articles/1787214595661-photo.jpg" alt="Article test"><div class="body"><h3>Article test visuel</h3><p>Quantité : <strong>2</strong></p><p class="price">Net à recevoir : 8 000 FCFA</p></div></article>
+    </div>
+    <div class="row"><span class="label">Total net de votre boutique</span><strong>18 000 FCFA</strong></div>
+  </section>
+  <section class="card">
+    <h2 class="section-title">👤 Informations du client</h2>
+    <div class="row"><span class="label">Nom</span><strong>Client de test</strong></div>
+    <div class="row"><span class="label">Téléphone</span><strong>76 00 00 00</strong></div>
+    <a class="call" href="#simulation">📞 Appeler le client hors connexion</a>
+  </section>
+  <section class="card">
+    <h2 class="section-title">📍 Livraison</h2>
+    <div class="row"><span class="label">Quartier</span><strong>Quartier de test</strong></div>
+    <div class="row"><span class="label">Précision</span><strong>Près du marché de test</strong></div>
+    <div class="row"><span class="label">Adresse boutique</span><strong>Adresse enregistrée de la boutique</strong></div>
+    <a class="map" href="#simulation">🗺️ Ouvrir l’itinéraire dans Google Maps</a>
+  </section>
+  <section class="card">
+    <h2 class="section-title">✅ Lecture de la commande</h2>
+    <p class="meta">Le bouton devient disponible après le délai de lecture prévu. Les relances automatiques s’arrêtent lorsque la commande est accusée.</p>
+    <button class="ack" disabled>🔒 J’AI VU LA COMMANDE — disponible dans 1 min 30 s</button>
+  </section>
+</main>
+</body>
+</html>
