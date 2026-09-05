@@ -15,6 +15,7 @@ const ALLOWED_ORIGINS = new Set([
   "http://localhost:5173",
 ]);
 const SITE_ORIGIN = "https://roimtrmt-stack.github.io/prime-service";
+const ORANGE_PAYMENT_NUMBER = (Deno.env.get("ORANGE_PAYMENT_NUMBER") || "94134408").replace(/\D/g, "").slice(-8);
 const rateState = new Map<string, { started: number; count: number }>();
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_MAX_REQUESTS = 20;
@@ -459,6 +460,11 @@ async function notifyInBackground(input: {
       ...shopLines,
       `💰 **TOTAL CLIENT :** ${input.total.toLocaleString("fr-FR")} FCFA`,
       `🧾 **COMMISSION TOTALE À GARDER :** ${Math.round(commissionTotal).toLocaleString("fr-FR")} FCFA`,
+      "",
+      "💳 **PAIEMENT CLIENT À RECEVOIR**",
+      `Le client doit envoyer **${input.total.toLocaleString("fr-FR")} FCFA** à votre numéro Orange Money : **${ORANGE_PAYMENT_NUMBER.replace(/(\d{2})(?=\d)/g, "$1 ")}**.`,
+      "Composer #144#, choisir Transfert/Envoyer, saisir le numéro et le montant, vérifier le bénéficiaire, puis valider avec le code secret sur le téléphone.",
+      "Ne jamais communiquer ni enregistrer le code secret. Vérifier le SMS ou le solde avant de considérer le paiement comme confirmé.",
     ].join("\n"), 1_950);
 
     const imageCache = new Map<number, ImageAttachment | null>();
