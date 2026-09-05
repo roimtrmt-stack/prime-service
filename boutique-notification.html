@@ -13,6 +13,8 @@
     h2 { margin: 0 0 8px; font-size: 1.25rem; }
     p { line-height: 1.55; }
     .alerte { background: #fef2f2; border: 2px solid #fecaca; border-radius: 16px; padding: 16px; margin: 20px 0; }
+    .paiement-avertissement { background: #fff7ed; border: 3px solid #f97316; border-radius: 16px; padding: 16px; margin: 16px 0; color: #9a3412; font-weight: 800; line-height: 1.5; box-shadow: 0 5px 0 #fed7aa; }
+    .paiement-avertissement strong { display: block; color: #c2410c; font-size: 1.08rem; margin-bottom: 6px; }
     .success { color: #166534; background: #f0fdf4; border-color: #86efac; }
     .error { color: #991b1b; }
     .details { display: grid; gap: 8px; text-align: left; }
@@ -48,6 +50,10 @@
   <main>
     <h1>🔔 Prime Service</h1>
     <p id="intro">Lecture obligatoire des détails de la commande avant confirmation.</p>
+    <div class="paiement-avertissement" role="alert">
+      <strong>⚠️ IMPORTANT POUR LE BOUTIQUIER ET LE LIVREUR</strong>
+      Le paiement du client se fait par <strong>Orange Money</strong>. Prévenez votre livreur avant la livraison afin qu’il soit bien informé.
+    </div>
     <div id="message" class="alerte">Chargement sécurisé de la commande…</div>
     <section id="details" class="details" hidden></section>
     <div id="photos" class="photos" hidden></div>
