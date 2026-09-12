@@ -107,7 +107,10 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   text-align:center;
   margin:0 -16px 0;
   padding:40px 18px 32px;
-  background:radial-gradient(130% 160% at 18% 0%, #1c2c4d 0%, #101a30 55%, #0a1120 100%);
+  background:
+    linear-gradient(180deg, rgba(8,13,26,.72) 0%, rgba(8,13,26,.55) 45%, rgba(8,13,26,.82) 100%),
+    url('https://images.pexels.com/photos/6869042/pexels-photo-6869042.jpeg?auto=compress&cs=tinysrgb&w=1600') center/cover no-repeat,
+    radial-gradient(130% 160% at 18% 0%, #1c2c4d 0%, #101a30 55%, #0a1120 100%);
   border-radius:0 0 22px 22px;
 }
 .hero-inner{ max-width:620px; margin:0 auto; }
@@ -118,14 +121,22 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   letter-spacing:-0.4px;
   color:var(--blanc);
   font-weight:800;
+  text-shadow:0 2px 10px rgba(0,0,0,.35);
 }
-.hero h1 .logo-accent{ color:var(--orange); }
+.hero h1 .logo-accent{
+  color:var(--orange);
+  background:rgba(249,115,22,0.22);
+  padding:2px 10px;
+  border-radius:8px;
+  display:inline-block;
+}
 .hero-soustitre{
-  color:#a9b6d1;
+  color:#dbe3f2;
   font-size:14.5px;
   line-height:1.5;
   max-width:460px;
   margin:0 auto;
+  text-shadow:0 1px 6px rgba(0,0,0,.35);
 }
 .hero-baseline{
   display:inline-block;
@@ -135,7 +146,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   margin:0;
   padding:7px 16px;
   border-radius:999px;
-  background:rgba(249,115,22,0.1);
+  background:rgba(20,14,8,0.55);
   border:1px dashed var(--orange);
 }
 .hero-baseline::before{ content:"🚚 "; }
@@ -152,6 +163,18 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   margin:0 -16px;
   padding:28px 16px 6px;
   background:#f2f7fc;
+}
+.badge-rayons{
+  display:block;
+  width:fit-content;
+  margin:0 auto 10px;
+  color:var(--orange);
+  font-size:12px;
+  font-weight:700;
+  padding:6px 14px;
+  border-radius:999px;
+  background:rgba(249,115,22,0.1);
+  border:1px solid rgba(249,115,22,0.35);
 }
 .titre-categories{
   text-align:center;
@@ -224,7 +247,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 }
 .carte-categorie .icone{ font-size:30px; display:block; line-height:1; }
 .carte-categorie h3{ margin:6px 0 4px; }
-.carte-categorie p{ color:#666; font-size:13px; margin:0; }
+.carte-categorie p{ display:inline-block; color:#6b7280; font-size:11.5px; margin:2px 0 0; background:#eef2f7; padding:3px 11px; border-radius:999px; }
 
 /* Un dégradé distinct par catégorie — look "icône illustrée", zéro image téléchargée */
 .badge-mode{ background:linear-gradient(135deg,#FBC7D4,#F6A6C1); }
@@ -1162,7 +1185,18 @@ body.merci-client-verrouillee .btn-options{
   .grille-produits{ grid-template-columns:repeat(3, 1fr); gap:16px; }
 }
 @media (max-width: 600px){
-  .grille-categories, .grille-boutiques{ grid-template-columns:repeat(2, 1fr); gap:14px; }
+  .grille-boutiques{ grid-template-columns:repeat(2, 1fr); gap:14px; }
+  .grille-categories{
+    display:flex;
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    gap:14px;
+    padding-bottom:8px;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .grille-categories::-webkit-scrollbar{ display:none; }
+  .grille-categories .carte-categorie{ flex:0 0 132px; }
   .carte-categorie, .carte-boutique{ padding:18px 10px; }
   .badge-icone{ width:52px; height:52px; margin-bottom:8px; }
   .carte-categorie .icone{ font-size:24px; }
@@ -1289,7 +1323,7 @@ window.addEventListener('orientationchange', function() {
       <div class="hero-inner">
         <p class="hero-baseline">Prime Service livre votre quotidien à domicile</p>
         <h1>Vos courses livrées en un éclair<br>avec <span class="logo-accent">PrimeService</span></h1>
-        <p class="hero-soustitre">Comparez des milliers de boutiques et faites-vous livrer où vous voulez, quand vous le voulez.</p>
+        <p class="hero-soustitre">Commandez dans les meilleures boutiques locales de votre ville. Paiement simple par Wave ou Orange Money à la livraison.</p>
         <div class="search-container">
           <input type="text" id="champRecherche" class="search-input" placeholder="Rechercher une boutique ou un article..." onkeypress="if(event.key === 'Enter') lancerRecherche()">
           <button class="search-btn" onclick="lancerRecherche()">🔍 Rechercher</button>
@@ -1298,8 +1332,9 @@ window.addEventListener('orientationchange', function() {
     </div>
 
     <div class="section-categories">
+      <span class="badge-rayons">Rayons &amp; Catalogues</span>
       <h2 class="titre-categories">Nos catégories de produits</h2>
-      <p class="soustitre-categories">Trouvez ce que vous cherchez en quelques clics</p>
+      <p class="soustitre-categories">Explorez les rayons de nos commerçants partenaires</p>
       <!-- ✅ AMÉLIORATION : Si le JavaScript tarde à charger, l'utilisateur voit ce message au lieu d'un vide -->
       <div class="grille-categories" id="grilleCategories">
         <p style="grid-column:1/-1;text-align:center;color:#666;padding:30px 0;">⏳ Chargement du catalogue...</p>
