@@ -2465,7 +2465,7 @@ function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pouss
   if(produits.length === 0){
     grille.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:#666;">Aucun article ici pour le moment.</p>`;
   } else {
-    grille.innerHTML = produits.map((p, index) => {
+    grille.innerHTML = produits.map((p) => {
       const imageUrl = urlImageSecurisee(p.image_url);
       const nomAffiche = nomProduitAffichable(p.nom);
       return `
@@ -2479,7 +2479,7 @@ function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pouss
         ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(p.nom_boutique)}</p>` : ""}
         <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
         <p class="stock-produit">📦 ${p.stock} en stock</p>
-        <button class="btn-ajouter" onclick="ajouterAuPanier('${idCategorie}', '${idSousCategorie}', ${index}, event)">
+        <button class="btn-ajouter" onclick="ajouterAuPanier(${JSON.stringify(p.id)}, event)">
           Ajouter au panier
         </button>
       </div>
@@ -2532,8 +2532,9 @@ function construireCategories(){
 /* =====================================================================
    PANIER
    ===================================================================== */
-function ajouterAuPanier(idCategorie, idSousCategorie, index, event){
-  const produit = produitsParCle[cleSousCategorie(idCategorie, idSousCategorie)][index];
+function ajouterAuPanier(id, event){
+  const produit = trouverProduitParId(id);
+  if(!produit){ alert("Article introuvable."); return; }
 
   const existant = panier.find(a => a.id === produit.id);
   if(existant){
