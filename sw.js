@@ -143,7 +143,7 @@ self.addEventListener("notificationclick", (event) => {
   const data = notification.data || {};
   notification.close();
 
-  const targetUrl = data.url || data.ackUrl || `${self.location.origin}/prime-service/boutique-notification.html`;
+  const targetUrl = data.url || data.ackUrl || new URL("boutique-notification.html", self.registration.scope).href;
 
   if (parseExpiry(data.expiresAt) && Date.now() >= parseExpiry(data.expiresAt)) {
     event.waitUntil(self.clients.openWindow(data.ackUrl || targetUrl));
