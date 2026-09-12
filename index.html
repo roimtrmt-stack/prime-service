@@ -103,18 +103,40 @@ body{
 /* ===================== CONTENU GENERAL ===================== */
 main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 
-.hero{ text-align:center; padding:36px 10px 14px; }
-.hero h1{ font-size:36px; margin-bottom:10px; letter-spacing:-0.5px; }
+.hero{
+  text-align:center;
+  margin:0 -16px 0;
+  padding:40px 18px 32px;
+  background:radial-gradient(130% 160% at 18% 0%, #1c2c4d 0%, #101a30 55%, #0a1120 100%);
+  border-radius:0 0 22px 22px;
+}
+.hero-inner{ max-width:620px; margin:0 auto; }
+.hero h1{
+  font-size:30px;
+  line-height:1.28;
+  margin:16px 0 10px;
+  letter-spacing:-0.4px;
+  color:var(--blanc);
+  font-weight:800;
+}
+.hero h1 .logo-accent{ color:var(--orange); }
+.hero-soustitre{
+  color:#a9b6d1;
+  font-size:14.5px;
+  line-height:1.5;
+  max-width:460px;
+  margin:0 auto;
+}
 .hero-baseline{
   display:inline-block;
-  color:var(--noir);
-  font-size:17px;
-  font-weight:600;
+  color:var(--orange);
+  font-size:13px;
+  font-weight:700;
   margin:0;
-  padding:8px 18px;
+  padding:7px 16px;
   border-radius:999px;
-  background:var(--gris-fond);
-  border:1px solid var(--gris-bordure);
+  background:rgba(249,115,22,0.1);
+  border:1px dashed var(--orange);
 }
 .hero-baseline::before{ content:"🚚 "; }
 
@@ -123,6 +145,25 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   margin:10px 0 20px;
   border-left:5px solid var(--orange);
   padding-left:10px;
+}
+
+/* ===================== SECTION CATEGORIES (ACCUEIL) ===================== */
+.section-categories{
+  margin:0 -16px;
+  padding:28px 16px 6px;
+  background:#f2f7fc;
+}
+.titre-categories{
+  text-align:center;
+  font-size:21px;
+  margin:0 0 6px;
+  color:var(--noir);
+}
+.soustitre-categories{
+  text-align:center;
+  color:#6b7280;
+  font-size:13.5px;
+  margin:0 0 22px;
 }
 
 /* ===================== GRILLE CATEGORIES (ACCUEIL) ===================== */
@@ -745,9 +786,9 @@ body.merci-client-verrouillee .btn-options{
 .bloc-devenir-boutiquier{
   text-align:center;
   margin-top:32px;
-  padding:24px 20px;
-  border:1px dashed var(--orange);
-  border-radius:var(--rayon);
+  padding:26px 20px;
+  border:1.5px dashed var(--orange);
+  border-radius:18px;
   background:#fff7ed;
 }
 .bloc-devenir-boutiquier h3{ margin:0 0 8px; }
@@ -757,10 +798,11 @@ body.merci-client-verrouillee .btn-options{
   background:var(--orange);
   color:var(--blanc);
   text-decoration:none;
-  padding:12px 22px;
-  border-radius:var(--rayon);
+  padding:13px 26px;
+  border-radius:999px;
   font-weight:700;
   font-size:15px;
+  box-shadow:0 8px 18px rgba(249,115,22,.28);
 }
 .btn-devenir-boutiquier:hover{ opacity:.9; }
 
@@ -822,11 +864,11 @@ body.merci-client-verrouillee .btn-options{
   margin-top:28px;
 }
 .btn-installer{
-  background:var(--noir);
+  background:#101a30;
   color:var(--blanc);
   border:none;
-  padding:13px 22px;
-  border-radius:var(--rayon);
+  padding:14px 26px;
+  border-radius:999px;
   font-weight:700;
   cursor:pointer;
   font-size:15px;
@@ -884,8 +926,8 @@ body.merci-client-verrouillee .btn-options{
   background:var(--bleu);
   color:var(--blanc);
   border:none;
-  padding:12px 22px;
-  border-radius:var(--rayon);
+  padding:13px 24px;
+  border-radius:999px;
   font-weight:700;
   cursor:pointer;
   font-size:14px;
@@ -1134,7 +1176,7 @@ body.merci-client-verrouillee .btn-options{
   .btn-ajouter{ padding:8px 6px; font-size:12.5px; }
   .header-right{ gap:6px; }
   .btn-retour{ padding:8px 10px; font-size:13px; }
-  .hero h1{ font-size:26px; }
+  .hero h1{ font-size:23px; }
 }
 @media (max-width: 360px){
   .grille-produits{ grid-template-columns:repeat(2, 1fr); gap:10px; }
@@ -1163,11 +1205,15 @@ body.merci-client-verrouillee .btn-options{
 }
 
 /* ===================== RECHERCHE RAPIDE ===================== */
-.search-container { display:flex; justify-content:center; gap:10px; margin:18px 0 10px 0; flex-wrap:wrap; }
-.search-input { flex:1; max-width:400px; min-width:200px; padding:12px 16px; border:2px solid var(--gris-bordure); border-radius:var(--rayon); font-size:16px; outline:none; background:var(--blanc); transition:border-color 0.2s ease; }
+.search-container { display:flex; justify-content:center; align-items:center; gap:6px; margin:24px auto 4px; max-width:520px; background:var(--blanc); border-radius:999px; padding:6px 6px 6px 20px; box-shadow:0 14px 34px rgba(0,0,0,.28); flex-wrap:nowrap; }
+.search-input { flex:1; min-width:0; padding:10px 4px; border:none; border-radius:0; font-size:15px; outline:none; background:transparent; color:var(--noir); }
 .search-input:focus { border-color:var(--bleu); }
-.search-btn { background:var(--bleu); color:var(--blanc); border:none; padding:12px 20px; border-radius:var(--rayon); font-size:16px; font-weight:700; cursor:pointer; transition:background 0.2s ease; }
+.search-btn { background:var(--bleu); color:var(--blanc); border:none; padding:12px 22px; border-radius:999px; font-size:15px; font-weight:700; cursor:pointer; transition:background 0.2s ease; white-space:nowrap; }
 .search-btn:hover { background:var(--bleu-hover); }
+@media (max-width:480px){
+  .search-container{ padding:5px 5px 5px 16px; }
+  .search-btn{ padding:11px 16px; font-size:14px; }
+}
 </style>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
@@ -1240,17 +1286,24 @@ window.addEventListener('orientationchange', function() {
   <!-- ===================== ACCUEIL ===================== -->
   <section id="vue-accueil" class="vue">
     <div class="hero">
-      <h1>Prime<span class="logo-accent">Service</span></h1>
-      <p class="hero-baseline">Prime Service livre votre quotidien à domicile</p>
-      <div class="search-container">
-        <input type="text" id="champRecherche" class="search-input" placeholder="Rechercher une boutique ou un article..." onkeypress="if(event.key === 'Enter') lancerRecherche()">
-        <button class="search-btn" onclick="lancerRecherche()">🔍 Rechercher</button>
+      <div class="hero-inner">
+        <p class="hero-baseline">Prime Service livre votre quotidien à domicile</p>
+        <h1>Vos courses livrées en un éclair<br>avec <span class="logo-accent">PrimeService</span></h1>
+        <p class="hero-soustitre">Comparez des milliers de boutiques et faites-vous livrer où vous voulez, quand vous le voulez.</p>
+        <div class="search-container">
+          <input type="text" id="champRecherche" class="search-input" placeholder="Rechercher une boutique ou un article..." onkeypress="if(event.key === 'Enter') lancerRecherche()">
+          <button class="search-btn" onclick="lancerRecherche()">🔍 Rechercher</button>
+        </div>
       </div>
     </div>
 
-    <!-- ✅ AMÉLIORATION : Si le JavaScript tarde à charger, l'utilisateur voit ce message au lieu d'un vide -->
-    <div class="grille-categories" id="grilleCategories">
-      <p style="grid-column:1/-1;text-align:center;color:#666;padding:30px 0;">⏳ Chargement du catalogue...</p>
+    <div class="section-categories">
+      <h2 class="titre-categories">Nos catégories de produits</h2>
+      <p class="soustitre-categories">Trouvez ce que vous cherchez en quelques clics</p>
+      <!-- ✅ AMÉLIORATION : Si le JavaScript tarde à charger, l'utilisateur voit ce message au lieu d'un vide -->
+      <div class="grille-categories" id="grilleCategories">
+        <p style="grid-column:1/-1;text-align:center;color:#666;padding:30px 0;">⏳ Chargement du catalogue...</p>
+      </div>
     </div>
 
     <section id="blocBoutiquesPreferees" class="bloc-boutiques-preferees" style="display:none;">
