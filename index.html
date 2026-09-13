@@ -3210,18 +3210,18 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
 
     const numeroPaiementSaisi = CONFIG.NUMERO_PAIEMENT.replace(/\D/g, "");
     divInstructions.innerHTML = `
-      <div style="background:#fef2f2;border-radius:9px;padding:7px 9px;margin-bottom:7px;border-left:3px solid #dc2626;">
-        <strong style="color:#dc2626;display:block;font-size:12px;">⚠️ Orange Money uniquement</strong>
-        <span style="color:#991b1b;font-size:11px;">Ne payez pas le livreur. Vérifiez le bénéficiaire, le montant et les frais.</span>
+      <div style="background:#fef2f2;border-radius:10px;padding:9px 11px;margin-bottom:10px;border-left:3px solid #dc2626;">
+        <strong style="color:#dc2626;display:block;font-size:13px;">⚠️ Orange Money uniquement</strong>
+        <span style="color:#991b1b;font-size:12px;">Ne payez pas le livreur. Vérifiez le bénéficiaire, le montant et les frais.</span>
       </div>
-      <div style="margin-bottom:7px;">
-        <div style="font-weight:700;font-size:13px;margin-bottom:4px;color:#1f2937;">💳 Par téléphone, sans Internet</div>
-        <span style="font-size:11px;color:#374151;">Téléphone → composez exactement :</span>
-        <strong style="display:block;margin:5px 0;padding:7px 4px;border-radius:7px;background:#172033;color:#fff;text-align:center;font:800 11px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:0;white-space:nowrap;">#144*1*${numeroPaiementSaisi}*${Math.round(montantReel)}*1*CODE_SECRET#</strong>
-        <span style="display:block;color:#374151;font-size:11px;line-height:1.3;">Remplacez <strong>CODE_SECRET</strong> → <strong>Appeler/OK</strong> → vérifiez <strong>${numeroPaiementSaisi}</strong>, <strong>${montantAffiche}</strong> et le nom → validez → attendez le SMS.</span>
-        <details style="margin-top:5px;color:#6b7280;font-size:11px;"><summary style="cursor:pointer;color:#1d4ed8;font-weight:700;">Voir les étapes détaillées</summary><p style="margin:5px 0 0;">Le menu fonctionne aussi avec <strong>#144#</strong> → <strong>Transfert d’argent</strong> → numéro → montant → code secret.</p></details>
+      <div style="margin-bottom:9px;">
+        <div style="font-weight:800;font-size:15px;margin-bottom:6px;color:#1f2937;">💳 Par téléphone, sans Internet</div>
+        <span style="font-size:12.5px;color:#374151;">Téléphone → composez exactement :</span>
+        <strong style="display:block;margin:9px 0;padding:18px 10px;border-radius:12px;background:#172033;color:#fff;text-align:center;font:800 18px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:0.4px;word-break:break-all;box-shadow:0 4px 14px rgba(23,32,51,.25);">#144#1*1*${numeroPaiementSaisi}*${Math.round(montantReel)}*1*CODE_SECRET#</strong>
+        <span style="display:block;color:#374151;font-size:12.5px;line-height:1.5;">Remplacez <strong>CODE_SECRET</strong> par votre code secret → <strong>Appeler/OK</strong> → vérifiez <strong>${numeroPaiementSaisi}</strong>, <strong>${montantAffiche}</strong> et le nom → validez → attendez le SMS.</span>
+        <details style="margin-top:8px;color:#6b7280;font-size:12px;"><summary style="cursor:pointer;color:#1d4ed8;font-weight:700;">Voir les étapes détaillées</summary><p style="margin:6px 0 0;">Le menu fonctionne aussi avec <strong>#144#</strong> → <strong>Transfert d’argent</strong> → numéro → montant → code secret.</p></details>
       </div>
-      <div style="border-top:1px solid #fed7aa;padding-top:7px;margin-top:5px;color:#4b5563;font-size:11px;line-height:1.3;">
+      <div style="border-top:1px solid #fed7aa;padding-top:9px;margin-top:7px;color:#4b5563;font-size:12px;line-height:1.5;">
         <strong style="color:#9a3412;">🏪 Point de vente Orange Money :</strong> demandez un transfert/dépôt vers <strong>${numeroPaiementSaisi}</strong> de <strong>${montantAffiche}</strong>, vérifiez le bénéficiaire, payez en espèces et gardez le reçu/SMS. Ne donnez jamais votre code secret.
       </div>
     `;
@@ -3238,7 +3238,7 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
     compteurElement.style.cssText = "font-weight:600;color:#16a34a;font-size:14px;margin:10px 0;";
     document.querySelector(".bloc-paiement").after(compteurElement);
   }
-  compteurElement.textContent = "✅ Commande enregistrée. Les notifications sont envoyées en arrière-plan.";
+  compteurElement.textContent = "✅ Commande enregistrée.";
 
   document.getElementById("btnRetour").style.display = "none";
 
