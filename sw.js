@@ -145,16 +145,32 @@ self.addEventListener("notificationclick", (event) => {
 
   const targetUrl = data.url || data.ackUrl || new URL("boutique-notification.html", self.registration.scope).href;
 
+  let urlAOuvrir = targetUrl;
   if (parseExpiry(data.expiresAt) && Date.now() >= parseExpiry(data.expiresAt)) {
-    event.waitUntil(self.clients.openWindow(data.ackUrl || targetUrl));
-    return;
+    urlAOuvrir = data.ackUrl || targetUrl;
+  } else if (event.action === "ack") {
+    // Le bouton rouge conserve son action existante, mais ouvre d’abord les détails.
+    // La page impose ensuite 1 min 30 s de lecture et l’endpoint serveur revérifie le délai.
+    urlAOuvrir = data.ackUrl || targetUrl;
   }
 
-  // Le bouton rouge conserve son action existante, mais ouvre d’abord les détails.
-  // La page impose ensuite 1 min 30 s de lecture et l’endpoint serveur revérifie le délai.
-  if (event.action === "ack") {
-    event.waitUntil(self.clients.openWindow(data.ackUrl || targetUrl));
-    return;
-  }
-  event.waitUntil(self.clients.openWindow(targetUrl));
+  event.waitUntil((async () => {
+    // Une fenêtre de l'app est peut-être déjà ouverte (PWA déjà lancée) : clients.openWindow()
+    // ne la redirige pas toujours vers la nouvelle URL sur tous les navigateurs, il se contente
+    // parfois de la remettre au premier plan telle quelle. On force donc la navigation explicite
+    // vers l'URL de la commande avant de la mettre au premier plan.
+    const fenetres = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const fenetre of fenetres) {
+      if ("navigate" in fenetre) {
+        try {
+          await fenetre.navigate(urlAOuvrir);
+          return fenetre.focus();
+        } catch {
+          // Certains navigateurs refusent navigate() dans de rares cas (permissions, cross-origin) :
+          // on retente avec openWindow ci-dessous plutôt que d'abandonner silencieusement.
+        }
+      }
+    }
+    return self.clients.openWindow(urlAOuvrir);
+  })());
 });
