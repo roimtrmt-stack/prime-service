@@ -155,20 +155,19 @@ self.addEventListener("notificationclick", (event) => {
   }
 
   event.waitUntil((async () => {
-    // Une fenêtre de l'app est peut-être déjà ouverte (PWA déjà lancée) : clients.openWindow()
-    // ne la redirige pas toujours vers la nouvelle URL sur tous les navigateurs, il se contente
-    // parfois de la remettre au premier plan telle quelle. On force donc la navigation explicite
-    // vers l'URL de la commande avant de la mettre au premier plan.
+    // On NE navigue jamais une fenêtre de l'app principale (index.html) : elle peut porter
+    // un verrou "beforeunload" (page de confirmation client, 5 min 30 s) qui fait apparaître
+    // une boîte de dialogue native et bloque la redirection au lieu de l'exécuter.
+    // On ne réutilise que si une fenêtre est déjà précisément sur la page de détails
+    // (boutique-notification.html, qui elle n'a aucun verrou) ; sinon, nouvel onglet dédié.
     const fenetres = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    for (const fenetre of fenetres) {
-      if ("navigate" in fenetre) {
-        try {
-          await fenetre.navigate(urlAOuvrir);
-          return fenetre.focus();
-        } catch {
-          // Certains navigateurs refusent navigate() dans de rares cas (permissions, cross-origin) :
-          // on retente avec openWindow ci-dessous plutôt que d'abandonner silencieusement.
-        }
+    const fenetreDetails = fenetres.find((f) => f.url && f.url.includes("boutique-notification.html"));
+    if (fenetreDetails && "navigate" in fenetreDetails) {
+      try {
+        await fenetreDetails.navigate(urlAOuvrir);
+        return fenetreDetails.focus();
+      } catch {
+        // On retente avec un nouvel onglet ci-dessous plutôt que d'abandonner silencieusement.
       }
     }
     return self.clients.openWindow(urlAOuvrir);
