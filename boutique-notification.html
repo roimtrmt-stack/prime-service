@@ -81,6 +81,16 @@
     let expiresAtMs = 0;
     let countdownTimer = null;
 
+    // Empêche de quitter la page pendant les 90 s de lecture obligatoire — même mécanisme
+    // que le verrou déjà utilisé sur la page de confirmation client. Ce n'est qu'un frein
+    // navigateur (boîte "Quitter le site ?") : la fermeture forcée de l'app reste toujours
+    // possible, mais un clic accidentel ou un retour arrière est bloqué.
+    window.addEventListener("beforeunload", (event) => {
+      if (acknowledged || canAcknowledge) return;
+      event.preventDefault();
+      event.returnValue = "";
+    });
+
     function setError(text) {
       box.className = "alerte error";
       box.textContent = text;
@@ -172,7 +182,6 @@
           tuile.src = `https://tile.openstreetmap.org/${zoom}/${tuileX}/${tuileY}.png`;
           tuile.alt = "";
           tuile.loading = "lazy";
-          tuile.referrerPolicy = "no-referrer";
           tuile.addEventListener("error", () => {
             tuilesEchouees++;
             tuile.hidden = true;
@@ -186,6 +195,10 @@
         }
       }
       preview.append(grille, pin, fallback);
+      const attribution = document.createElement("p");
+      attribution.style.cssText = "margin:4px 0 0;font-size:11px;color:#64748b;text-align:right;";
+      attribution.textContent = "© OpenStreetMap contributors";
+      preview.appendChild(attribution);
       detailsBox.appendChild(preview);
     }
 
