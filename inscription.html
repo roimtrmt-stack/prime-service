@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Prime Service — Proposer mes articles</title>
 <meta name="robots" content="noindex">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1a1a1a">
 <style>
 /* ===================== VARIABLES DE COULEUR ===================== */
 :root{
@@ -939,6 +943,14 @@ if("serviceWorker" in navigator){
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 
+// Capture l'événement d'installation natif (Android/ordinateur) pour pouvoir le déclencher
+// depuis la case notifications, plutôt que d'attendre que le navigateur le propose seul.
+let evenementInstallationInscription = null;
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  evenementInstallationInscription = event;
+});
+
 // --- 1. VÉRIFICATION DU CADRAGE (Évite les photos coupées) ---
 function verifierCadragePhoto(imageUrl) {
   return new Promise((resolve) => {
@@ -1624,9 +1636,41 @@ async function activerNotifCommandeInscription(caseACocher){
   const indicateur = document.getElementById("statutNotifInscription");
   if(!caseACocher.checked) return; // décochée : rien à faire, la case reste obligatoire pour envoyer
 
+  // Sur iPhone/iPad, Safari ne donne accès aux notifications que si le site a été ajouté à
+  // l'écran d'accueil et ouvert depuis cette icône (mode standalone) — jamais depuis un simple
+  // onglet. Aucun code ne peut contourner cette limite d'Apple : on guide vers le geste manuel.
+  const estIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const estStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  if(estIOS && !estStandalone){
+    alert(
+      "Sur iPhone/iPad, activez d'abord l'application avant de cocher cette case :\n\n" +
+      "1) Appuyez sur le bouton Partager 📤 en bas de Safari\n" +
+      "2) Choisissez \"Sur l'écran d'accueil\"\n" +
+      "3) Ouvrez Prime Service depuis cette nouvelle icône (pas depuis Safari)\n" +
+      "4) Revenez sur ce formulaire d'inscription et cochez à nouveau la case\n\n" +
+      "Sans cette étape, les notifications ne peuvent pas fonctionner sur iPhone — c'est une limite d'Apple, pas de l'application."
+    );
+    if(indicateur) indicateur.textContent = "⚠️ Ajoutez d'abord l'app à l'écran d'accueil (voir le message), puis recochez la case.";
+    caseACocher.checked = false;
+    return;
+  }
+
   if(!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)){
     if(indicateur) indicateur.textContent = "Notifications non supportées sur ce navigateur : le SMS de commande restera le seul moyen d'activer plus tard.";
     return;
+  }
+
+  // Android/ordinateur : si le navigateur a proposé une installation native, on la déclenche ici
+  // (best-effort — le navigateur peut refuser de la proposer, et seul l'utilisateur peut confirmer
+  // dans SA fenêtre native, aucun code ne peut cocher cette confirmation à sa place).
+  if(evenementInstallationInscription){
+    try{
+      evenementInstallationInscription.prompt();
+      await evenementInstallationInscription.userChoice;
+    } catch{
+      // Pas grave si ça échoue : les notifications ne dépendent pas de l'installation sur Android/ordinateur.
+    }
+    evenementInstallationInscription = null;
   }
 
   try{
