@@ -155,21 +155,10 @@ self.addEventListener("notificationclick", (event) => {
   }
 
   event.waitUntil((async () => {
-    // On NE navigue jamais une fenêtre de l'app principale (index.html) : elle peut porter
-    // un verrou "beforeunload" (page de confirmation client, 5 min 30 s) qui fait apparaître
-    // une boîte de dialogue native et bloque la redirection au lieu de l'exécuter.
-    // On ne réutilise que si une fenêtre est déjà précisément sur la page de détails
-    // (boutique-notification.html, qui elle n'a aucun verrou) ; sinon, nouvel onglet dédié.
-    const fenetres = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    const fenetreDetails = fenetres.find((f) => f.url && f.url.includes("boutique-notification.html"));
-    if (fenetreDetails && "navigate" in fenetreDetails) {
-      try {
-        await fenetreDetails.navigate(urlAOuvrir);
-        return fenetreDetails.focus();
-      } catch {
-        // On retente avec un nouvel onglet ci-dessous plutôt que d'abandonner silencieusement.
-      }
-    }
+    // On n'essaie plus de réutiliser/naviguer une fenêtre déjà ouverte : la page de détails
+    // porte désormais elle-même un verrou "beforeunload" pendant les 90 s de lecture, qui
+    // ferait apparaître la même boîte de dialogue bloquante déjà rencontrée sur l'app
+    // principale. Un nouvel onglet dédié évite ce risque dans les deux cas.
     return self.clients.openWindow(urlAOuvrir);
   })());
 });
