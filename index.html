@@ -2972,8 +2972,6 @@ function afficherNotificationCommandeClient({commandId = "", total = 0, articles
   const pointInsertion = document.querySelector("#vue-merci .bloc-paiement");
   if(pointInsertion) pointInsertion.before(carte);
   else document.querySelector("#vue-merci .carte-merci")?.appendChild(carte);
-
-  void afficherNotificationSystemeCommandeClient({commandId, total});
 }
 
 const CLE_VERROUILLAGE_CLIENT_MERCI = "primeservice_client_merci_verrou";
