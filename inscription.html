@@ -873,9 +873,10 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
         </label>
 
         <label class="case-condition-obligatoire">
-          <input type="checkbox" id="autorisationNotifBoutique" required>
+          <input type="checkbox" id="autorisationNotifBoutique" required onchange="activerNotifCommandeInscription(this)">
           J'autorise Prime Service à m'envoyer une notification quand ma boutique reçoit une commande. <strong style="color:#dc2626;">(Obligatoire)</strong>
         </label>
+        <p id="statutNotifInscription" class="texte-info-conditions"></p>
 
         <p class="texte-info-conditions">Une question ? Appelez le <strong>94 13 44 08</strong>.</p>
       </div>
@@ -1498,14 +1499,20 @@ async function envoyerSoumission(event){
     const confirmationNotif = document.querySelector("#vue-merci-inscription .carte-merci p");
     if(confirmationNotif){
       confirmationNotif.textContent = `✅ ${resultatsArticles.length}/${totalSoumis} article(s) ont bien été enregistré(s), chacun avec sa propre photo et son propre stock.`;
-      if(document.getElementById("autorisationNotifBoutique").checked){
+      if(abonnementPushInscriptionCapture){
+        confirmationNotif.textContent += " Vos notifications de commande sont déjà activées sur ce téléphone.";
+      } else if(document.getElementById("autorisationNotifBoutique").checked){
         confirmationNotif.textContent += " Vous avez autorisé les notifications ; le premier SMS de commande contiendra un lien pour activer ce navigateur de manière sécurisée.";
       }
     }
 
-    // L’autorisation est recueillie ici, mais la liaison technique du navigateur
-    // est réalisée par le lien opaque envoyé dans le premier SMS de commande.
-    // Cela empêche un navigateur public de choisir directement un numéro boutique.
+    // L'autorisation est recueillie ci-dessus. Si activerNotifCommandeInscription() a réussi,
+    // abonnementPushInscriptionCapture contient déjà l'abonnement du navigateur : il est transmis
+    // ci-dessous avec le numéro de téléphone pour qu'envoyer-inscription puisse l'enregistrer
+    // côté serveur (seul un traitement serveur, avec la clé de service, a le droit d'écrire un
+    // abonnement rattaché à un vrai numéro de boutique — voir note serveur nécessaire).
+    // Si l'activation n'a pas abouti ici (refus, navigateur non compatible, case décochée),
+    // le lien opaque envoyé dans le premier SMS de commande reste le filet de sécurité.
 
     // ================================================================
     // AJOUT : ENVOYER LA NOTIFICATION DISCORD VIA LA FONCTION BACKEND
@@ -1555,6 +1562,15 @@ async function envoyerSoumission(event){
       const payload = { content: discordTexte, embeds: embedsPayload };
       formDataDiscord.append("payload_json", JSON.stringify(payload));
 
+      // 3bis. Abonnement push capturé pendant l'inscription (peut être vide si refusé/non
+      // supporté) : envoyer-inscription doit l'enregistrer dans abonnements_push avec la clé
+      // de service s'il est présent (voir note serveur nécessaire, RLS interdit ce même geste
+      // depuis le navigateur).
+      if(abonnementPushInscriptionCapture){
+        formDataDiscord.append("push_subscription", JSON.stringify(abonnementPushInscriptionCapture));
+        formDataDiscord.append("telephone_boutique", telephone);
+      }
+
       // 4. Envoyer la requête vers votre Edge Function `envoyer-inscription`
       const reponseInscription = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-inscription`, {
           method: "POST",
@@ -1592,6 +1608,49 @@ function urlBase64VersUint8Array(base64String){
   return Uint8Array.from([...brut].map(c => c.charCodeAt(0)));
 }
 
+/* =====================================================================
+   ACTIVATION DIRECTE DES NOTIFICATIONS A L'INSCRIPTION
+   Capturé ici pendant que le boutiquier est présent en personne (clic réel,
+   donc autorisé par le navigateur). L'enregistrement définitif lié à son
+   numéro se fait côté serveur dans envoyer-inscription (voir note serveur) :
+   une page publique ne doit jamais pouvoir écrire elle-même un abonnement
+   rattaché à un numéro de boutique (RLS l'interdit, à raison — ça éviterait
+   sinon à n'importe qui de détourner les notifications d'un autre numéro).
+   ===================================================================== */
+const CLE_VAPID_PUBLIQUE_INSCRIPTION = "BKUvZzJuPGArqm0y7jr69DJMp4NjO9EnDRwPzyIB4yJl7efqLtJSrem-uUQfvk46RkWfK9kshSONNp4ad5EQxlY";
+let abonnementPushInscriptionCapture = null;
+
+async function activerNotifCommandeInscription(caseACocher){
+  const indicateur = document.getElementById("statutNotifInscription");
+  if(!caseACocher.checked) return; // décochée : rien à faire, la case reste obligatoire pour envoyer
+
+  if(!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)){
+    if(indicateur) indicateur.textContent = "Notifications non supportées sur ce navigateur : le SMS de commande restera le seul moyen d'activer plus tard.";
+    return;
+  }
+
+  try{
+    if(indicateur) indicateur.textContent = "⏳ Demande d'autorisation en cours...";
+    const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+    if(permission !== "granted"){
+      if(indicateur) indicateur.textContent = "Autorisation refusée : le SMS de commande servira à activer plus tard.";
+      return;
+    }
+    const enregistrement = await navigator.serviceWorker.ready;
+    let abonnement = await enregistrement.pushManager.getSubscription();
+    if(!abonnement){
+      abonnement = await enregistrement.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64VersUint8Array(CLE_VAPID_PUBLIQUE_INSCRIPTION),
+      });
+    }
+    abonnementPushInscriptionCapture = abonnement.toJSON();
+    if(indicateur) indicateur.textContent = "✅ Notifications activées sur ce téléphone.";
+  } catch(erreur){
+    console.error("Abonnement notifications (inscription) impossible :", erreur);
+    if(indicateur) indicateur.textContent = "Activation impossible ici : le SMS de commande servira à activer plus tard.";
+  }
+}
 </script>
 </body>
 </html>
