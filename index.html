@@ -1579,7 +1579,7 @@ window.addEventListener('orientationchange', function() {
       <textarea id="messageNotification" class="champ" rows="3" maxlength="160">Prime Service vient de publier de nouveaux articles ! Venez jeter un coup d'œil 👀</textarea>
       <p class="sous-titre-panneau">Le push général existant reste actif ; après configuration Orange, un SMS court peut aussi partir aux boutiques enregistrées.</p>
 
-      <button class="btn-principal" style="margin-top:14px;" onclick="envoyerNotification()">📣 Envoyer la notification</button>
+      <button id="btnEnvoyerNotification" class="btn-principal" style="margin-top:14px;" onclick="envoyerNotification()">📣 Envoyer la notification</button>
       <p id="statutEnvoiNotif" class="statut-envoi"></p>
       <button type="button" class="btn-retour-lien" onclick="fermerEnvoiNotification()">Fermer</button>
     </div>
@@ -4111,6 +4111,7 @@ async function envoyerSmsOrange(message, options = {}){
 
 async function envoyerNotification(){
   const statut = document.getElementById("statutEnvoiNotif");
+  const bouton = document.getElementById("btnEnvoyerNotification");
   const message = document.getElementById("messageNotification").value.trim();
 
   if(!message){
@@ -4118,6 +4119,31 @@ async function envoyerNotification(){
     statut.textContent = "⚠️ Écrivez un message avant d'envoyer.";
     return;
   }
+
+  // Le premier article choisi détermine la photo affichée dans la notification
+  // et la page (sous-catégorie exacte) ouverte quand on clique dessus.
+  const premierArticle = articlesSelectionnesNotif[0] || null;
+  const imageNotif = premierArticle ? (urlImageSecurisee(premierArticle.image_url) || NOTIFICATION_LOGO_URL) : NOTIFICATION_LOGO_URL;
+  const urlNotif = premierArticle
+    ? `${window.location.origin}${window.location.pathname}?cat=${encodeURIComponent(premierArticle.categorie_id)}&souscat=${encodeURIComponent(premierArticle.sous_categorie_id)}`
+    : window.location.origin + window.location.pathname;
+
+  // Délai volontaire de 5 s avant l'envoi réel : la page doit rester ouverte
+  // pendant ce délai, sinon l'envoi ne partira pas (voir explication fournie).
+  if(bouton) bouton.disabled = true;
+  let secondesRestantes = 5;
+  statut.style.color = "#666";
+  statut.textContent = `⏳ Envoi programmé dans ${secondesRestantes} s (gardez cette page ouverte)...`;
+  const compteAReboursId = setInterval(() => {
+    secondesRestantes -= 1;
+    if(secondesRestantes > 0){
+      statut.textContent = `⏳ Envoi programmé dans ${secondesRestantes} s (gardez cette page ouverte)...`;
+    } else {
+      clearInterval(compteAReboursId);
+    }
+  }, 1000);
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+  clearInterval(compteAReboursId);
 
   statut.style.color = "#666";
   statut.textContent = "Envoi push et préparation SMS...";
@@ -4134,8 +4160,8 @@ async function envoyerNotification(){
       body: JSON.stringify({
         titre: "Prime Service 🚀",
         message,
-        image: NOTIFICATION_LOGO_URL,
-        url: window.location.origin + window.location.pathname,
+        image: imageNotif,
+        url: urlNotif,
       }),
     });
 
@@ -4172,6 +4198,8 @@ async function envoyerNotification(){
     console.error(erreur);
     statut.style.color = "#dc2626";
     statut.textContent = "❌ Envoi push impossible pour le moment. Réessayez.";
+  } finally {
+    if(bouton) bouton.disabled = false;
   }
 }
 
@@ -4761,6 +4789,20 @@ if(navigateurIntegre){
   `;
   document.body.prepend(bandeau);
 }
+
+/* =====================================================================
+   OUVERTURE DIRECTE DEPUIS UNE NOTIFICATION GENERALE
+   Si le lien contient ?cat=...&souscat=..., on ouvre directement cette
+   sous-catégorie dès que le catalogue est chargé, au lieu de l'accueil.
+   ===================================================================== */
+(function ouvrirDepuisNotificationGenerale(){
+  const params = new URLSearchParams(window.location.search);
+  const cat = params.get("cat");
+  const souscat = params.get("souscat");
+  if(!cat || !souscat) return;
+  vueEnCours = { nom: "produits", idCategorie: cat, idSousCategorie: souscat, cleBoutique: null };
+  history.replaceState({ vue: "produits", idCategorie: cat, idSousCategorie: souscat }, "", window.location.pathname);
+})();
 
 /* =====================================================================
    DEMARRAGE
