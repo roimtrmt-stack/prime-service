@@ -1513,8 +1513,8 @@ window.addEventListener('orientationchange', function() {
         <button class="item-menu-admin" onclick="ouvrirHistoriqueAchats()">
           <span class="icone-item">📋</span> Historique des achats <span class="fleche">›</span>
         </button>
-        <button class="item-menu-admin" onclick="testerWebhookEtAfficher()">
-          <span class="icone-item">🧪</span> Tester la connexion Discord <span class="fleche">›</span>
+        <button class="item-menu-admin" onclick="ouvrirRenvoiNotifBoutiquier()">
+          <span class="icone-item">🔔</span> Renvoyer une notif boutiquier <span class="fleche">›</span>
         </button>
       </div>
 
@@ -1594,6 +1594,18 @@ window.addEventListener('orientationchange', function() {
       </div>
     </div>
 
+
+    <!-- ========== RENVOI MANUEL NOTIF BOUTIQUIER (commandes < 5h) ========== -->
+    <div id="renvoiNotifBoutiquier" class="panneau-admin" style="display:none;">
+      <h3 class="titre-panneau">🔔 Renvoyer une notif boutiquier</h3>
+      <p class="sous-titre-panneau">Commandes des 5 dernières heures uniquement. Passé ce délai, le renvoi n'est plus possible.</p>
+
+      <div id="listeRenvoiNotifBoutiquier" style="margin:14px 0;">
+        <p style="color:#666;text-align:center;">⏳ Chargement des commandes récentes...</p>
+      </div>
+
+      <button type="button" class="btn-retour-lien" onclick="fermerRenvoiNotifBoutiquier()">Fermer</button>
+    </div>
 
     <!-- ========== HISTORIQUE DES ACHATS ========== -->
     <div id="historiqueAchats" class="panneau-admin" style="display:none;">
@@ -4608,6 +4620,76 @@ function ouvrirNotifManuelle(){
     `💳 Paiement: Orange Money`;
   document.getElementById("modaleNotifBoutiquier").style.display = "flex";
   document.getElementById("statutNotifBoutiquier").textContent = "";
+}
+
+const DUREE_LIMITE_RENVOI_NOTIF_MS = 5 * 60 * 60 * 1000; // 5 heures
+
+async function ouvrirRenvoiNotifBoutiquier(){
+  document.getElementById("admin-accueil").style.display = "none";
+  document.getElementById("renvoiNotifBoutiquier").style.display = "block";
+  await chargerCommandesRecentesPourRenvoi();
+}
+
+function fermerRenvoiNotifBoutiquier(){
+  document.getElementById("renvoiNotifBoutiquier").style.display = "none";
+  document.getElementById("admin-accueil").style.display = "block";
+}
+
+async function chargerCommandesRecentesPourRenvoi(){
+  const conteneur = document.getElementById("listeRenvoiNotifBoutiquier");
+  if(!conteneur) return;
+
+  if(!supabaseClient){
+    conteneur.innerHTML = `<p style="color:#666;text-align:center;">⚠️ Connexion à la base de données impossible.</p>`;
+    return;
+  }
+
+  conteneur.innerHTML = `<p style="color:#666;text-align:center;">⏳ Chargement des commandes récentes...</p>`;
+
+  try{
+    const seuil = new Date(Date.now() - DUREE_LIMITE_RENVOI_NOTIF_MS).toISOString();
+    const { data: commandes, error } = await supabaseClient
+      .from("commandes")
+      .select("*")
+      .gte("created_at", seuil)
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    if(error){
+      conteneur.innerHTML = `<p style="color:#dc2626;text-align:center;">⚠️ ${echapperHtml(error.message || "Impossible de charger les commandes")}</p>`;
+      return;
+    }
+
+    if(!commandes || commandes.length === 0){
+      conteneur.innerHTML = `<p style="color:#666;text-align:center;">Aucune commande des 5 dernières heures.</p>`;
+      return;
+    }
+
+    window.__commandesRenvoiNotif = commandes; // référencées par index depuis les boutons ci-dessous
+
+    conteneur.innerHTML = commandes.map((cmd, index) => {
+      const articles = Array.isArray(cmd.articles) ? cmd.articles : [];
+      const nb = articles.reduce((n, a) => n + Math.max(0, Math.min(99, Number(a?.quantite) || 1)), 0);
+      const date = echapperHtml(new Date(cmd.created_at).toLocaleString("fr-FR"));
+      const id = echapperHtml(cmd.id);
+      const nomClient = echapperHtml(cmd.nom_client || "—");
+      const boutiquesNoms = [...new Set(articles.map(a => String(a?.nom_boutique || "Boutique")))];
+      const restantMs = DUREE_LIMITE_RENVOI_NOTIF_MS - (Date.now() - new Date(cmd.created_at).getTime());
+      const restantMin = Math.max(0, Math.round(restantMs / 60000));
+      return `
+        <div style="border:1px solid var(--gris-bordure);border-radius:12px;padding:12px;margin-bottom:10px;">
+          <div style="font-weight:700;">Commande #${id} — ${date}</div>
+          <div style="font-size:13px;color:#666;margin:4px 0;">👤 ${nomClient} · 📦 ${nb} article(s)</div>
+          <div style="font-size:13px;color:#666;margin-bottom:8px;">🏪 ${echapperHtml(boutiquesNoms.join(", "))}</div>
+          <div style="font-size:12px;color:#f97316;margin-bottom:8px;">⏳ Renvoi possible encore ${restantMin} min</div>
+          <button class="btn-principal" style="margin:0;" onclick="preparerNotifBoutiquier(window.__commandesRenvoiNotif[${index}])">🔔 Renvoyer la notif à ce(s) boutiquier(s)</button>
+        </div>
+      `;
+    }).join("");
+  } catch(e){
+    console.error("Erreur chargement commandes récentes:", e);
+    conteneur.innerHTML = `<p style="color:#dc2626;text-align:center;">⚠️ Erreur de connexion à Supabase.</p>`;
+  }
 }
 
 function preparerNotifBoutiquier(commande){
