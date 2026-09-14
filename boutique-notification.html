@@ -239,11 +239,16 @@
     function showAcknowledged() {
       acknowledged = true;
       box.className = "alerte success";
-      box.textContent = "✅ Merci. La commande est marquée comme vue et les relances sont arrêtées.";
+      box.textContent = "✅ Merci. La commande est marquée comme vue et les relances sont arrêtées. Fermeture...";
       button.disabled = true;
       button.textContent = "✅ COMMANDE VUE";
       counter.hidden = true;
       if (countdownTimer) clearInterval(countdownTimer);
+      // Referme automatiquement cet onglet pour ne pas le laisser ouvert inutilement.
+      // Ne fonctionne que si le navigateur considère cet onglet comme ouvert par script
+      // (c'est le cas ici, ouvert depuis la notification) ; sinon, rien ne se passe et
+      // la page reste affichée normalement, sans erreur visible pour l'utilisateur.
+      setTimeout(() => { try { window.close(); } catch { /* pas grave si refusé */ } }, 1800);
     }
 
     function expirePage() {
