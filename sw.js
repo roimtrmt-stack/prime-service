@@ -1,6 +1,6 @@
 // Service worker : rend le site installable, consultable hors-ligne et capable
 // de gérer les notifications de commandes boutique et les annonces générales.
-const CACHE_NAME = "prime-service-cache-v5";
+const CACHE_NAME = "prime-service-cache-v6";
 const RESSOURCES_ESSENTIELLES = [
   "./",
   "./index.html",
@@ -67,9 +67,16 @@ self.addEventListener("fetch", (event) => {
       if (cached) return cached;
       return fetch(event.request)
         .then((response) => {
-          if (response && response.status === 200) {
+          // Les photos d'articles viennent d'un autre domaine (Supabase Storage) et sont
+          // chargées par des balises <img> : le navigateur en fait des requêtes "no-cors",
+          // dont la réponse est OPAQUE avec status === 0. L'ancien test "status === 200"
+          // les excluait donc toutes du cache : elles ne s'affichaient que tant que le cache
+          // HTTP du navigateur les gardait (quelques heures), puis devenaient des cartons.
+          // On accepte désormais aussi les réponses opaques.
+          const cachable = response && (response.status === 200 || response.type === "opaque");
+          if (cachable) {
             const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
           }
           return response;
         })
