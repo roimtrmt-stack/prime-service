@@ -1712,11 +1712,7 @@ window.addEventListener('orientationchange', function() {
       </label>
 
       <label class="label">Nom complet de l'article</label>
-      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <input type="text" id="nomArticleAdmin" class="champ" placeholder="Ex : Téléphone Samsung Galaxy A15" required style="flex:1; min-width:180px;">
-        <button type="button" id="btnGenererNomArticle" class="btn-secondaire" onclick="genererNomArticleIA()" title="Analyser la photo (ou le texte tapé) et proposer un nom commercial cohérent, trouvé sur internet">✨ Générer</button>
-      </div>
-      <p id="statutGenerationNom" style="margin:-8px 0 12px;font-size:12.5px;color:#666;"></p>
+      <input type="text" id="nomArticleAdmin" class="champ" placeholder="Ex : Téléphone Samsung Galaxy A15" required>
 
       <label class="label">Nom de la boutique</label>
       <input type="text" id="nomBoutiqueAdmin" class="champ" placeholder="Ex : Boutique Kadi Mode" required>
@@ -3559,78 +3555,6 @@ async function compresserImage(fichier, tailleMax = 1200, qualite = 0.88){
 function nettoyerNomArticleManuel(source, fallback = "Article") {
   const nom = String(source || "").replace(/\s+/g, " ").trim().slice(0, 140);
   return nom || fallback;
-}
-
-/* =====================================================================
-   GENERATION DU NOM D'ARTICLE (recherche internet + rédaction)
-   Le traitement se fait dans l'Edge Function "generer-nom-article" :
-   la clé de l'IA reste côté serveur. Elle ne doit JAMAIS être placée ici,
-   car tout le contenu de ce fichier est lisible par n'importe quel visiteur.
-   ===================================================================== */
-async function genererNomArticleIA(){
-  const champ = document.getElementById("nomArticleAdmin");
-  const bouton = document.getElementById("btnGenererNomArticle");
-  const statut = document.getElementById("statutGenerationNom");
-  const base = champ.value.trim();
-
-  const apercu = document.getElementById("apercuPhoto");
-  const photoPresente = apercu && apercu.style.display !== "none" && String(apercu.src || "").startsWith("data:");
-
-  // La photo suffit à elle seule (reconnaissance visuelle) ; le texte tapé n'est qu'un indice
-  // optionnel en plus. On ne bloque que si NI l'une NI l'autre n'est disponible.
-  if(!photoPresente && base.length < 3){
-    statut.style.color = "#dc2626";
-    statut.textContent = "⚠️ Ajoutez d'abord une photo (ou écrivez 2-3 mots) pour lancer la recherche.";
-    if(!photoPresente) document.getElementById("cadrePhoto")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    return;
-  }
-
-  bouton.disabled = true;
-  const libelleOrigine = bouton.textContent;
-  bouton.textContent = "⏳ Recherche...";
-  statut.style.color = "#666";
-  statut.textContent = photoPresente ? "🔎 Analyse de la photo et recherche sur internet..." : "🔎 Recherche de l'article sur internet...";
-
-  try{
-    const tokenAdmin = await obtenirTokenAdmin();
-    const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/generer-nom-article`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${tokenAdmin}`,
-      },
-      body: JSON.stringify({
-        nom_saisi: base,
-        photo_base64: photoPresente ? apercu.src : "", // data URL complète : "data:image/jpeg;base64,...."
-        nom_boutique: document.getElementById("nomBoutiqueAdmin")?.value.trim() || "",
-        categorie: Array.from(document.querySelectorAll("#caseACocherSousCategories input:checked"))
-          .map(c => (c.parentElement?.textContent || "").trim())
-          .filter(Boolean)
-          .join(", "),
-      }),
-    });
-
-    if(!reponse.ok) throw new Error("Réponse " + reponse.status);
-
-    const resultat = await reponse.json();
-    const nomPropose = String(resultat?.nom || "").trim();
-    if(!nomPropose) throw new Error("Nom vide");
-
-    // L'ancien nom reste récupérable : le nom proposé n'est qu'une suggestion modifiable.
-    champ.dataset.nomPrecedent = base;
-    champ.value = nomPropose.slice(0, 140);
-    statut.style.color = "#16a34a";
-    statut.textContent = base
-      ? `✅ Nom proposé. Modifiez-le librement avant de publier. (Ancien : ${base})`
-      : "✅ Nom proposé à partir de la photo. Modifiez-le librement avant de publier.";
-  } catch(erreur){
-    console.error("Génération du nom impossible :", erreur);
-    statut.style.color = "#dc2626";
-    statut.textContent = "❌ Génération impossible pour le moment. Gardez votre nom ou réessayez.";
-  } finally {
-    bouton.disabled = false;
-    bouton.textContent = libelleOrigine;
-  }
 }
 
 function styliserNomArticleAdmin(source, fallback = "Article") {
