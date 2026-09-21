@@ -2937,9 +2937,18 @@ async function envoyerCommande(event){
       quantite: Number(article.quantite) || 1,
       image_url: article.image_url || null,
     }));
+    // Commission totale de la commande : somme de la commission de chaque article (déjà
+    // fixée par article en base, 300 FCFA à la création) multipliée par sa quantité.
+    // Priorité à la valeur du serveur si elle existe un jour (donnees.commission),
+    // sinon calcul côté client à partir du panier avant qu'il ne soit vidé juste après.
+    const commissionCalculeeClient = panier.reduce((somme, article) => {
+      const commissionUnitaire = Number(article.commission) || CONFIG.COMMISSION_FCFA || 0;
+      return somme + commissionUnitaire * (Number(article.quantite) || 1);
+    }, 0);
+    const commissionTotale = Number(donnees.commission) || commissionCalculeeClient;
     panier = [];
     mettreAJourCompteur();
-    afficherPageMerci(paiement, Number(donnees.total) || totalCommande, false, lat, lng, articlesPourConfirmation, donnees.commandId || "");
+    afficherPageMerci(paiement, Number(donnees.total) || totalCommande, false, lat, lng, articlesPourConfirmation, donnees.commandId || "", null, commissionTotale);
   } catch(erreur){
     console.error("Erreur enregistrement commande:", erreur);
     statutEnvoi.style.color = "#dc2626";
@@ -3207,7 +3216,8 @@ function restaurerPageMerciClient(){
     p.lngClient,
     Array.isArray(p.articlesClient) ? p.articlesClient : [],
     p.commandId || "",
-    Number(verrou.expireAt)
+    Number(verrou.expireAt),
+    Number(p.commission) || 0
   );
 }
 
@@ -3230,7 +3240,7 @@ window.addEventListener("beforeunload", (event) => {
   return event.returnValue;
 });
 
-function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClient = null, lngClient = null, articlesClient = [], commandId = "", verrouExpireAt = null){
+function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClient = null, lngClient = null, articlesClient = [], commandId = "", verrouExpireAt = null, commissionTotale = 0){
   const estRestauration = verrouExpireAt !== null && verrouExpireAt !== undefined && Number.isFinite(Number(verrouExpireAt));
   const expireAt = estRestauration ? Number(verrouExpireAt) : Date.now() + DUREE_VERROUILLAGE_CLIENT_MERCI_MS;
   const quartierSaisi = document.getElementById("quartierClient")?.value?.trim() || "";
@@ -3238,6 +3248,7 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
   sauvegarderVerrouillageClientMerci(expireAt, {
     paiement,
     montant: Number(montant) || 0,
+    commission: Number(commissionTotale) || 0,
     envoyeeHorsLigne: Boolean(envoyeeHorsLigne),
     latClient,
     lngClient,
@@ -3262,6 +3273,12 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
   // --- ANCIENNE PARTIE (Affichage du prix et du numéro) ---
   const montantReel = Number(montant) || 0;
   const montantAffiche = montantReel.toLocaleString("fr-FR") + " FCFA";
+  // Nouveau mode de paiement : le client ne règle par Orange Money QUE la commission.
+  // La part boutique (le reste) est payée séparément, en espèces à la livraison.
+  const commissionReelle = Math.max(0, Math.min(Number(commissionTotale) || 0, montantReel));
+  const commissionAffichee = commissionReelle.toLocaleString("fr-FR") + " FCFA";
+  const montantBoutiqueReel = Math.max(0, montantReel - commissionReelle);
+  const montantBoutiqueAffiche = montantBoutiqueReel.toLocaleString("fr-FR") + " FCFA";
 
   document.getElementById("texteMerci").textContent = envoyeeHorsLigne
     ? "📡 Connectez-vous à internet pour valider votre commande. Elle est déjà enregistrée et sera envoyée automatiquement dès que vous serez connecté."
@@ -3304,17 +3321,20 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
     divInstructions.innerHTML = `
       <div style="background:#fef2f2;border-radius:10px;padding:9px 11px;margin-bottom:10px;border-left:3px solid #dc2626;">
         <strong style="color:#dc2626;display:block;font-size:13px;">⚠️ Orange Money uniquement</strong>
-        <span style="color:#991b1b;font-size:12px;">Ne payez pas le livreur. Vérifiez le bénéficiaire, le montant et les frais.</span>
+        <span style="color:#991b1b;font-size:12px;">Ne payez pas le livreur pour cette partie. Vérifiez le bénéficiaire, le montant et les frais.</span>
       </div>
       <div style="margin-bottom:9px;">
         <div style="font-weight:800;font-size:15px;margin-bottom:6px;color:#1f2937;">💳 Par téléphone, sans Internet</div>
         <span style="font-size:12.5px;color:#374151;">Téléphone → composez exactement :</span>
-        <strong style="display:block;margin:9px 0;padding:18px 10px;border-radius:12px;background:#172033;color:#fff;text-align:center;font:800 18px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:0.4px;word-break:break-all;box-shadow:0 4px 14px rgba(23,32,51,.25);">#144#1*1*${numeroPaiementSaisi}*${Math.round(montantReel)}*1*CODE_SECRET#</strong>
-        <span style="display:block;color:#374151;font-size:12.5px;line-height:1.5;">Remplacez <strong>CODE_SECRET</strong> par votre code secret → <strong>Appeler/OK</strong> → vérifiez <strong>${numeroPaiementSaisi}</strong>, <strong>${montantAffiche}</strong> et le nom → validez → attendez le SMS.</span>
+        <strong style="display:block;margin:9px 0;padding:18px 10px;border-radius:12px;background:#172033;color:#fff;text-align:center;font:800 18px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:0.4px;word-break:break-all;box-shadow:0 4px 14px rgba(23,32,51,.25);">#144#1*1*${numeroPaiementSaisi}*${Math.round(commissionReelle)}*1*CODE_SECRET#</strong>
+        <span style="display:block;color:#374151;font-size:12.5px;line-height:1.5;">Remplacez <strong>CODE_SECRET</strong> par votre code secret → <strong>Appeler/OK</strong> → vérifiez <strong>${numeroPaiementSaisi}</strong>, <strong>${commissionAffichee}</strong> et le nom → validez → attendez le SMS.</span>
         <details style="margin-top:8px;color:#6b7280;font-size:12px;"><summary style="cursor:pointer;color:#1d4ed8;font-weight:700;">Voir les étapes détaillées</summary><p style="margin:6px 0 0;">Le menu fonctionne aussi avec <strong>#144#</strong> → <strong>Transfert d’argent</strong> → numéro → montant → code secret.</p></details>
       </div>
       <div style="border-top:1px solid #fed7aa;padding-top:9px;margin-top:7px;color:#4b5563;font-size:12px;line-height:1.5;">
-        <strong style="color:#9a3412;">🏪 Point de vente Orange Money :</strong> demandez un transfert vers <strong>${numeroPaiementSaisi}</strong>, ou faites directement un dépôt d'argent à ce numéro, de <strong>${montantAffiche}</strong>, vérifiez le bénéficiaire, payez en espèces et gardez le reçu/SMS. Ne donnez jamais votre code secret.
+        <strong style="color:#9a3412;">🏪 Point de vente Orange Money :</strong> demandez un transfert vers <strong>${numeroPaiementSaisi}</strong>, ou faites directement un dépôt d'argent à ce numéro, de <strong>${commissionAffichee}</strong> (frais de service), vérifiez le bénéficiaire, payez en espèces et gardez le reçu/SMS. Ne donnez jamais votre code secret.
+      </div>
+      <div style="margin-top:10px;padding:8px 10px;background:#f3f4f6;border-radius:10px;font-size:11.5px;color:#4b5563;line-height:1.4;">
+        📦 À régler séparément, en espèces, à la livraison : au moins <strong>${montantBoutiqueAffiche}</strong> à la boutique.
       </div>
     `;
 
