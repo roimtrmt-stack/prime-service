@@ -3155,10 +3155,12 @@ function sauvegarderVerrouillageClientMerci(expireAt, payload){
 
 function clientMerciEstVerrouillee(){
   const vueMerci = document.getElementById("vue-merci");
+  // Le verrou reste actif tant que deverrouillerPageMerci() n'a pas été appelée (preuve
+  // envoyée, ou minuteur écoulé pour l'admin) — plus seulement pendant les 5 min 30 fixes,
+  // sinon un client sans preuve pourrait fermer la page sans avertissement passé ce délai.
   return Boolean(
     vueMerci && vueMerci.style.display !== "none" &&
-    etatVerrouillageClientMerci &&
-    Number(etatVerrouillageClientMerci.expireAt) > Date.now()
+    etatVerrouillageClientMerci
   );
 }
 
