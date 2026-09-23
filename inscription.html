@@ -882,7 +882,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       <label class="label">Adresse de votre boutique (obligatoire)</label>
       <input type="text" id="adresseInscription" class="champ" placeholder="Ex : Badalabougou, près du marché" maxlength="240" required>
 
-      <label class="label">Votre position (obligatoire)</label>
+      <label class="label">Votre position (facultative)</label>
       <button type="button" class="btn-secondaire" onclick="recupererPositionInscription()">
         📍 Utiliser ma position actuelle
       </button>
@@ -1461,7 +1461,6 @@ async function envoyerSoumission(event){
   if(!telephone) champsManquants.push("votre téléphone");
   if(!adresse) champsManquants.push("l’adresse de votre boutique");
   if(photosAjoutees.length === 0) champsManquants.push("au moins une photo");
-  if(!positionValide) champsManquants.push("votre position GPS");
   if(champsManquants.length > 0) {
     statut.style.color = "#dc2626";
     statut.textContent = `⚠️ Complétez : ${champsManquants.join(", ")}.`;
