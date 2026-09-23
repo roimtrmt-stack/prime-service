@@ -686,6 +686,38 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   border-color:#bbf7d0;
   color:#166534;
 }
+.preuve-paiement-merci{
+  margin:0 0 12px;
+  padding:12px;
+  border-radius:12px;
+  background:#f8fafc;
+  border:1px solid var(--gris-bordure);
+  text-align:left;
+}
+.preuve-paiement-titre{ margin:0 0 3px; font-weight:800; font-size:14px; color:#1f2937; }
+.preuve-paiement-texte{ margin:0 0 10px; font-size:12px; color:#6b7280; }
+.preuve-paiement-chemin{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  padding:10px;
+  border-radius:10px;
+  background:#fff;
+  border:1px solid var(--gris-bordure);
+  margin-bottom:8px;
+}
+.preuve-paiement-label{ font-weight:700; font-size:13px; color:#1f2937; }
+.preuve-paiement-aide{ font-size:11.5px; color:#6b7280; line-height:1.35; }
+.preuve-paiement-chemin input[type="file"]{
+  margin-top:4px;
+  font-size:12px;
+}
+.preuve-paiement-chemin input[type="file"]:disabled,
+.preuve-paiement-chemin button:disabled{
+  opacity:.5;
+  cursor:not-allowed;
+}
+.preuve-paiement-statut{ margin:6px 0 0; font-size:12px; font-weight:600; min-height:16px; }
 #vue-merci .btn-principal:disabled{
   opacity:.58;
   cursor:not-allowed;
@@ -2858,6 +2890,9 @@ async function envoyerCommande(event){
   const paiement = document.getElementById("paiementClient").value;
   const lat = Number(document.getElementById("latClient").value);
   const lng = Number(document.getElementById("lngClient").value);
+  // Exception : si le numéro donné est celui de l'admin lui-même (son propre numéro Orange
+  // Money), aucune preuve de paiement n'est exigée — comportement inchangé pour lui.
+  const estCommandeAdmin = normaliserNumero8(tel) === normaliserNumero8(CONFIG.NUMERO_PAIEMENT);
 
   if(!/^[0-9+ ]{8,15}$/.test(tel)){
     statutEnvoi.style.color = "#dc2626";
@@ -2949,7 +2984,7 @@ async function envoyerCommande(event){
     const commissionTotale = Number(donnees.commission) || commissionCalculeeClient;
     panier = [];
     mettreAJourCompteur();
-    afficherPageMerci(paiement, Number(donnees.total) || totalCommande, false, lat, lng, articlesPourConfirmation, donnees.commandId || "", null, commissionTotale);
+    afficherPageMerci(paiement, Number(donnees.total) || totalCommande, false, lat, lng, articlesPourConfirmation, donnees.commandId || "", null, commissionTotale, estCommandeAdmin);
   } catch(erreur){
     console.error("Erreur enregistrement commande:", erreur);
     statutEnvoi.style.color = "#dc2626";
@@ -3078,8 +3113,16 @@ function afficherNotificationCommandeClient({commandId = "", total = 0, articles
 
 const CLE_VERROUILLAGE_CLIENT_MERCI = "primeservice_client_merci_verrou";
 const DUREE_VERROUILLAGE_CLIENT_MERCI_MS = 5 * 60 * 1000 + 30 * 1000;
+// Délais avant que chaque bouton de preuve de paiement devienne cliquable :
+// un virement depuis l'appli est plus rapide à faire qu'un dépôt chez un agent.
+const DELAI_PREUVE_PHOTO_MS = 1 * 60 * 1000 + 30 * 1000;
+const DELAI_PREUVE_AGENT_MS = DUREE_VERROUILLAGE_CLIENT_MERCI_MS;
 let minuterieVerrouillageClientMerci = null;
 let etatVerrouillageClientMerci = null;
+
+function normaliserNumero8(valeur){
+  return String(valeur || "").replace(/\D/g, "").slice(-8);
+}
 
 function lireVerrouillageClientMerci(){
   try{
@@ -3140,7 +3183,52 @@ function afficherMessageVerrouillageMerci(){
   }
 }
 
-function activerVerrouillageClientMerci(expireAt){
+function deverrouillerPageMerci(message, btnRetour){
+  if(minuterieVerrouillageClientMerci){ clearInterval(minuterieVerrouillageClientMerci); minuterieVerrouillageClientMerci = null; }
+  etatVerrouillageClientMerci = null;
+  effacerVerrouillageClientMerci();
+  document.body.classList.remove("merci-client-verrouillee");
+  if(message){
+    message.classList.add("termine");
+    message.textContent = "✅ Vous pouvez maintenant revenir à l’accueil.";
+  }
+  document.getElementById("preuvePaiementMerci")?.remove();
+  if(btnRetour){
+    btnRetour.disabled = false;
+    btnRetour.removeAttribute("aria-disabled");
+    btnRetour.style.opacity = "1";
+    btnRetour.style.cursor = "pointer";
+    btnRetour.textContent = "Retour à l’accueil";
+    btnRetour.onclick = confirmerRetourAccueilDepuisMerci;
+  }
+  history.replaceState({ vue: "merci" }, "");
+}
+
+async function envoyerPreuvePaiement(type, commandId, fichier){
+  const statut = document.getElementById("statutPreuvePaiement");
+  const commandes = document.querySelectorAll("#preuvePaiementMerci input, #preuvePaiementMerci button");
+  commandes.forEach(el => { el.disabled = true; });
+  if(statut){ statut.style.color = "#666"; statut.textContent = "⏳ Envoi en cours..."; }
+  try{
+    const formData = new FormData();
+    formData.append("command_id", commandId || "");
+    formData.append("type_preuve", type);
+    if(fichier) formData.append("photo", fichier);
+    const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/envoyer-preuve-paiement`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${CONFIG.SUPABASE_ANON_KEY}` },
+      body: formData,
+    });
+    if(!reponse.ok) throw new Error("Réponse " + reponse.status);
+    deverrouillerPageMerci(document.getElementById("verrouillagePageMerci"), document.getElementById("btnRetourMerci"));
+  } catch(erreur){
+    console.error("Envoi de la preuve de paiement impossible :", erreur);
+    if(statut){ statut.style.color = "#dc2626"; statut.textContent = "❌ Envoi impossible. Vérifiez votre connexion et réessayez."; }
+    commandes.forEach(el => { el.disabled = false; });
+  }
+}
+
+function activerVerrouillageClientMerci(expireAt, commandId = "", estCommandeAdmin = false){
   const btnRetour = document.getElementById("btnRetourMerci");
   const carteMerci = document.querySelector("#vue-merci .carte-merci");
   if(!carteMerci) return;
@@ -3157,14 +3245,63 @@ function activerVerrouillageClientMerci(expireAt){
     else carteMerci.appendChild(message);
   }
 
+  // Zone de preuve de paiement : jamais pour l'admin qui teste avec son propre numéro
+  // (comportement inchangé pour lui, simple minuteur comme avant). Reconstruite à chaque
+  // appel pour rester liée à la bonne commande, au cas où une session en verrait plusieurs.
+  document.getElementById("preuvePaiementMerci")?.remove();
+  let zonePreuve = null;
+  if(!estCommandeAdmin){
+    zonePreuve = document.createElement("div");
+    zonePreuve.id = "preuvePaiementMerci";
+    zonePreuve.className = "preuve-paiement-merci";
+    zonePreuve.innerHTML = `
+      <p class="preuve-paiement-titre">📸 Envoyez la preuve de paiement</p>
+      <p class="preuve-paiement-texte">Choisissez comment vous avez payé la commission :</p>
+      <div class="preuve-paiement-chemin">
+        <span class="preuve-paiement-label">📱 J'ai payé depuis l'appli Orange Money</span>
+        <span class="preuve-paiement-aide">Envoyez une capture d'écran de la notification de confirmation reçue.</span>
+        <input type="file" id="fichierPreuvePhoto" accept="image/*" disabled>
+      </div>
+      <div class="preuve-paiement-chemin">
+        <span class="preuve-paiement-label">🏪 J'ai déposé chez un agent Orange Money</span>
+        <span class="preuve-paiement-aide">Aucune photo nécessaire, le paiement sera vérifié directement.</span>
+        <button type="button" id="btnPreuveAgent" class="btn-secondaire" disabled>J'ai déposé chez un agent</button>
+      </div>
+      <p id="statutPreuvePaiement" class="preuve-paiement-statut"></p>
+    `;
+    message.after(zonePreuve);
+    document.getElementById("fichierPreuvePhoto").addEventListener("change", (event) => {
+      const fichier = event.target.files?.[0];
+      if(fichier) envoyerPreuvePaiement("photo", commandId, fichier);
+    });
+    document.getElementById("btnPreuveAgent").addEventListener("click", () => {
+      envoyerPreuvePaiement("agent", commandId, null);
+    });
+  }
+
   if(minuterieVerrouillageClientMerci) clearInterval(minuterieVerrouillageClientMerci);
+  const debut = Number(expireAt) - DUREE_VERROUILLAGE_CLIENT_MERCI_MS;
   const actualiser = () => {
-    const secondesRestantes = Math.max(0, Math.ceil((Number(expireAt) - Date.now()) / 1000));
+    const maintenant = Date.now();
+    const secondesRestantes = Math.max(0, Math.ceil((Number(expireAt) - maintenant) / 1000));
+
+    // Débloque progressivement les deux boutons de preuve selon le temps écoulé depuis
+    // la commande : virement appli plus rapide à faire qu'un dépôt chez un agent.
+    if(zonePreuve){
+      const ecoule = maintenant - debut;
+      const champPhoto = document.getElementById("fichierPreuvePhoto");
+      const boutonAgent = document.getElementById("btnPreuveAgent");
+      if(champPhoto) champPhoto.disabled = ecoule < DELAI_PREUVE_PHOTO_MS;
+      if(boutonAgent) boutonAgent.disabled = ecoule < DELAI_PREUVE_AGENT_MS;
+    }
+
     if(secondesRestantes > 0){
       const minutes = Math.floor(secondesRestantes / 60);
       const secondes = String(secondesRestantes % 60).padStart(2, "0");
       message.classList.remove("termine");
-      message.textContent = `🔒 Confirmation protégée : retour et actualisation bloqués encore ${minutes} min ${secondes} s.`;
+      message.textContent = estCommandeAdmin
+        ? `🔒 Confirmation protégée : retour et actualisation bloqués encore ${minutes} min ${secondes} s.`
+        : `🔒 Envoyez la preuve de paiement pour débloquer (les deux options seront disponibles d’ici ${minutes} min ${secondes} s).`;
       if(btnRetour){
         btnRetour.disabled = true;
         btnRetour.setAttribute("aria-disabled", "true");
@@ -3180,22 +3317,16 @@ function activerVerrouillageClientMerci(expireAt){
       return;
     }
 
-    clearInterval(minuterieVerrouillageClientMerci);
-    minuterieVerrouillageClientMerci = null;
-    etatVerrouillageClientMerci = null;
-    effacerVerrouillageClientMerci();
-    document.body.classList.remove("merci-client-verrouillee");
-    message.classList.add("termine");
-    message.textContent = "✅ Vous pouvez maintenant revenir à l’accueil.";
-    if(btnRetour){
-      btnRetour.disabled = false;
-      btnRetour.removeAttribute("aria-disabled");
-      btnRetour.style.opacity = "1";
-      btnRetour.style.cursor = "pointer";
-      btnRetour.textContent = "Retour à l’accueil";
-      btnRetour.onclick = confirmerRetourAccueilDepuisMerci;
+    if(!estCommandeAdmin){
+      // Passé le délai maximum, la page ne se débloque plus toute seule : il faut la preuve.
+      message.classList.remove("termine");
+      message.textContent = "🔒 Envoyez la preuve de paiement ci-dessous pour débloquer cette page.";
+      clearInterval(minuterieVerrouillageClientMerci);
+      minuterieVerrouillageClientMerci = null;
+      return;
     }
-    history.replaceState({ vue: "merci" }, "");
+
+    deverrouillerPageMerci(message, btnRetour);
   };
   actualiser();
   if(etatVerrouillageClientMerci) minuterieVerrouillageClientMerci = setInterval(actualiser, 250);
@@ -3218,7 +3349,8 @@ function restaurerPageMerciClient(){
     Array.isArray(p.articlesClient) ? p.articlesClient : [],
     p.commandId || "",
     Number(verrou.expireAt),
-    Number(p.commission) || 0
+    Number(p.commission) || 0,
+    Boolean(p.estCommandeAdmin)
   );
 }
 
@@ -3241,7 +3373,7 @@ window.addEventListener("beforeunload", (event) => {
   return event.returnValue;
 });
 
-function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClient = null, lngClient = null, articlesClient = [], commandId = "", verrouExpireAt = null, commissionTotale = 0){
+function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClient = null, lngClient = null, articlesClient = [], commandId = "", verrouExpireAt = null, commissionTotale = 0, estCommandeAdmin = false){
   const estRestauration = verrouExpireAt !== null && verrouExpireAt !== undefined && Number.isFinite(Number(verrouExpireAt));
   const expireAt = estRestauration ? Number(verrouExpireAt) : Date.now() + DUREE_VERROUILLAGE_CLIENT_MERCI_MS;
   const quartierSaisi = document.getElementById("quartierClient")?.value?.trim() || "";
@@ -3257,6 +3389,7 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
     commandId: commandId || "",
     quartier: quartierSaisi,
     precision: precisionSaisie,
+    estCommandeAdmin: Boolean(estCommandeAdmin),
   });
 
   cacherToutesLesVues();
@@ -3354,7 +3487,7 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
   // La page de confirmation devient l’écran principal pendant le verrouillage.
   history.replaceState({ vue: "merci", merciVerrouillee: true }, "");
   history.pushState({ vue: "merci", merciVerrouillee: true, sentinelle: true }, "");
-  activerVerrouillageClientMerci(expireAt);
+  activerVerrouillageClientMerci(expireAt, commandId, estCommandeAdmin);
   if(!envoyeeHorsLigne && !estRestauration){
     afficherNotificationCommandeClient({
       commandId,
