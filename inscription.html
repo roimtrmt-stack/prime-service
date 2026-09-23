@@ -1560,8 +1560,8 @@ async function envoyerSoumission(event){
       discordTexte += `🏪 **Boutique :** ${nomBoutique}\n`;
       discordTexte += `📞 **Téléphone :** ${telephone}\n`;
       discordTexte += `📍 **Adresse boutique :** ${adresse}\n`;
-      const carteBoutiqueUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${Number(lat)},${Number(lng)}`)}`;
-      discordTexte += `🗺️ **Ouvrir la carte Google Maps :** ${carteBoutiqueUrl}\n\n`;
+     const carteBoutiqueUrl = positionGPSValide(lat, lng) ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${Number(lat)},${Number(lng)}`)}` : "";
+      if(carteBoutiqueUrl) discordTexte += `🗺️ **Ouvrir la carte Google Maps :** ${carteBoutiqueUrl}\n\n`;
       discordTexte += `📦 **${photosAjoutees.length} article(s) déposé(s) :**\n`;
 
       // 2. Créer le FormData pour l'envoi multipart (texte + photos)
