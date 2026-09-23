@@ -1667,14 +1667,7 @@ async function activerNotifCommandeInscription(caseACocher){
   const estIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const estStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
   if(estIOS && !estStandalone){
-    alert(
-      "Sur iPhone/iPad, activez d'abord l'application avant de cocher cette case :\n\n" +
-      "1) Appuyez sur le bouton Partager 📤 en bas de Safari\n" +
-      "2) Choisissez \"Sur l'écran d'accueil\"\n" +
-      "3) Ouvrez Prime Service depuis cette nouvelle icône (pas depuis Safari)\n" +
-      "4) Revenez sur ce formulaire d'inscription et cochez à nouveau la case\n\n" +
-      "Sans cette étape, les notifications ne peuvent pas fonctionner sur iPhone — c'est une limite d'Apple, pas de l'application."
-    );
+alert("Pour recevoir les notifications sur iPhone, vous devez d'abord installer le site.");
     if(indicateur) indicateur.textContent = "⚠️ Ajoutez d'abord l'app à l'écran d'accueil (voir le message), puis recochez la case.";
     caseACocher.checked = false;
     return;
