@@ -1386,7 +1386,7 @@ window.addEventListener('orientationchange', function() {
     <button class="btn-panier" onclick="afficherPanier()">
       🛒 Panier <span id="compteurPanier" class="badge">0</span>
     </button>
-    <button class="btn-options" onclick="ouvrirEspaceAdmin()" title="Options vendeur">⚙️</button>
+    <button id="btnOptionsAdmin" class="btn-options" onclick="ouvrirEspaceAdmin()" title="Options vendeur" style="display:none;">⚙️</button>
   </div>
 </header>
 
@@ -3558,6 +3558,7 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
    ESPACE VENDEUR — vraie connexion Supabase (email + mot de passe)
    ===================================================================== */
 async function ouvrirEspaceAdmin(pousserHistorique = true){
+  if(typeof estModeBoutiqueVerrouille === 'function' && estModeBoutiqueVerrouille()){ return false; }
   if(clientMerciEstVerrouillee()){ afficherMessageVerrouillageMerci(); return false; }
   cacherToutesLesVues();
   document.getElementById("vue-admin").style.display = "block";
@@ -3579,6 +3580,8 @@ async function verifierSessionAdmin(){
   if(session){
     const email = (session.user.email || "").toLowerCase();
     if(email === CONFIG.EMAIL_ADMIN_AUTORISE.toLowerCase()){
+      const btn = document.getElementById(btnOptionsAdmin);
+      if(btn && !(typeof estModeBoutiqueVerrouille === 'function' && estModeBoutiqueVerrouille())) btn.style.display = inline-block;
       afficherEtatConnexion(true, session.user.email);
       // Le premier chargement (avant connexion) ne voyait que les articles
       // visibles au public. Maintenant qu'on est authentifié en admin, on
@@ -3644,6 +3647,8 @@ if(supabaseClient){
 }
 
 async function deconnexionAdmin(){
+  const btn = document.getElementById(btnOptionsAdmin);
+  if(btn) btn.style.display = none;
   await supabaseClient.auth.signOut();
   afficherEtatConnexion(false);
 }
@@ -5215,6 +5220,38 @@ window.addEventListener('orientationchange', function() {
     }, 300);
 });
 
+
+/* --- ACCÈS ADMIN EXCLUSIF (Bouton engrenage masqué au public) --- */
+let clicsLogoAdmin = 0;
+let timerClicsAdmin = null;
+
+function detecterAccesAdminSecret() {
+  const logo = document.getElementById('logoPrimeService');
+  if(logo) {
+    logo.addEventListener('click', () => {
+      if(typeof estModeBoutiqueVerrouille === 'function' && estModeBoutiqueVerrouille()) return;
+      clicsLogoAdmin++;
+      clearTimeout(timerClicsAdmin);
+      timerClicsAdmin = setTimeout(() => { clicsLogoAdmin = 0; }, 1800);
+      if(clicsLogoAdmin >= 4) {
+        clicsLogoAdmin = 0;
+        const btn = document.getElementById('btnOptionsAdmin');
+        if(btn) btn.style.display = 'inline-block';
+        ouvrirEspaceAdmin();
+      }
+    });
+  }
+
+  // Accès direct par URL ?admin=1 ou #admin
+  const p = new URLSearchParams(window.location.search);
+  if((p.has('admin') || window.location.hash === '#admin') && !(typeof estModeBoutiqueVerrouille === 'function' && estModeBoutiqueVerrouille())) {
+    const btn = document.getElementById('btnOptionsAdmin');
+    if(btn) btn.style.display = 'inline-block';
+    setTimeout(() => { ouvrirEspaceAdmin(); }, 200);
+  }
+}
+
+detecterAccesAdminSecret();
 </script>
 </body>
 </html>
