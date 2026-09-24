@@ -1378,7 +1378,7 @@ window.addEventListener('orientationchange', function() {
 
 <!-- ===================== ENTETE ===================== -->
 <header class="header">
-  <div class="header-left" onclick="window.location.href='index.html'" style="cursor:pointer;">
+  <div class="header-left" id="logoPrimeService" onclick="gererClicLogoPrincipal()" style="cursor:pointer;">
     <span class="logo">Prime<span class="logo-accent">Service</span></span>
   </div>
   <div class="header-right">
@@ -2172,6 +2172,131 @@ let categoriesMasquees = []; // ex: ["moto", "mode|foulards"] -> catégorie ou s
 let produitsParCle = {}; // ex: "electronique|telephones" -> [ {id, nom, prix, adresse, lat, lng, image_url}, ... ]
 let vueEnCours = { nom: "accueil", idCategorie: null, idSousCategorie: null, cleBoutique: null };
 
+
+/* =====================================================================
+   VERROUILLAGE 3MIN 30S & ROUTAGE BOUTIQUE CLIENT EXCLUSIF
+   ===================================================================== */
+const DUREE_VERROU_MS = 210 * 1000; // 3 minutes 30 secondes
+
+function estClientVerrouilleSurBoutique(){
+  const fin = sessionStorage.getItem("ps_verrou_boutique_fin");
+  if(!fin) return false;
+  if(Date.now() < Number(fin)){
+    return true;
+  }
+  sessionStorage.removeItem("ps_verrou_boutique_fin");
+  return false;
+}
+
+function gererClicLogoPrincipal(){
+  if(clientMerciEstVerrouillee()){
+    afficherMessageVerrouillageMerci();
+    return;
+  }
+  if(estClientVerrouilleSurBoutique()){
+    // Le client est bloqué sur la boutique pendant 3min 30s
+    const tempsRestantSec = Math.ceil((Number(sessionStorage.getItem("ps_verrou_boutique_fin")) - Date.now()) / 1000);
+    const min = Math.floor(tempsRestantSec / 60);
+    const sec = tempsRestantSec % 60;
+    const msg = `🏪 Commande en cours : vous consultez la sélection de cette boutique. Vous pouvez commander directement. (Session active ${min}m ${sec}s)`;
+    if(typeof afficherToastNotification === "function"){
+      afficherToastNotification(msg);
+    } else {
+      alert(msg);
+    }
+    return;
+  }
+  window.location.href = "index.html";
+}
+
+function activerVerrouillageBoutiqueClient(nomBoutique){
+  let fin = sessionStorage.getItem("ps_verrou_boutique_fin");
+  if(!fin || Date.now() >= Number(fin)){
+    fin = Date.now() + DUREE_VERROU_MS;
+    sessionStorage.setItem("ps_verrou_boutique_fin", fin.toString());
+  }
+  sessionStorage.setItem("ps_boutique_active", nomBoutique);
+}
+
+function afficherProduitsExclusiveBoutique(nomBoutique){
+  activerVerrouillageBoutiqueClient(nomBoutique);
+  cacherToutesLesVues();
+  document.getElementById("vue-produits").style.display = "block";
+  document.getElementById("titreProduits").textContent = "🏪 Boutique — " + nomBoutique;
+  
+  const btnRetour = document.getElementById("btnRetour");
+  if(btnRetour) btnRetour.style.display = "none"; // Empêche de sortir en arrière
+  
+  const tous = Object.values(produitsParCle).flat().filter(p => !p.masque);
+  const nomCible = nomBoutique.trim().toLowerCase();
+  const produitsBoutique = tous.filter(p => (p.nom_boutique || "").trim().toLowerCase() === nomCible);
+  
+  const grille = document.getElementById("grilleProduits");
+  if(!grille) return;
+  
+  if(produitsBoutique.length === 0){
+    grille.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:#666;padding:30px 0;">Chargement ou aucun article trouvé pour la boutique <strong>${echapperHtml(nomBoutique)}</strong>.</p>`;
+  } else {
+    grille.innerHTML = produitsBoutique.map((p) => {
+      const imageUrl = urlImageSecurisee(p.image_url);
+      const nomAffiche = nomProduitAffichable(p.nom);
+      return `
+      <div class="carte-produit">
+        <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(nomAffiche)})"` : ""}>
+          ${imageUrl
+            ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(nomAffiche)}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\'icone-produit\'>📦</span>'">`
+            : `<span class="icone-produit">📦</span>`}
+        </div>
+        <h4>${echapperHtml(nomAffiche)}</h4>
+        ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(p.nom_boutique)}</p>` : ""}
+        <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
+        <p class="stock-produit">📦 ${p.stock} en stock</p>
+        <button class="btn-ajouter" onclick="ajouterAuPanier(${JSON.stringify(p.id)}, event)">
+          Ajouter au panier
+        </button>
+      </div>`;
+    }).join("");
+  }
+}
+
+function verifierBoutiqueUrlAuLancement(){
+  const params = new URLSearchParams(window.location.search);
+  const boutique = params.get("boutique") || params.get("b");
+  if(boutique){
+    afficherProduitsExclusiveBoutique(boutique);
+    return true;
+  }
+  const boutiqueActive = sessionStorage.getItem("ps_boutique_active");
+  if(boutiqueActive && estClientVerrouilleSurBoutique()){
+    afficherProduitsExclusiveBoutique(boutiqueActive);
+    return true;
+  }
+  return false;
+}
+
+function partagerLienClientDepuisAccueil(){
+  const nom = localStorage.getItem("ps_boutique_nom") || "";
+  const lien = "https://roimtrmt-stack.github.io/prime-service/?boutique=" + encodeURIComponent(nom.trim());
+  const msg = encodeURIComponent("Bonjour ! Voici le lien direct pour voir mes articles sur Prime Service et passer commande : " + lien);
+  window.open("https://api.whatsapp.com/send?text=" + msg, "_blank");
+}
+
+function copierLienClientDepuisAccueil(){
+  const nom = localStorage.getItem("ps_boutique_nom") || "";
+  const lien = "https://roimtrmt-stack.github.io/prime-service/?boutique=" + encodeURIComponent(nom.trim());
+  const fb = document.getElementById("feedbackAccueilPartage");
+  navigator.clipboard.writeText(lien).then(() => {
+    if(fb){ fb.style.color = "#16a34a"; fb.textContent = "✅ Lien copié !"; }
+  });
+}
+
+function verifierEspaceBoutiquierSurAccueil(){
+  if(localStorage.getItem("ps_a_publie") === "true" && localStorage.getItem("ps_boutique_nom")){
+    const bloc = document.getElementById("blocBoutonPartageBoutiquier");
+    if(bloc) bloc.style.display = "block";
+  }
+}
+
 function cleSousCategorie(idCategorie, idSousCategorie){
   return `${idCategorie}|${idSousCategorie}`;
 }
@@ -2195,7 +2320,12 @@ async function chargerProduits(tentative = 1){
 
     repartirProduitsParCle(data);
     try{ localStorage.setItem(CLE_CACHE_PRODUITS, JSON.stringify({ version: VERSION_CACHE_PRODUITS, data })); } catch(e){}
+    verifierEspaceBoutiquierSurAccueil();
+  if(verifierBoutiqueUrlAuLancement()){
+    // La boutique exclusive est affichée
+  } else {
     rafraichirVueEnCoursSiBesoin();
+  }
     cacherBandeauHorsLigne();
   } catch(erreur){
     console.error("Erreur réseau, on garde le cache :", erreur);
@@ -4902,6 +5032,12 @@ verifierEtatPause();
    lieu de revenir à l'écran précédent à l'intérieur de Prime Service.
    ===================================================================== */
 window.addEventListener("popstate", (event) => {
+  if(estClientVerrouilleSurBoutique()){
+    history.pushState(null, "", window.location.href);
+    const nom = sessionStorage.getItem("ps_boutique_active");
+    if(nom) afficherProduitsExclusiveBoutique(nom);
+    return;
+  }
   if(clientMerciEstVerrouillee()){
     history.pushState({ vue: "merci", merciVerrouillee: true, sentinelle: true }, "");
     afficherMessageVerrouillageMerci();
