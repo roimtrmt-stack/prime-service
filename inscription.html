@@ -1535,7 +1535,7 @@ async function envoyerSoumission(event){
       localStorage.setItem("ps_boutique_nom", nomBoutique);
       localStorage.setItem("ps_boutique_tel", telephone);
     } catch(e){}
-    afficherBlocPartageBoutique(nomBoutique);
+    
     document.getElementById("vue-formulaire").style.display = "none";
     document.getElementById("vue-merci-inscription").style.display = "block";
     const confirmationNotif = document.querySelector("#vue-merci-inscription .carte-merci p");
@@ -1720,58 +1720,7 @@ alert("Pour recevoir les notifications sur iPhone, vous devez d'abord installer 
 }
 </script>
 
-<!-- BLOC PARTAGE BOUTIQUE APRES PUBLICATION -->
-<div id="blocPartageBoutique" style="display:none;margin-top:24px;padding:20px;border-radius:14px;background:#f0fdf4;border:2px solid #22c55e;text-align:center;">
-  <h3 style="color:#15803d;margin:0 0 8px;font-size:18px;">🎉 Vos articles sont en ligne !</h3>
-  <p style="color:#374151;font-size:14px;margin:0 0 16px;">Vous pouvez maintenant envoyer le lien direct de votre boutique à vos clients.</p>
-  <button type="button" id="btnPartagerLienClients" class="btn-soumission" style="background:#16a34a;color:#fff;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:15px;box-shadow:0 4px 12px rgba(22,163,74,0.3);" onclick="partagerLienClientsWhatsApp()">
-    <span>📲</span> Partager le lien à vos clients
-  </button>
-  <button type="button" class="btn-secondaire" style="margin:0 auto;display:inline-block;padding:8px 16px;font-size:13px;" onclick="copierLienClients()">
-    📋 Copier le lien de ma boutique
-  </button>
-  <p id="feedbackPartage" style="font-size:13px;margin-top:10px;font-weight:600;"></p>
-</div>
 
-<script>
-function obtenirUrlBoutique(nomBoutique){
-  const base = "https://roimtrmt-stack.github.io/prime-service/";
-  return base + "?boutique=" + encodeURIComponent(nomBoutique.trim());
-}
-
-function afficherBlocPartageBoutique(nomBoutique){
-  const bloc = document.getElementById("blocPartageBoutique");
-  if(bloc){
-    bloc.style.display = "block";
-    bloc.scrollIntoView({ behavior: "smooth" });
-  }
-}
-
-function partagerLienClientsWhatsApp(){
-  const nom = localStorage.getItem("ps_boutique_nom") || document.getElementById("nomBoutiqueSoumissionnaire")?.value.trim() || "";
-  const lien = obtenirUrlBoutique(nom);
-  const msg = encodeURIComponent("Bonjour ! Voici le lien direct pour voir mes articles sur Prime Service et passer commande : " + lien);
-  window.open("https://api.whatsapp.com/send?text=" + msg, "_blank");
-}
-
-function copierLienClients(){
-  const nom = localStorage.getItem("ps_boutique_nom") || document.getElementById("nomBoutiqueSoumissionnaire")?.value.trim() || "";
-  const lien = obtenirUrlBoutique(nom);
-  const fb = document.getElementById("feedbackPartage");
-  navigator.clipboard.writeText(lien).then(() => {
-    if(fb){ fb.style.color = "#16a34a"; fb.textContent = "✅ Lien copié dans le presse-papiers !"; }
-  }).catch(() => {
-    if(fb){ fb.style.color = "#2563eb"; fb.textContent = "Lien : " + lien; }
-  });
-}
-
-// Vérifier si le boutiquier a déjà publié
-document.addEventListener("DOMContentLoaded", () => {
-  if(localStorage.getItem("ps_a_publie") === "true" && localStorage.getItem("ps_boutique_nom")){
-    afficherBlocPartageBoutique(localStorage.getItem("ps_boutique_nom"));
-  }
-});
-</script>
 
 </body>
 </html>
