@@ -1725,7 +1725,10 @@ window.addEventListener('orientationchange', function() {
         <p style="color:#666;text-align:center;">⏳ Chargement de l'historique...</p>
       </div>
 
-      <button type="button" class="btn-retour-lien" onclick="fermerHistoriqueAchats()">Fermer</button>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+        <button type="button" class="btn-retour-lien" onclick="fermerHistoriqueAchats()">Fermer</button>
+        <button type="button" id="btnToutSupprimerCommandes" onclick="toutSupprimerCommandes()" style="background:#dc2626;color:#fff;border:none;padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;">🗑️ Tout supprimer</button>
+      </div>
     </div>
 
     <form id="formArticle" style="display:none;" onsubmit="return publierArticle(event)">
@@ -4780,6 +4783,39 @@ async function supprimerCommande(id){
 function fermerHistoriqueAchats(){
   document.getElementById("historiqueAchats").style.display = "none";
   document.getElementById("admin-accueil").style.display = "block";
+}
+
+async function toutSupprimerCommandes(){
+  if(!supabaseClient){
+    alert("Connexion à la base de données impossible.");
+    return;
+  }
+
+  const confirmation = prompt(
+    "⚠️ ATTENTION : cette action est IRRÉVERSIBLE.\n" +
+    "Toutes les commandes de l'historique seront définitivement supprimées.\n\n" +
+    "Tapez SUPPRIMER pour confirmer."
+  );
+
+  if(confirmation !== "SUPPRIMER"){
+    return;
+  }
+
+  const btn = document.getElementById("btnToutSupprimerCommandes");
+  if(btn){ btn.disabled = true; btn.textContent = "⏳ Suppression en cours..."; }
+
+  const { error } = await supabaseClient.from("commandes").delete().neq("id", "");
+
+  if(btn){ btn.disabled = false; btn.textContent = "🗑️ Tout supprimer"; }
+
+  if(error){
+    alert("Erreur lors de la suppression : " + error.message + "\n\nSi l'erreur parle de permissions (RLS), exécutez dans Supabase une politique DELETE pour la table commandes.");
+    console.error(error);
+    return;
+  }
+
+  alert("✅ Historique vidé : toutes les commandes ont été supprimées.");
+  chargerHistoriqueAchats();
 }
 
 async function chargerHistoriqueAchats(){
