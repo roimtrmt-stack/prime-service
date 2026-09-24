@@ -1433,6 +1433,32 @@ window.addEventListener('orientationchange', function() {
       <h3>🏪 Vous vendez quelque chose ?</h3>
       <p>Proposez vos articles gratuitement sur Prime Service et touchez de nouveaux clients.</p>
       <button class="btn-devenir-boutiquier" onclick="window.location.href='inscription.html'">📸 Publier mes articles</button>
+
+      <!-- BLOC MODERNE DEDIE AU BOUTIQUIER (VISIBLE APRES PUBLICATION) -->
+      <div id="blocBoutonPartageBoutiquier" style="display:none;margin-top:20px;padding:16px;background:#18181b;border:1px solid rgba(255,255,255,0.18);border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,0.35);text-align:center;">
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px;">
+          <span style="font-size:16px;">🏪</span>
+          <span id="labelTitreBoutiquier" style="color:#f4f4f5;font-weight:700;font-size:14px;letter-spacing:0.3px;">Espace Boutiquier</span>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
+          <!-- Bouton 1 : Partager WhatsApp -->
+          <button type="button" onclick="partagerLienClientDepuisAccueil()" style="background:#16a34a;color:#ffffff;border:1px solid rgba(255,255,255,0.2);padding:12px 20px;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:10px;box-shadow:0 4px 14px rgba(22,163,74,0.35);">
+            <span style="font-size:18px;">📲</span>
+            <span>Partager le lien à vos clients</span>
+          </button>
+          <!-- Bouton 2 : Copier le lien -->
+          <button type="button" onclick="copierLienClientDepuisAccueil()" style="background:#27272a;color:#e4e4e7;border:1px solid rgba(255,255,255,0.18);padding:12px 18px;border-radius:14px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.25);">
+            <span style="font-size:16px;">📋</span>
+            <span id="texteBtnCopier">Copier le lien</span>
+          </button>
+        </div>
+        <p id="feedbackAccueilPartage" style="font-size:12px;margin:10px 0 0;min-height:16px;color:#4ade80;font-weight:600;"></p>
+      </div>
+
+      <!-- Lien d'activation rapide si le navigateur a vidé le cache -->
+      <div id="lienActiverBoutiquier" style="margin-top:10px;">
+        <a href="javascript:void(0)" onclick="activerManuellementBoutiquier()" style="font-size:12px;color:#2563eb;text-decoration:underline;">Vous avez déjà publié des articles ? Cliquez ici</a>
+      </div>
     </div>
 
     <div class="bloc-installer">
@@ -2297,7 +2323,30 @@ function copierLienClientDepuisAccueil(){
   });
 }
 
+
 function verifierEspaceBoutiquierSurAccueil(){
+  const bloc = document.getElementById("blocBoutonPartageBoutiquier");
+  const lienManuel = document.getElementById("lienActiverBoutiquier");
+  const nomBoutique = localStorage.getItem("ps_boutique_nom");
+  const aPublie = localStorage.getItem("ps_a_publie");
+  if(bloc && (aPublie === "true" || nomBoutique)){
+    bloc.style.display = "block";
+    if(lienManuel) lienManuel.style.display = "none";
+    const titre = document.getElementById("labelTitreBoutiquier");
+    if(titre && nomBoutique) titre.textContent = "🏪 Votre Boutique — " + nomBoutique;
+  }
+}
+
+function activerManuellementBoutiquier(){
+  const nom = prompt("Entrez le nom de votre boutique :");
+  if(nom && nom.trim()){
+    localStorage.setItem("ps_a_publie", "true");
+    localStorage.setItem("ps_boutique_nom", nom.trim());
+    verifierEspaceBoutiquierSurAccueil();
+  }
+}
+
+function _oldVerifier(){
   if(localStorage.getItem("ps_a_publie") === "true" && localStorage.getItem("ps_boutique_nom")){
     const bloc = document.getElementById("blocBoutonPartageBoutiquier");
     if(bloc) bloc.style.display = "block";
