@@ -5041,6 +5041,7 @@ ci-dessus jusqu'au </> juste avant </body>.
   let nomBoutiqueAffiche = "";
   let donneesBrutes = null;
   let vueBoutiqueAffichee = false;
+let barreAjoutee = false;
   const cleVerrou = "primeservice_verrou_boutique_" + paramB;
 
   function slugifier(nom){
@@ -5077,10 +5078,11 @@ ci-dessus jusqu'au </> juste avant </body>.
         sessionStorage.removeItem(cleVerrou);
         return origineRepartir(donneesBrutes);
       }
-      if(!nomBoutiqueAffiche){
+          if(!nomBoutiqueAffiche){
         nomBoutiqueAffiche = nomBoutiqueAffichable(matches[0].nom_boutique);
         chercherNomPropre();
       }
+      if(!barreAjoutee){ barreAjoutee = true; ajouterBarreLienBoutique(); }
       const accueilVisible = document.getElementById("vue-accueil").style.display !== "none";
       const rechercheVisible = document.getElementById("vue-recherche").style.display !== "none";
       if(accueilVisible || (rechercheVisible && vueBoutiqueAffichee)) montrerVueBoutique();
@@ -5126,7 +5128,23 @@ ci-dessus jusqu'au </> juste avant </body>.
     document.getElementById("btnRetour").style.display = "none";
   }
 
-  /* ---- Verrou 3:30 survivant à l'actualisation (sessionStorage) ---- */
+/* ---- Bouton direct "envoyer mon lien boutique" (ajouté en haut de la vitrine) ---- */
+function ajouterBarreLienBoutique(){
+  const titre = document.getElementById("titreRecherche");
+  if(!titre || document.getElementById("barreLienBoutique")) return;
+  const barre = document.createElement("div");
+  barre.id = "barreLienBoutique";
+  barre.style.cssText = "text-align:center;margin:4px 0 16px;";
+  barre.innerHTML = `
+<button class="btn-partager" style="background:#16a34a;margin:0 auto 10px;" id="btnLienBoutiqueClient">🔗 Envoyer le lien de votre boutique vers un client</button>
+<button class="btn-partager" onclick="partagerApplication()">📤 Partager Prime Service</button>`;
+  titre.after(barre);
+  document.getElementById("btnLienBoutiqueClient").addEventListener("click", () => {
+    const lien = window.location.href;
+    window.open("https://wa.me/?text=" + encodeURIComponent("Découvrez mes articles sur Prime Service 🛍️ : " + lien), "_blank");
+  });
+}
+/* ---- Verrou 3:30 survivant à l'actualisation (sessionStorage) ---- */
   if(!Number(sessionStorage.getItem(cleVerrou))){
     sessionStorage.setItem(cleVerrou, String(Date.now() + DUREE_VERROU_MS));
   }
@@ -5183,7 +5201,14 @@ ci-dessus jusqu'au </> juste avant </body>.
   const originePartager = window.partagerApplication;
   window.partagerApplication = function(){
     if(!modeActif){ return originePartager(); }
-    if(document.getElementById("modalePartageBoutique")) return;
+    const lienDirect = window.location.href;
+const texteDirect = "Découvrez mes articles sur Prime Service 🛍️ : " + lienDirect;
+if(navigator.share){
+navigator.share({ title: "Prime Service", text: texteDirect, url: lienDirect }).catch(function(){});
+} else {
+window.open("https://wa.me/?text=" + encodeURIComponent(texteDirect), "_blank");
+}
+return;
     const lien = window.location.href;
     const modale = document.createElement("div");
     modale.id = "modalePartageBoutique";
