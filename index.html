@@ -2585,6 +2585,7 @@ function afficherAccueil(pousserHistorique = true){
   document.getElementById("vue-accueil").style.display = "block";
   document.getElementById("btnRetour").style.display = "none";
   afficherBoutiquesPreferees();
+  verifierEspaceBoutiquierSurAccueil();
   if(pousserHistorique) history.pushState({ vue: "accueil" }, "");
 }
 
