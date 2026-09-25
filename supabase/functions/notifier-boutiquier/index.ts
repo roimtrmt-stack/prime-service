@@ -94,6 +94,11 @@ async function sendPush(
         ? [{ action: "ack", title: "🟥 J’AI VU LA COMMANDE" }]
         : [],
     }),
+    {
+      urgency: "high",
+      headers: { "Urgency": "high" },
+      TTL: 86400,
+    }
   );
 }
 
