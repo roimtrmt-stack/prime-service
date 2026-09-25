@@ -833,6 +833,55 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 }
 
 
+
+/* ==========================================
+   RECONNAISSANCE AUTOMATIQUE DU BOUTIQUIER
+   ========================================== */
+.carte-boutiquier-reconnu {
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-radius: var(--rayon);
+  padding: 14px 16px;
+  margin: 16px 0;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.08);
+}
+.entete-boutiquier-reconnu {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.titre-boutiquier-reconnu {
+  font-size: 15px;
+  font-weight: 700;
+  color: #166534;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.details-boutiquier-reconnu {
+  font-size: 13px;
+  color: #374151;
+  margin: 6px 0 0;
+  line-height: 1.4;
+}
+.btn-modifier-infos-boutique {
+  background: #ffffff;
+  border: 1px solid #16a34a;
+  color: #166534;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-modifier-infos-boutique:hover {
+  background: #dcfce7;
+}
+
 </style>
 <link rel="icon" href="icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3" integrity="sha384-l8ah+VgaWtk1mvOe9VC+OirC6qHFF4yH7l7mKRidV9MSti3E9F463bMp6ZVN4kuC" crossorigin="anonymous"></script>
@@ -870,25 +919,37 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       </div>
       <p id="statutPhotos" class="statut-position">Ajoutez au moins une photo pour continuer.</p>
 
-      <label class="label">Votre nom complet</label>
-      <input type="text" id="nomSoumissionnaire" class="champ" placeholder="Ex : Awa Traoré" required>
+      <!-- Reconnaissance automatique de la boutique -->
+      <div id="blocBoutiquierReconnu" class="carte-boutiquier-reconnu" style="display:none;">
+        <div class="entete-boutiquier-reconnu">
+          <p class="titre-boutiquier-reconnu">🏪 Boutique reconnue : <span id="nomBoutiqueReconnue" style="color:#15803d;"></span></p>
+          <button type="button" class="btn-modifier-infos-boutique" onclick="basculerAffichageInfosBoutiquier()">✏️ Modifier mes infos</button>
+        </div>
+        <p id="detailsBoutiquierReconnu" class="details-boutiquier-reconnu"></p>
+        <p style="font-size:12px; color:#15803d; margin:6px 0 0;">✨ Vos coordonnées sont mémorisées. Ajoutez simplement vos articles !</p>
+      </div>
 
-      <label class="label">Nom de votre boutique</label>
-      <input type="text" id="nomBoutiqueSoumissionnaire" class="champ" placeholder="Ex : Boutique Awa" required>
+      <div id="sectionInfosBoutiquier">
+        <label class="label">Votre nom complet</label>
+        <input type="text" id="nomSoumissionnaire" class="champ" placeholder="Ex : Awa Traoré" required>
 
-      <label class="label">Votre numéro de téléphone</label>
-      <input type="tel" id="telephoneSoumissionnaire" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" title="Entrez un vrai numéro de téléphone" required>
+        <label class="label">Nom de votre boutique</label>
+        <input type="text" id="nomBoutiqueSoumissionnaire" class="champ" placeholder="Ex : Boutique Awa" required>
 
-      <label class="label">Adresse de votre boutique (obligatoire)</label>
-      <input type="text" id="adresseInscription" class="champ" placeholder="Ex : Badalabougou, près du marché" maxlength="240" required>
+        <label class="label">Votre numéro de téléphone</label>
+        <input type="tel" id="telephoneSoumissionnaire" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" title="Entrez un vrai numéro de téléphone" required>
 
-      <label class="label">Votre position (facultative)</label>
-      <button type="button" class="btn-secondaire" onclick="recupererPositionInscription()">
-        📍 Utiliser ma position actuelle
-      </button>
-      <p id="statutPositionInscription" class="statut-position">Position non récupérée</p>
-      <input type="hidden" id="latInscription">
-      <input type="hidden" id="lngInscription">
+        <label class="label">Adresse de votre boutique (obligatoire)</label>
+        <input type="text" id="adresseInscription" class="champ" placeholder="Ex : Badalabougou, près du marché" maxlength="240" required>
+
+        <label class="label">Votre position (facultative)</label>
+        <button type="button" class="btn-secondaire" onclick="recupererPositionInscription()">
+          📍 Utiliser ma position actuelle
+        </button>
+        <p id="statutPositionInscription" class="statut-position">Position non récupérée</p>
+        <input type="hidden" id="latInscription">
+        <input type="hidden" id="lngInscription">
+      </div>
 
       <div class="bloc-conditions-obligatoires">
         <p class="titre-conditions">✅ Conditions obligatoires pour publier</p>
@@ -1629,6 +1690,17 @@ async function envoyerSoumission(event){
     statut.textContent = `✅ ${resultatsArticles.length}/${totalSoumis} article(s) créé(s) avec succès.`;
     document.getElementById("vue-formulaire").style.display = "none";
     document.getElementById("vue-merci-inscription").style.display = "block";
+    try {
+      localStorage.setItem("ps_a_publie", "true");
+      localStorage.setItem("ps_boutique_nom", nomBoutique);
+      localStorage.setItem("ps_boutiquier_nom", nom);
+      localStorage.setItem("ps_boutique_telephone", telephone);
+      localStorage.setItem("ps_boutique_adresse", adresse);
+      if(lat) localStorage.setItem("ps_boutique_lat", lat);
+      if(lng) localStorage.setItem("ps_boutique_lng", lng);
+    } catch(errLS) {
+      console.warn("Stockage local boutiquier impossible :", errLS);
+    }
     const confirmationNotif = document.querySelector("#vue-merci-inscription .carte-merci p");
     if(confirmationNotif){
       confirmationNotif.textContent = `✅ ${resultatsArticles.length}/${totalSoumis} article(s) ont bien été enregistré(s), chacun avec sa propre photo.`;
@@ -1811,3 +1883,83 @@ alert("Pour recevoir les notifications sur iPhone, vous devez d'abord installer 
 </script>
 </body>
 </html>
+
+<script>
+
+/* =====================================================================
+   GESTION DU PROFIL BOUTIQUIER (MÉMOIRE LOCALE SUR L'APPAREIL)
+   ===================================================================== */
+function verifierBoutiquierExistant(){
+  try {
+    const nomBoutique = localStorage.getItem("ps_boutique_nom") || "";
+    const nomGerant = localStorage.getItem("ps_boutiquier_nom") || "";
+    const tel = localStorage.getItem("ps_boutique_telephone") || "";
+    const adresse = localStorage.getItem("ps_boutique_adresse") || "";
+    const lat = localStorage.getItem("ps_boutique_lat") || "";
+    const lng = localStorage.getItem("ps_boutique_lng") || "";
+
+    const champNom = document.getElementById("nomSoumissionnaire");
+    const champBoutique = document.getElementById("nomBoutiqueSoumissionnaire");
+    const champTel = document.getElementById("telephoneSoumissionnaire");
+    const champAdresse = document.getElementById("adresseInscription");
+    const champLat = document.getElementById("latInscription");
+    const champLng = document.getElementById("lngInscription");
+    const blocReconnu = document.getElementById("blocBoutiquierReconnu");
+    const sectionInfos = document.getElementById("sectionInfosBoutiquier");
+    const labelBoutique = document.getElementById("nomBoutiqueReconnue");
+    const details = document.getElementById("detailsBoutiquierReconnu");
+    const btnEnvoyer = document.getElementById("btnEnvoyerInscription");
+    const conditionPrix = document.getElementById("conditionPrixMinimum");
+    const conditionLieu = document.getElementById("conditionLieuAjout");
+    const conditionNotif = document.getElementById("autorisationNotifBoutique");
+
+    if(nomBoutique && tel){
+      if(champNom && nomGerant) champNom.value = nomGerant;
+      if(champBoutique) champBoutique.value = nomBoutique;
+      if(champTel) champTel.value = tel;
+      if(champAdresse && adresse) champAdresse.value = adresse;
+      if(champLat && lat) champLat.value = lat;
+      if(champLng && lng) champLng.value = lng;
+
+      // Cocher automatiquement les conditions obligatoires
+      if(conditionPrix) conditionPrix.checked = true;
+      if(conditionLieu) conditionLieu.checked = true;
+      if(conditionNotif) conditionNotif.checked = true;
+
+      if(labelBoutique) labelBoutique.textContent = nomBoutique;
+      if(details){
+        const morceaux = [];
+        if(nomGerant) morceaux.push(nomGerant);
+        if(tel) morceaux.push(tel);
+        if(adresse) morceaux.push(adresse);
+        details.textContent = morceaux.join(" • ");
+      }
+
+      if(blocReconnu) blocReconnu.style.display = "block";
+      if(sectionInfos) sectionInfos.style.display = "none";
+      if(btnEnvoyer) btnEnvoyer.textContent = "Publier mes nouveaux articles 🚀";
+    }
+  } catch(e) {
+    console.warn("Erreur chargement profil boutiquier :", e);
+  }
+}
+
+function basculerAffichageInfosBoutiquier(){
+  const sectionInfos = document.getElementById("sectionInfosBoutiquier");
+  if(!sectionInfos) return;
+  if(sectionInfos.style.display === "none"){
+    sectionInfos.style.display = "block";
+    sectionInfos.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } else {
+    sectionInfos.style.display = "none";
+  }
+}
+
+// Initialisation dès que possible
+if(document.readyState === "loading"){
+  document.addEventListener("DOMContentLoaded", verifierBoutiquierExistant);
+} else {
+  verifierBoutiquierExistant();
+}
+
+</script>
