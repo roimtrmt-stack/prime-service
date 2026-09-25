@@ -3431,6 +3431,15 @@ window.addEventListener("beforeunload", (event) => {
   return event.returnValue;
 });
 
+
+function copierNumeroPaiementAutomatique(numero){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(numero).catch(() => {});
+  }
+  const fb = document.getElementById("feedbackCopieNumeroPaiement");
+  if(fb){ fb.style.display = "block"; }
+}
+
 function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClient = null, lngClient = null, articlesClient = [], commandId = "", verrouExpireAt = null, commissionTotale = 0){
   const estRestauration = verrouExpireAt !== null && verrouExpireAt !== undefined && Number.isFinite(Number(verrouExpireAt));
   const expireAt = estRestauration ? Number(verrouExpireAt) : Date.now() + DUREE_VERROUILLAGE_CLIENT_MERCI_MS;
@@ -3510,15 +3519,34 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
 
     const numeroPaiementSaisi = CONFIG.NUMERO_PAIEMENT.replace(/\D/g, "");
     divInstructions.innerHTML = `
-      <div style="margin-bottom:9px;">
-        <div style="font-weight:800;font-size:15px;margin-bottom:6px;color:#1f2937;">💳 Par téléphone, sans Internet</div>
-        <span style="font-size:12.5px;color:#374151;">Téléphone → composez exactement :</span>
-        <strong style="display:block;margin:9px 0;padding:18px 10px;border-radius:12px;background:#172033;color:#fff;text-align:center;font:800 18px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:0.4px;word-break:break-all;box-shadow:0 4px 14px rgba(23,32,51,.25);">#144#1*1*${numeroPaiementSaisi}*${Math.round(commissionReelle)}*1*CODE_SECRET#</strong>
-        <span style="display:block;color:#374151;font-size:12.5px;line-height:1.5;">Remplacez <strong>CODE_SECRET</strong> par votre code secret → <strong>Appeler/OK</strong> → vérifiez <strong>${numeroPaiementSaisi}</strong>, <strong>${commissionAffichee}</strong> et le nom → validez → attendez le SMS.</span>
-        <details style="margin-top:8px;color:#6b7280;font-size:12px;"><summary style="cursor:pointer;color:#1d4ed8;font-weight:700;">Voir les étapes détaillées</summary><p style="margin:6px 0 0;">Le menu fonctionne aussi avec <strong>#144#</strong> → <strong>Transfert d’argent</strong> → numéro → montant → code secret.</p></details>
+      <div style="margin-bottom:12px;">
+        <div style="font-weight:800;font-size:15px;margin-bottom:6px;color:#1f2937;">💳 Paiement direct par Orange Money</div>
+        <span style="font-size:12.5px;color:#4b5563;">Touchez le bouton ci-dessous pour lancer l'envoi :</span>
+        
+        <a href="tel:*144%23" onclick="copierNumeroPaiementAutomatique('${numeroPaiementSaisi}')" style="display:block;margin:10px 0;padding:16px 12px;border-radius:14px;background:linear-gradient(135deg, #ff7900 0%, #e05e00 100%);color:#fff;text-align:center;text-decoration:none;box-shadow:0 6px 18px rgba(224,94,0,.35);cursor:pointer;">
+          <div style="font-size:13px;font-weight:600;opacity:0.95;text-transform:uppercase;letter-spacing:0.5px;">⚡ Lancer l'envoi Orange Money</div>
+          <div style="font:800 20px/1.4 system-ui,sans-serif;margin-top:4px;">Appuyer pour envoyer l'argent</div>
+          <div style="font-size:12px;opacity:0.9;margin-top:2px;">(Numéro ${numeroPaiementSaisi} copié automatiquement)</div>
+        </a>
+
+        <div id="feedbackCopieNumeroPaiement" style="display:none;padding:8px 10px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;color:#065f46;font-size:12px;font-weight:600;text-align:center;margin-bottom:8px;">
+          ✅ Numéro ${numeroPaiementSaisi} copié ! Collez-le dès qu'Orange vous le demande.
+        </div>
+
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;color:#334155;font-size:12.5px;line-height:1.5;">
+          <strong>Ce qu'il vous reste à faire :</strong>
+          <ol style="margin:6px 0 0;padding-left:20px;">
+            <li>En touchant le bouton orange, l'appel Orange Money s'ouvre.</li>
+            <li>Orange vous demande le numéro du destinataire : tapez ou collez <strong>${numeroPaiementSaisi}</strong>.</li>
+            <li>Entrez le montant : <strong>${commissionAffichee}</strong>.</li>
+            <li>Tapez votre code secret Orange Money pour valider l'envoi.</li>
+          </ol>
+        </div>
       </div>
-      <div style="border-top:1px solid #fed7aa;padding-top:9px;margin-top:7px;color:#4b5563;font-size:12px;line-height:1.5;">
-        <strong style="color:#9a3412;">🏪 Point de vente Orange Money :</strong> demandez un transfert vers <strong>${numeroPaiementSaisi}</strong>, ou faites directement un dépôt d'argent à ce numéro, de <strong>${commissionAffichee}</strong> (frais de service), vérifiez le bénéficiaire, payez en espèces et gardez le reçu/SMS. Ne donnez jamais votre code secret.
+
+      <div style="border-top:1px solid #fed7aa;padding-top:10px;margin-top:8px;color:#4b5563;font-size:12px;line-height:1.5;">
+        <strong style="color:#9a3412;">🏪 Vous n'avez pas de compte sur votre téléphone ?</strong><br>
+        Rendez-vous dans un <strong>kiosque / point de vente Orange Money</strong> et demandez simplement un transfert de <strong>${commissionAffichee}</strong> vers le numéro <strong>${numeroPaiementSaisi}</strong> pour valider votre commande.
       </div>
       <div style="margin-top:10px;padding:8px 10px;background:#f3f4f6;border-radius:10px;font-size:11.5px;color:#4b5563;line-height:1.4;">
         📦 À régler séparément, en espèces, à la livraison : au moins <strong>${montantBoutiqueAffiche}</strong> à la boutique.
