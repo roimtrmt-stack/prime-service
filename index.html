@@ -1757,8 +1757,7 @@ window.addEventListener('orientationchange', function() {
       <label class="label">Commission fixe Prime Service (ajoutée au prix client)</label>
       <input type="number" id="commissionArticleAdmin" class="champ" value="300" min="300" max="300" readonly required>
 
-      <label class="label">Stock disponible (l'article disparaît automatiquement à 0)</label>
-      <input type="number" id="stockArticleAdmin" class="champ" placeholder="Ex : 3" min="1" required>
+      <input type="hidden" id="stockArticleAdmin" value="999">
 
       <label class="label">Adresse Google Maps de la boutique (visible par vous seul)</label>
       <div class="ligne-position">
@@ -2281,7 +2280,6 @@ function afficherProduitsExclusiveBoutique(nomBoutique){
         <h4>${echapperHtml(nomAffiche)}</h4>
         ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(p.nom_boutique)}</p>` : ""}
         <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
-        <p class="stock-produit">📦 ${p.stock} en stock</p>
         <button class="btn-ajouter" onclick="ajouterAuPanier(${JSON.stringify(p.id)}, event)">
           Ajouter au panier
         </button>
@@ -2365,8 +2363,8 @@ function cleSousCategorie(idCategorie, idSousCategorie){
    En cas d'échec (pas de connexion), on retombe sur la dernière copie
    sauvegardée sur cet appareil, pour que le catalogue reste consultable.
    ===================================================================== */
-const CLE_CACHE_PRODUITS = "primeservice_produits_cache_v2";
-const VERSION_CACHE_PRODUITS = 2;
+const CLE_CACHE_PRODUITS = "primeservice_produits_cache_v3";
+const VERSION_CACHE_PRODUITS = 3;
 
 async function chargerProduits(tentative = 1){
   // 1. AFFICHER IMMÉDIATEMENT LE CATALOGUE ENREGISTRÉ (pour éviter l'écran blanc)
@@ -2414,11 +2412,38 @@ function afficherEchecChargementCatalogue(){
 
 function normaliserNomProduitPourAffichage(produit){
   const copie = { ...produit };
-  copie.nom = String(copie.nom || "")
+  let nom = String(copie.nom || "")
     .replace(/^\s*Sélection Signature\s*(—|–|-)?\s*/i, "")
     .replace(/^\s*Selection Signature\s*(—|–|-)?\s*/i, "")
     .replace(/\s+/g, " ")
     .trim() || "Article";
+
+  // Reclassification intelligente des articles existants mal orientés
+  const nomBoutique = String(copie.nom_boutique || "").trim();
+  const nomMinuscule = nom.toLowerCase();
+
+  // Si boutique Electronique et que c'est un lot de débardeurs
+  if(nomBoutique === "Electronique" && (nomMinuscule.includes("débardeur") || nomMinuscule.includes("ywlo") || copie.id === 260)){
+    copie.categorie_id = "mode";
+    copie.sous_categorie_id = "vetements";
+  } else if(nomBoutique === "Electronique" && (nomMinuscule.includes("montre") || copie.sous_categorie_id === "bijoux")){
+    copie.categorie_id = "mode";
+    copie.sous_categorie_id = "bijoux";
+  } else if(nomBoutique === "Electronique" && (nomMinuscule.includes("tecno") || nomMinuscule.includes("infinix") || nomMinuscule.includes("samsung") || nomMinuscule.includes("villaon") || nomMinuscule.includes("oking") || nomMinuscule.includes("téléphone") || nomMinuscule.includes("smartphone"))){
+    copie.categorie_id = "electronique";
+    copie.sous_categorie_id = "telephones";
+  } else if(nomBoutique === "Electronique" && (nomMinuscule.includes("écouteur") || nomMinuscule.includes("sport open-ear"))){
+    copie.categorie_id = "electronique";
+    copie.sous_categorie_id = "accessoires-electroniques";
+  }
+
+  // Si boutique Baye niass : corriger les articles qui étaient tombés dans electronique/telephones
+  if(nomBoutique === "Baye niass" && (copie.categorie_id === "electronique" || copie.sous_categorie_id === "telephones")){
+    copie.categorie_id = "mode";
+    copie.sous_categorie_id = "vetements";
+  }
+
+  copie.nom = nom;
   return copie;
 }
 
@@ -2548,7 +2573,6 @@ function afficherRecherche(query, pousserHistorique = true){
         <h4>${echapperHtml(nomAffiche)}</h4>
         ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(p.nom_boutique)}</p>` : ""}
         <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
-        <p class="stock-produit">📦 ${p.stock} en stock</p>
         <button class="btn-ajouter" onclick="ajouterAuPanierDepuisRecherche(${JSON.stringify(p.id)}, event)">Ajouter au panier</button>
       </div>`;
     }).join("");
@@ -2565,13 +2589,8 @@ function ajouterAuPanierDepuisRecherche(id, event){
   if(!produit){ alert("Article introuvable."); return; }
   const existant = panier.find(a => a.id === produit.id);
   if(existant){
-    if(existant.quantite >= produit.stock){
-      alert(`Stock maximum atteint pour "${produit.nom}" (${produit.stock} disponible(s)).`);
-      return;
-    }
     existant.quantite += 1;
   } else {
-    if(!produit.stock || produit.stock < 1){ alert("Cet article n'est plus disponible."); return; }
     panier.push({ ...produit, quantite: 1 });
   }
   mettreAJourCompteur();
@@ -2761,7 +2780,6 @@ function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pouss
         <h4>${echapperHtml(nomAffiche)}</h4>
         ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(p.nom_boutique)}</p>` : ""}
         <div class="prix">${Number(p.prix).toLocaleString("fr-FR")} FCFA</div>
-        <p class="stock-produit">📦 ${p.stock} en stock</p>
         <button class="btn-ajouter" onclick="ajouterAuPanier(${JSON.stringify(p.id)}, event)">
           Ajouter au panier
         </button>
@@ -2821,16 +2839,8 @@ function ajouterAuPanier(id, event){
 
   const existant = panier.find(a => a.id === produit.id);
   if(existant){
-    if(existant.quantite >= produit.stock){
-      alert(`Stock maximum atteint pour "${produit.nom}" (${produit.stock} disponible(s)).`);
-      return;
-    }
     existant.quantite += 1;
   } else {
-    if(!produit.stock || produit.stock < 1){
-      alert("Cet article n'est plus disponible.");
-      return;
-    }
     panier.push({ ...produit, quantite: 1 });
   }
   mettreAJourCompteur();
@@ -2903,10 +2913,7 @@ function animerAjoutPanier(event){
 
 function changerQuantite(index, delta){
   const article = panier[index];
-  if(delta > 0 && article.quantite >= article.stock){
-    alert(`Stock maximum atteint pour "${article.nom}" (${article.stock} disponible(s)).`);
-    return;
-  }
+
   article.quantite += delta;
   if(article.quantite <= 0){
     panier.splice(index, 1);
@@ -4094,7 +4101,6 @@ function dessinerGestionArticles(){
       <h4>${echapperHtml(a.nom)} ${a.masque ? `<span class="etiquette-masque" style="font-size:10px;background:#666;color:#fff;padding:2px 6px;border-radius:4px;">masqué</span>` : ""}</h4>
       ${a.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(a.nom_boutique)}</p>` : ""}
       <div class="prix">${Number(a.prix).toLocaleString("fr-FR")} FCFA</div>
-      <p class="stock-produit">📦 ${a.stock} en stock</p>
       
       <!-- BOUTONS ADMIN INTÉGRÉS À LA CARTE -->
       <div style="display:flex; gap:8px; justify-content:center; margin-top:8px; width:100%;">
