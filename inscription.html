@@ -931,6 +931,67 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 /* =====================================================================
    CONFIGURATION
    ===================================================================== */
+
+const CATEGORIES_DISPONIBLES = [
+  {
+    id: "mode", nom: "👗 Vêtements, bijoux & accessoires",
+    sousCategories: [
+      { id: "vetements", nom: "👕 Vêtements" },
+      { id: "pagnes-tissus", nom: "🧵 Pagnes & tissus (bazin, wax)" },
+      { id: "foulards", nom: "🧣 Foulards & écharpes" },
+      { id: "bijoux", nom: "⌚ Montres" },
+      { id: "chaussures", nom: "👟 Chaussures" },
+      { id: "accessoires-mode", nom: "👜 Sacs & accessoires" },
+    ]
+  },
+  {
+    id: "electronique", nom: "📱 Appareils électroniques",
+    sousCategories: [
+      { id: "telephones", nom: "📱 Téléphones" },
+      { id: "ordinateurs", nom: "💻 Ordinateurs & tablettes" },
+      { id: "accessoires-electroniques", nom: "🔌 Accessoires électroniques" },
+      { id: "energie-solaire", nom: "🔋 Solaire & groupes électrogènes" },
+    ]
+  },
+  {
+    id: "beaute", nom: "💄 Beauté & hygiène",
+    sousCategories: [
+      { id: "parfums", nom: "🌸 Parfums" },
+      { id: "cosmetiques", nom: "💅 Cosmétiques & maquillage" },
+      { id: "cheveux", nom: "💇🏾‍♀️ Mèches & produits capillaires" },
+      { id: "hygiene", nom: "🧼 Savons & hygiène" },
+    ]
+  },
+  {
+    id: "maison", nom: "🏠 Maison & cuisine",
+    sousCategories: [
+      { id: "ustensiles-cuisine", nom: "🍳 Ustensiles de cuisine" },
+      { id: "decoration", nom: "🖼️ Décoration" },
+      { id: "literie", nom: "🛏️ Literie & linge de maison" },
+      { id: "electromenager", nom: "🔌 Électroménager" },
+    ]
+  },
+  {
+    id: "alimentation", nom: "🍎 Alimentation",
+    sousCategories: [
+      { id: "legumes", nom: "🍅 Légumes" },
+      { id: "fruits", nom: "🍎 Fruits" },
+      { id: "cereales", nom: "🌾 Céréales & farines" },
+      { id: "boissons", nom: "🥤 Boissons" },
+      { id: "condiments", nom: "🧂 Condiments & épices" },
+      { id: "epicerie", nom: "🛒 Divers / Épicerie" },
+    ]
+  },
+  {
+    id: "moto", nom: "🏍️ Motos & pièces détachées",
+    sousCategories: [
+      { id: "motos", nom: "🏍️ Motos & scooters" },
+      { id: "pieces-moto", nom: "⚙️ Pièces détachées" },
+      { id: "casques-accessoires", nom: "🪖 Casques & accessoires" },
+    ]
+  }
+];
+
 const CONFIG = {
   SUPABASE_URL: "https://kfxalpvbtbvkncztjwzc.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
@@ -1048,6 +1109,8 @@ async function ajouterPhoto(event){
         fichier: fichierCompresse,
         nomFichier: fichierOriginal.name,
         nomArticle: "",
+        categorie_id: "mode",
+        sous_categorie_id: "vetements",
         prixSaisi: "",
         stockSaisi: "",
         apercuUrl: urlTemp,
@@ -1069,14 +1132,42 @@ async function ajouterPhoto(event){
   }
 }
 
+
+function changerCategoriePhoto(id, nouvelleCatId){
+  const photo = photosAjoutees.find(p => p.id === id);
+  if(!photo) return;
+  photo.categorie_id = nouvelleCatId;
+  const catObj = CATEGORIES_DISPONIBLES.find(c => c.id === nouvelleCatId);
+  photo.sous_categorie_id = catObj && catObj.sousCategories.length > 0 ? catObj.sousCategories[0].id : "";
+  redessinerPhotos();
+}
+
+function optionsCategoriesHTML(selectedCatId){
+  return CATEGORIES_DISPONIBLES.map(c => 
+    `<option value="${c.id}" ${c.id === selectedCatId ? "selected" : ""}>${c.nom}</option>`
+  ).join("");
+}
+
+function optionsSousCategoriesHTML(catId, selectedSousCatId){
+  const cat = CATEGORIES_DISPONIBLES.find(c => c.id === catId);
+  if(!cat) return "";
+  return cat.sousCategories.map(sc => 
+    `<option value="${sc.id}" ${sc.id === selectedSousCatId ? "selected" : ""}>${sc.nom}</option>`
+  ).join("");
+}
+
 function sauvegarderChampsArticles(){
   // Les cartes sont reconstruites pour permettre plusieurs photos : on conserve
   // d’abord les saisies déjà présentes dans le DOM avant ce nouveau rendu.
   photosAjoutees.forEach((photo) => {
     const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
+    const champCat = document.querySelector(`.categorie-photo[data-photo-id="${photo.id}"]`);
+    const champSousCat = document.querySelector(`.sous-categorie-photo[data-photo-id="${photo.id}"]`);
     const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
     const champStock = document.querySelector(`.stock-photo[data-photo-id="${photo.id}"]`);
     if(champNom) photo.nomArticle = champNom.value;
+    if(champCat) photo.categorie_id = champCat.value;
+    if(champSousCat) photo.sous_categorie_id = champSousCat.value;
     if(champPrix) photo.prixSaisi = champPrix.value;
     if(champStock) photo.stockSaisi = champStock.value;
   });
@@ -1085,9 +1176,13 @@ function sauvegarderChampsArticles(){
 function restaurerChampsArticles(){
   photosAjoutees.forEach((photo) => {
     const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
+    const champCat = document.querySelector(`.categorie-photo[data-photo-id="${photo.id}"]`);
+    const champSousCat = document.querySelector(`.sous-categorie-photo[data-photo-id="${photo.id}"]`);
     const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
     const champStock = document.querySelector(`.stock-photo[data-photo-id="${photo.id}"]`);
     if(champNom) champNom.value = photo.nomArticle || "";
+    if(champCat && photo.categorie_id) champCat.value = photo.categorie_id;
+    if(champSousCat && photo.sous_categorie_id) champSousCat.value = photo.sous_categorie_id;
     if(champPrix) champPrix.value = photo.prixSaisi || "";
     if(champStock) champStock.value = photo.stockSaisi || "";
   });
@@ -1103,8 +1198,16 @@ function redessinerPhotos(){
     <div class="carte-photo-inscription">
       <button type="button" class="btn-retirer-photo" onclick="retirerPhoto(${p.id})">✕</button>
       <img src="${p.apercuUrl}" class="apercu-photo-inscription">
-      <label class="label" style="margin-top:8px;">Nom de l'article ${index + 1} <small>(facultatif — l’agent le génère si vide)</small></label>
-      <input type="text" class="champ nom-photo" data-photo-id="${p.id}" placeholder="Laissez vide pour un nom automatique">
+      <label class="label" style="margin-top:8px;font-weight:700;">📁 Catalogue / Rayon</label>
+      <select class="champ categorie-photo" data-photo-id="${p.id}" onchange="changerCategoriePhoto(${p.id}, this.value)" required>
+        ${optionsCategoriesHTML(p.categorie_id || "mode")}
+      </select>
+      <label class="label" style="margin-top:6px;">Sous-catégorie</label>
+      <select class="champ sous-categorie-photo" data-photo-id="${p.id}" required>
+        ${optionsSousCategoriesHTML(p.categorie_id || "mode", p.sous_categorie_id || "vetements")}
+      </select>
+      <label class="label" style="margin-top:8px;">Nom précis de l'article ${index + 1}</label>
+      <input type="text" class="champ nom-photo" data-photo-id="${p.id}" placeholder="Ex : Chemise manche longue, Robe bazin..." required>
       <label class="label" style="margin-top:8px;">Quantité en stock</label>
       <input type="number" class="champ stock-photo" data-photo-id="${p.id}" placeholder="Ex : 5" min="1" step="1" required>
       <label class="label" style="margin-top:8px;">Prix (FCFA) — minimum 1000 FCFA</label>
@@ -1413,8 +1516,11 @@ async function traiterEtPublierArticle(articleData, nomBoutiquier, nomBoutique, 
   const imageUrl = urlPublique?.publicUrl;
   if(!imageUrl) throw new Error("URL publique de photo introuvable");
 
+  const categorieChoisie = articleData.categorie_id || classement.categorie_id || "mode";
+  const sousCategorieChoisie = articleData.sous_categorie_id || classement.sous_categorie_id || "vetements";
+
   const nouvelArticle = {
-    nom: nomFinal,
+    nom: (articleData.nomArticle && articleData.nomArticle.trim()) ? articleData.nomArticle.trim() : nomFinal,
     prix: Number(articleData.prixSaisi) + CONFIG.COMMISSION_FCFA,
     commission: CONFIG.COMMISSION_FCFA,
     stock: Number(articleData.stockSaisi),
@@ -1426,8 +1532,8 @@ async function traiterEtPublierArticle(articleData, nomBoutiquier, nomBoutique, 
     lat: Number(lat),
     lng: Number(lng),
     masque: false,
-    categorie_id: classement.categorie_id,
-    sous_categorie_id: classement.sous_categorie_id
+    categorie_id: categorieChoisie,
+    sous_categorie_id: sousCategorieChoisie
   };
 
   const { error: erreurInsertion } = await supabaseClient
@@ -1530,12 +1636,6 @@ async function envoyerSoumission(event){
 
     // Succès global : le vendeur voit maintenant le nombre de lignes réellement créées.
     statut.textContent = `✅ ${resultatsArticles.length}/${totalSoumis} article(s) créé(s) avec succès.`;
-    try {
-      localStorage.setItem("ps_a_publie", "true");
-      localStorage.setItem("ps_boutique_nom", nomBoutique);
-      localStorage.setItem("ps_boutique_tel", telephone);
-    } catch(e){}
-    
     document.getElementById("vue-formulaire").style.display = "none";
     document.getElementById("vue-merci-inscription").style.display = "block";
     const confirmationNotif = document.querySelector("#vue-merci-inscription .carte-merci p");
@@ -1719,8 +1819,5 @@ alert("Pour recevoir les notifications sur iPhone, vous devez d'abord installer 
   }
 }
 </script>
-
-
-
 </body>
 </html>
