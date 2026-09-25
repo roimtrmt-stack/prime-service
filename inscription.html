@@ -1112,7 +1112,7 @@ async function ajouterPhoto(event){
         categorie_id: "mode",
         sous_categorie_id: "vetements",
         prixSaisi: "",
-        stockSaisi: "",
+        
         apercuUrl: urlTemp,
       });
       ajoutees++;
@@ -1164,12 +1164,10 @@ function sauvegarderChampsArticles(){
     const champCat = document.querySelector(`.categorie-photo[data-photo-id="${photo.id}"]`);
     const champSousCat = document.querySelector(`.sous-categorie-photo[data-photo-id="${photo.id}"]`);
     const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
-    const champStock = document.querySelector(`.stock-photo[data-photo-id="${photo.id}"]`);
     if(champNom) photo.nomArticle = champNom.value;
     if(champCat) photo.categorie_id = champCat.value;
     if(champSousCat) photo.sous_categorie_id = champSousCat.value;
     if(champPrix) photo.prixSaisi = champPrix.value;
-    if(champStock) photo.stockSaisi = champStock.value;
   });
 }
 
@@ -1179,12 +1177,10 @@ function restaurerChampsArticles(){
     const champCat = document.querySelector(`.categorie-photo[data-photo-id="${photo.id}"]`);
     const champSousCat = document.querySelector(`.sous-categorie-photo[data-photo-id="${photo.id}"]`);
     const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
-    const champStock = document.querySelector(`.stock-photo[data-photo-id="${photo.id}"]`);
     if(champNom) champNom.value = photo.nomArticle || "";
     if(champCat && photo.categorie_id) champCat.value = photo.categorie_id;
     if(champSousCat && photo.sous_categorie_id) champSousCat.value = photo.sous_categorie_id;
     if(champPrix) champPrix.value = photo.prixSaisi || "";
-    if(champStock) champStock.value = photo.stockSaisi || "";
   });
 }
 
@@ -1208,8 +1204,7 @@ function redessinerPhotos(){
       </select>
       <label class="label" style="margin-top:8px;">Nom précis de l'article ${index + 1}</label>
       <input type="text" class="champ nom-photo" data-photo-id="${p.id}" placeholder="Ex : Chemise manche longue, Robe bazin..." required>
-      <label class="label" style="margin-top:8px;">Quantité en stock</label>
-      <input type="number" class="champ stock-photo" data-photo-id="${p.id}" placeholder="Ex : 5" min="1" step="1" required>
+
       <label class="label" style="margin-top:8px;">Prix (FCFA) — minimum 1000 FCFA</label>
       <input type="number" class="champ prix-photo" data-photo-id="${p.id}" placeholder="Ex : 5000" min="1000" step="1" required>
     </div>
@@ -1523,7 +1518,7 @@ async function traiterEtPublierArticle(articleData, nomBoutiquier, nomBoutique, 
     nom: (articleData.nomArticle && articleData.nomArticle.trim()) ? articleData.nomArticle.trim() : nomFinal,
     prix: Number(articleData.prixSaisi) + CONFIG.COMMISSION_FCFA,
     commission: CONFIG.COMMISSION_FCFA,
-    stock: Number(articleData.stockSaisi),
+    stock: 999,
     image_url: imageUrl,
     nom_boutiquier: nomBoutiquier,
     nom_boutique: nomBoutique,
@@ -1577,10 +1572,8 @@ async function envoyerSoumission(event){
   for(const photo of photosAjoutees) {
     const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
     const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
-    const champStock = document.querySelector(`.stock-photo[data-photo-id="${photo.id}"]`);
     
     if(!champPrix.value || Number(champPrix.value) < 1000) { statut.textContent = `⚠️ Prix minimum 1000 FCFA pour l'article #${photo.id}.`; return false; }
-    if(!champStock.value || Number(champStock.value) < 1) { statut.textContent = `⚠️ Stock minimum 1 pour l'article #${photo.id}.`; return false; }
   }
 
   bouton.disabled = true;
@@ -1597,18 +1590,16 @@ async function envoyerSoumission(event){
       try {
         const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
         const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
-        const champStock = document.querySelector(`.stock-photo[data-photo-id="${photo.id}"]`);
 
         const articleData = {
           photo: photo,
           nomArticle: champNom.value.trim(),
           nomFichier: photo.nomFichier || "",
           prixSaisi: Number(champPrix.value),
-          stockSaisi: Number(champStock.value)
         };
 
         const resultatArticle = await traiterEtPublierArticle(articleData, nom, nomBoutique, telephone, adresse, lat, lng);
-        resultatsArticles.push({ ...resultatArticle, stockSaisi: articleData.stockSaisi });
+        resultatsArticles.push({ ...resultatArticle });
         
         // Mise à jour du statut pour montrer l'avancement
         statut.textContent = `✅ ${photosAjoutees.indexOf(photo) + 1}/${photosAjoutees.length} article(s) envoyé(s)...`;
@@ -1640,7 +1631,7 @@ async function envoyerSoumission(event){
     document.getElementById("vue-merci-inscription").style.display = "block";
     const confirmationNotif = document.querySelector("#vue-merci-inscription .carte-merci p");
     if(confirmationNotif){
-      confirmationNotif.textContent = `✅ ${resultatsArticles.length}/${totalSoumis} article(s) ont bien été enregistré(s), chacun avec sa propre photo et son propre stock.`;
+      confirmationNotif.textContent = `✅ ${resultatsArticles.length}/${totalSoumis} article(s) ont bien été enregistré(s), chacun avec sa propre photo.`;
       if(abonnementPushInscriptionCapture){
         confirmationNotif.textContent += " Vos notifications de commande sont déjà activées sur ce téléphone.";
       } else if(document.getElementById("autorisationNotifBoutique").checked){
@@ -1678,7 +1669,6 @@ async function envoyerSoumission(event){
       photosAjoutees.forEach((photo, index) => {
           const resultat = resultatsArticles[index] || { action: "creation" };
           const actionLabel = resultat.action === "fusion"
-            ? `Stock fusionné : ${Number(resultat.stock || 0).toLocaleString("fr-FR")}`
             : "Nouvelle offre";
           const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
           const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
