@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accès Administrateur - Prime Service</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+      text-align: center;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 20px;
+      padding: 32px 24px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    }
+    h1 {
+      font-size: 20px;
+      margin: 0 0 12px;
+      color: #38bdf8;
+    }
+    p {
+      color: #94a3b8;
+      font-size: 14px;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    .btn {
+      display: inline-block;
+      width: 100%;
+      padding: 14px 0;
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: #fff;
+      font-weight: 700;
+      font-size: 16px;
+      border-radius: 12px;
+      text-decoration: none;
+      box-shadow: 0 4px 14px rgba(2,132,199,0.4);
+      transition: transform 0.1s;
+    }
+    .btn:active {
+      transform: scale(0.98);
+    }
+    .loader {
+      margin-top: 18px;
+      font-size: 12px;
+      color: #64748b;
+    }
+  </style>
+  <script>
+    // Redirection automatique immédiate avec paramètre anti-cache
+    window.location.replace("./?admin=1&nocache=" + Date.now());
+  </script>
+</head>
+<body>
+  <div class="card">
+    <div style="font-size: 40px; margin-bottom: 12px;">🛡️</div>
+    <h1>Espace Administrateur</h1>
+    <p>Redirection vers le panneau d'administration avec vérification du compte...</p>
+    <a class="btn" href="./?admin=1">Ouvrir le panneau Admin</a>
+    <div class="loader">Si la redirection ne démarre pas, cliquez sur le bouton.</div>
+  </div>
+</body>
+</html>
