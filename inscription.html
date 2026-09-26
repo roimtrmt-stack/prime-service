@@ -1821,6 +1821,7 @@ async function envoyerSoumission(event){
       photosAjoutees.forEach((photo, index) => {
           const resultat = resultatsArticles[index] || { action: "creation" };
           const actionLabel = resultat.action === "fusion"
+            ? "Offre mise à jour"
             : "Nouvelle offre";
           const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
           const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
