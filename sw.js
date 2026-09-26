@@ -1,6 +1,6 @@
 // Service worker : rend le site installable, consultable hors-ligne et capable
 // de gérer les notifications de commandes boutique et les annonces générales.
-const CACHE_NAME = "prime-service-cache-v10";
+const CACHE_NAME = "prime-service-cache-v11";
 const RESSOURCES_ESSENTIELLES = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ const RESSOURCES_ESSENTIELLES = [
   "./icon-512.png",
   "./logo-prime-service.png",
   "./boutique-notification.html",
+  "./photo-optimizer.js",
 ];
 const NOTIFICATION_TTL_MS = 60 * 60 * 1000;
 
