@@ -269,7 +269,8 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   padding:11px 12px;
   border:1px solid var(--gris-bordure);
   border-radius:var(--rayon);
-  font-size:15px;
+  font-size:16px;
+  -webkit-text-size-adjust:100%;
 }
 .statut-position{ font-size:13px; color:#666; margin:4px 0 0; }
 .statut-envoi{ font-size:14px; margin-top:10px; font-weight:600; }
@@ -912,10 +913,10 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
       <label class="label">Vos photos d'articles (une photo = un article)</label>
       <p class="texte-info-conditions" style="margin:6px 0 10px;">Vous pouvez sélectionner plusieurs photos en une seule fois.</p>
       <div id="grillePhotos" class="grille-photos-inscription">
-        <label class="cadre-photo cadre-photo-inscription" id="boutonAjouterPhoto">
-          <span id="signePlusInscription">+</span>
-          <input type="file" accept="image/*" multiple id="inputPhoto" aria-label="Choisir une ou plusieurs photos d’article" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;" onchange="ajouterPhoto(event)">
-        </label>
+        <div class="cadre-photo cadre-photo-inscription" id="boutonAjouterPhoto" style="position:relative;cursor:pointer;">
+          <span id="signePlusInscription" style="pointer-events:none;user-select:none;">+</span>
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/*" multiple id="inputPhoto" aria-label="Choisir une ou plusieurs photos d’article" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2;" onchange="ajouterPhoto(event)">
+        </div>
       </div>
       <p id="statutPhotos" class="statut-position">Ajoutez au moins une photo pour continuer.</p>
 
@@ -1306,10 +1307,10 @@ function redessinerPhotos(){
   `).join("");
 
   const boutonAjouter = `
-    <label class="cadre-photo cadre-photo-inscription" id="boutonAjouterPhoto">
-      <span id="signePlusInscription">+</span>
-      <input type="file" accept="image/*" multiple id="inputPhoto" aria-label="Choisir une ou plusieurs photos d’article" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;" onchange="ajouterPhoto(event)">
-    </label>
+    <div class="cadre-photo cadre-photo-inscription" id="boutonAjouterPhoto" style="position:relative;cursor:pointer;">
+      <span id="signePlusInscription" style="pointer-events:none;user-select:none;">+</span>
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/*" multiple id="inputPhoto" aria-label="Choisir une ou plusieurs photos d’article" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2;" onchange="ajouterPhoto(event)">
+    </div>
   `;
 
   grille.innerHTML = cartesPhotos + boutonAjouter;
@@ -1591,7 +1592,10 @@ async function traiterEtPublierArticle(articleData, nomBoutiquier, nomBoutique, 
 
   const fichier = articleData.photo.fichier;
   const nomSecurise = fichier.name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(-120);
-  const cheminFichier = `${Date.now()}-${crypto.randomUUID()}-${nomSecurise || "article.jpg"}`;
+  const idAleatoire = (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+    ? crypto.randomUUID()
+    : (Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10));
+  const cheminFichier = `${Date.now()}-${idAleatoire}-${nomSecurise || "article.jpg"}`;
   const { error: erreurUpload } = await supabaseClient.storage
     .from("photos-articles")
     .upload(cheminFichier, fichier, {
