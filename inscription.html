@@ -1143,51 +1143,85 @@ async function compresserImage(fichier, tailleMax = 1200, qualite = 0.88){
   return await window.preparerImageUploadFidele(fichier, { maxDimension: tailleMax, quality: qualite });
 }
 
+function lireFichierDataUrl(fichier){
+  return new Promise((resolve) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result || "");
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(fichier);
+    } catch(err) {
+      resolve("");
+    }
+  });
+}
+
 async function ajouterPhoto(event){
-  const fichiersSelectionnes = Array.from(event.target.files || []);
+  const champInput = event.target;
+  const fichiersSelectionnes = Array.from(champInput?.files || []);
   if(fichiersSelectionnes.length === 0) return;
-  // Réinitialise immédiatement le champ pour permettre de resélectionner les mêmes fichiers.
-  event.target.value = "";
   const statut = document.getElementById("statutPhotos");
   let ajoutees = 0;
-  let echec = 0;
 
   for(const fichierOriginal of fichiersSelectionnes){
-    try {
-      if(statut){
-        statut.textContent = `📷 Préparation de la photo ${ajoutees + echec + 1}/${fichiersSelectionnes.length}...`;
-        statut.style.color = "#2563eb";
-      }
-      // Compression locale séquentielle : plusieurs photos sans saturer le téléphone.
-      const blobCompresse = await compresserImage(fichierOriginal);
-      const typePhoto = blobCompresse.type || "image/jpeg";
-      const extensionPhoto = window.extensionImagePreparee ? window.extensionImagePreparee(typePhoto) : "jpg";
-      const fichierCompresse = new File([blobCompresse], `photo-${compteurPhoto + 1}.${extensionPhoto}`, { type: typePhoto });
-      const urlTemp = URL.createObjectURL(fichierCompresse);
-      compteurPhoto++;
-      photosAjoutees.push({
-        id: compteurPhoto,
-        fichier: fichierCompresse,
-        nomFichier: fichierOriginal.name,
-        nomArticle: "",
-        categorie_id: "mode",
-        sous_categorie_id: "vetements",
-        prixSaisi: "",
-        
-        apercuUrl: urlTemp,
-      });
-      ajoutees++;
-    } catch(error) {
-      echec++;
-      console.error("Impossible de préparer la photo :", fichierOriginal.name, error);
+    if(statut){
+      statut.textContent = `📷 Chargement de la photo ${ajoutees + 1}/${fichiersSelectionnes.length}...`;
+      statut.style.color = "#2563eb";
     }
+
+    let fichierFinal = fichierOriginal;
+    // Tentative de compression optimisée
+    try {
+      if(typeof compresserImage === "function" && window.preparerImageUploadFidele){
+        const blobCompresse = await compresserImage(fichierOriginal);
+        if(blobCompresse){
+          const typePhoto = blobCompresse.type || "image/jpeg";
+          const extensionPhoto = window.extensionImagePreparee ? window.extensionImagePreparee(typePhoto) : "jpg";
+          try {
+            fichierFinal = new File([blobCompresse], `photo-${compteurPhoto + 1}.${extensionPhoto}`, { type: typePhoto });
+          } catch(eFile) {
+            blobCompresse.name = `photo-${compteurPhoto + 1}.${extensionPhoto}`;
+            fichierFinal = blobCompresse;
+          }
+        }
+      }
+    } catch(errComp) {
+      console.warn("Compression ignorée sur cet appareil, utilisation directe de la photo :", errComp);
+      fichierFinal = fichierOriginal;
+    }
+
+    // Création de l'URL d'aperçu fiable pour Safari iOS & Android
+    let urlTemp = "";
+    try {
+      urlTemp = URL.createObjectURL(fichierFinal);
+    } catch(eUrl) {
+      urlTemp = await lireFichierDataUrl(fichierFinal);
+    }
+    if(!urlTemp){
+      urlTemp = await lireFichierDataUrl(fichierOriginal);
+    }
+
+    compteurPhoto++;
+    photosAjoutees.push({
+      id: compteurPhoto,
+      fichier: fichierFinal,
+      nomFichier: fichierOriginal.name || `photo-${compteurPhoto}.jpg`,
+      nomArticle: "",
+      categorie_id: "mode",
+      sous_categorie_id: "vetements",
+      prixSaisi: "",
+      apercuUrl: urlTemp,
+    });
+    ajoutees++;
   }
 
+  // Ne réinitialiser le champ qu'une fois les fichiers en mémoire
+  try {
+    champInput.value = "";
+  } catch(e) {}
+
   redessinerPhotos();
-  if(statut && echec > 0){
-    statut.style.color = "#dc2626";
-    statut.textContent = `⚠️ ${ajoutees} photo(s) ajoutée(s), ${echec} échec(s). Choisissez des images JPG, PNG ou WEBP.`;
-  } else if(statut){
+  if(statut){
     statut.style.color = "#16a34a";
     statut.textContent = `${photosAjoutees.length} article(s) prêt(s) à être envoyé(s).`;
   }
@@ -1274,7 +1308,7 @@ function redessinerPhotos(){
   const boutonAjouter = `
     <label class="cadre-photo cadre-photo-inscription" id="boutonAjouterPhoto">
       <span id="signePlusInscription">+</span>
-      <input type="file" accept="image/*" id="inputPhoto" aria-label="Choisir une photo d’article" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;" onchange="ajouterPhoto(event)">
+      <input type="file" accept="image/*" multiple id="inputPhoto" aria-label="Choisir une ou plusieurs photos d’article" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;" onchange="ajouterPhoto(event)">
     </label>
   `;
 
