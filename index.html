@@ -1332,6 +1332,42 @@ body.merci-client-verrouillee .btn-options{
   .search-container{ padding:5px 5px 5px 16px; }
   .search-btn{ padding:11px 16px; font-size:14px; }
 }
+
+/* =====================================================================
+   OPTIMISATIONS FLUIDITE & RAPIDITE IPHONE (iOS Safari & PWA)
+   ===================================================================== */
+html, body {
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important;
+  -webkit-text-size-adjust: 100%;
+}
+button, a, input, select, textarea, .carte-produit, .btn-ajouter, .btn-action, .icone-bouton {
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+.modale, .contenu-modale, .grille-produits, .grille-categories, .grille-sous-categories, #listePanier {
+  -webkit-overflow-scrolling: touch !important;
+}
+.carte-produit {
+  content-visibility: auto;
+  contain-intrinsic-size: 180px 250px;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.zone-image img {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+}
+.clone-vol {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  pointer-events: none;
+}
+
 </style>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
@@ -2275,7 +2311,7 @@ function afficherProduitsExclusiveBoutique(nomBoutique){
       <div class="carte-produit">
         <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(nomAffiche)})"` : ""}>
           ${imageUrl
-            ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(nomAffiche)}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\'icone-produit\'>📦</span>'">`
+            ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(nomAffiche)}" loading="lazy" decoding="async" loading="lazy" decoding="async" onerror="this.closest('.zone-image').innerHTML='<span class=\'icone-produit\'>📦</span>'">`
             : `<span class="icone-produit">📦</span>`}
         </div>
         <h4>${echapperHtml(nomAffiche)}</h4>
@@ -2569,7 +2605,7 @@ function afficherRecherche(query, pousserHistorique = true){
       return `
       <div class="carte-produit">
         <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(nomAffiche)})"` : ""}>
-          ${imageUrl ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(nomAffiche)}" loading="lazy">` : `<span class="icone-produit">📦</span>`}
+          ${imageUrl ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(nomAffiche)}" loading="lazy" decoding="async" loading="lazy" decoding="async">` : `<span class="icone-produit">📦</span>`}
         </div>
         <h4>${echapperHtml(nomAffiche)}</h4>
         ${p.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(p.nom_boutique)}</p>` : ""}
@@ -2705,7 +2741,7 @@ function afficherBoutiquesPreferees(){
     const nom = nomBoutiqueAffichable(produit.nom_boutique);
     const nomBoutiquier = String(produit.nom_boutiquier || "").trim();
     return `<button class="carte-favori-boutique" onclick="afficherProduits('${echapperPourOnclick(produit.categorie_id)}','${echapperPourOnclick(produit.sous_categorie_id)}',true,true,${echapperPourOnclick(cle)})">
-      ${image ? `<img class="avatar-favori-boutique" src="${echapperHtml(image)}" alt="" loading="lazy">` : "<span>👤</span>"}
+      ${image ? `<img class="avatar-favori-boutique" src="${echapperHtml(image)}" alt="" loading="lazy" decoding="async">` : "<span>👤</span>"}
       <span>${echapperHtml(nom)}${nomBoutiquier ? ` — ${echapperHtml(nomBoutiquier)}` : ""}</span>
     </button>`;
   }).join("");
@@ -2736,7 +2772,7 @@ function afficherBoutiques(idCategorie, idSousCategorie, pousserHistorique = tru
   grille.innerHTML = boutiques.length ? boutiques.map((boutique) => {
     const cleJs = echapperPourOnclick(boutique.cle);
     return `<div class="carte-boutique" role="button" tabindex="0" onclick="afficherProduits('${idCategorie}','${idSousCategorie}',true,true,${cleJs})" onkeydown="if(event.key==='Enter'||event.key===' ') afficherProduits('${idCategorie}','${idSousCategorie}',true,true,${cleJs})">
-      ${boutique.imageUrl ? `<img class="avatar-boutique" src="${echapperHtml(boutique.imageUrl)}" alt="Photo de profil de ${echapperHtml(boutique.nom)}" loading="lazy">` : `<span class="avatar-boutique avatar-boutique-defaut">👤</span>`}
+      ${boutique.imageUrl ? `<img class="avatar-boutique" src="${echapperHtml(boutique.imageUrl)}" alt="Photo de profil de ${echapperHtml(boutique.nom)}" loading="lazy" decoding="async">` : `<span class="avatar-boutique avatar-boutique-defaut">👤</span>`}
       <h3>${echapperHtml(boutique.nom)}</h3>${boutique.nomBoutiquier ? `<p class="nom-boutiquier">Boutiquier : ${echapperHtml(boutique.nomBoutiquier)}</p>` : ""}<p>${boutique.nombre} article${boutique.nombre > 1 ? "s" : ""} dans ${echapperHtml(sousCategorie.nom)}</p><p style="margin-top:9px;color:#c2410c;font-weight:800;">Voir les articles →</p>
       <button type="button" class="btn-favori-boutique ${estBoutiquePreferee(boutique.cle) ? "est-favori" : ""}" data-boutique-favorite="${echapperHtml(boutique.cle)}" aria-pressed="${estBoutiquePreferee(boutique.cle) ? "true" : "false"}" onclick="basculerBoutiquePreferee(${cleJs}, event)">${estBoutiquePreferee(boutique.cle) ? "★ Suivie" : "☆ Suivre"}</button>
     </div>`;
@@ -2775,7 +2811,7 @@ function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pouss
       <div class="carte-produit">
         <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(nomAffiche)})"` : ""}>
           ${imageUrl
-            ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(nomAffiche)}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
+            ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(nomAffiche)}" loading="lazy" decoding="async" loading="lazy" decoding="async" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
             : `<span class="icone-produit">📦</span>`}
         </div>
         <h4>${echapperHtml(nomAffiche)}</h4>
@@ -4102,7 +4138,7 @@ function dessinerGestionArticles(){
     <div class="carte-produit ${a.masque ? "article-masque" : ""}" style="position:relative;">
       <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(a.nom)})"` : ""}>
         ${imageUrl
-          ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(a.nom)}" loading="lazy" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
+          ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(a.nom)}" loading="lazy" decoding="async" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
           : `<span class="icone-produit">📦</span>`}
       </div>
       <h4>${echapperHtml(a.nom)} ${a.masque ? `<span class="etiquette-masque" style="font-size:10px;background:#666;color:#fff;padding:2px 6px;border-radius:4px;">masqué</span>` : ""}</h4>
