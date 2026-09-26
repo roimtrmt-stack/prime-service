@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+  <!-- Préconnexions prioritaires pour accélération premier affichage -->
+  <link rel="preconnect" href="https://kfxalpvbtbvkncztjwzc.supabase.co" crossorigin>
+  <link rel="dns-prefetch" href="https://kfxalpvbtbvkncztjwzc.supabase.co">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Prime Service Bamako — Livraison à domicile Mali</title>
@@ -1374,7 +1380,7 @@ button, a, input, select, textarea, .carte-produit, .btn-ajouter, .btn-action, .
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#1a1a1a">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3" integrity="sha384-l8ah+VgaWtk1mvOe9VC+OirC6qHFF4yH7l7mKRidV9MSti3E9F463bMp6ZVN4kuC" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous" defer></script>
 </head>
 <body>
 
@@ -1457,7 +1463,28 @@ window.addEventListener('orientationchange', function() {
       <p class="soustitre-categories">Explorez les rayons de nos commerçants partenaires</p>
       <!-- ✅ AMÉLIORATION : Si le JavaScript tarde à charger, l'utilisateur voit ce message au lieu d'un vide -->
       <div class="grille-categories" id="grilleCategories">
-        <p style="grid-column:1/-1;text-align:center;color:#666;padding:30px 0;">⏳ Chargement du catalogue...</p>
+        
+        <div class="carte-categorie" onclick="afficherSousCategories('vetements')">
+          <span class="badge-icone badge-vetements"><span class="icone">👕</span></span>
+          <h3>Vêtements</h3>
+          <p class="compteur-init">Catalogue prêt</p>
+        </div>
+        <div class="carte-categorie" onclick="afficherSousCategories('accessoires')">
+          <span class="badge-icone badge-accessoires"><span class="icone">👜</span></span>
+          <h3>Accessoires</h3>
+          <p class="compteur-init">Catalogue prêt</p>
+        </div>
+        <div class="carte-categorie" onclick="afficherSousCategories('chaussures')">
+          <span class="badge-icone badge-chaussures"><span class="icone">👟</span></span>
+          <h3>Chaussures</h3>
+          <p class="compteur-init">Catalogue prêt</p>
+        </div>
+        <div class="carte-categorie" onclick="afficherSousCategories('beaute')">
+          <span class="badge-icone badge-beaute"><span class="icone">✨</span></span>
+          <h3>Beauté &amp; Soins</h3>
+          <p class="compteur-init">Catalogue prêt</p>
+        </div>
+
       </div>
     </div>
 
