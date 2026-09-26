@@ -572,7 +572,8 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   padding:11px 12px;
   border:1px solid var(--gris-bordure);
   border-radius:var(--rayon);
-  font-size:15px;
+  font-size:16px;
+  -webkit-text-size-adjust:100%;
 }
 .statut-position{ font-size:13px; color:#666; margin:4px 0 0; }
 .statut-envoi{ font-size:14px; margin-top:10px; font-weight:600; }
@@ -3440,8 +3441,14 @@ function copierNumeroPaiementAutomatique(numero){
   try {
     const tempInput = document.createElement("input");
     tempInput.value = numero;
+    tempInput.setAttribute("readonly", "");
+    tempInput.style.position = "absolute";
+    tempInput.style.left = "-9999px";
+    tempInput.style.fontSize = "16px";
     document.body.appendChild(tempInput);
+    tempInput.focus();
     tempInput.select();
+    tempInput.setSelectionRange(0, 99999);
     document.execCommand("copy");
     document.body.removeChild(tempInput);
   } catch(e){}
