@@ -883,6 +883,42 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   background: #dcfce7;
 }
 
+
+/* =====================================================================
+   OPTIMISATIONS FLUIDITE & RAPIDITE IPHONE (iOS Safari & PWA)
+   ===================================================================== */
+html, body {
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important;
+  -webkit-text-size-adjust: 100%;
+}
+button, a, input, select, textarea, .carte-produit, .btn-ajouter, .btn-action, .icone-bouton {
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+.modale, .contenu-modale, .grille-produits, .grille-categories, .grille-sous-categories, #listePanier {
+  -webkit-overflow-scrolling: touch !important;
+}
+.carte-produit {
+  content-visibility: auto;
+  contain-intrinsic-size: 180px 250px;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.zone-image img {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+}
+.clone-vol {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  pointer-events: none;
+}
+
 </style>
 <link rel="icon" href="icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3" integrity="sha384-l8ah+VgaWtk1mvOe9VC+OirC6qHFF4yH7l7mKRidV9MSti3E9F463bMp6ZVN4kuC" crossorigin="anonymous"></script>
