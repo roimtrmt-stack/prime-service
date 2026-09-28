@@ -1280,6 +1280,12 @@ function changerCategoriePhoto(id, nouvelleCatId){
   redessinerPhotos();
 }
 
+function changerSousCategoriePhoto(id, nouvelleSousCatId){
+  const photo = photosAjoutees.find(p => p.id === id);
+  if(!photo) return;
+  photo.sous_categorie_id = nouvelleSousCatId;
+}
+
 function optionsCategoriesHTML(selectedCatId){
   return CATEGORIES_DISPONIBLES.map(c => 
     `<option value="${c.id}" ${c.id === selectedCatId ? "selected" : ""}>${c.nom}</option>`
@@ -1337,7 +1343,7 @@ function redessinerPhotos(){
         ${optionsCategoriesHTML(p.categorie_id || "mode")}
       </select>
       <label class="label" style="margin-top:6px;">Sous-catégorie</label>
-      <select class="champ sous-categorie-photo" data-photo-id="${p.id}" required>
+      <select class="champ sous-categorie-photo" data-photo-id="${p.id}" onchange="changerSousCategoriePhoto(${p.id}, this.value)" required>
         ${optionsSousCategoriesHTML(p.categorie_id || "mode", p.sous_categorie_id || "vetements")}
       </select>
       <label class="label" style="margin-top:8px;">Nom précis de l'article ${index + 1}</label>
@@ -1731,12 +1737,19 @@ async function envoyerSoumission(event){
       try {
         const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
         const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
+        const champCat = document.querySelector(`.categorie-photo[data-photo-id="${photo.id}"]`);
+        const champSousCat = document.querySelector(`.sous-categorie-photo[data-photo-id="${photo.id}"]`);
+
+        const catChoisie = (champCat && champCat.value) ? champCat.value : (photo.categorie_id || "mode");
+        const sousCatChoisie = (champSousCat && champSousCat.value) ? champSousCat.value : (photo.sous_categorie_id || "vetements");
 
         const articleData = {
           photo: photo,
           nomArticle: champNom.value.trim(),
           nomFichier: photo.nomFichier || "",
           prixSaisi: Number(champPrix.value),
+          categorie_id: catChoisie,
+          sous_categorie_id: sousCatChoisie,
         };
 
         const resultatArticle = await traiterEtPublierArticle(articleData, nom, nomBoutique, telephone, adresse, lat, lng);
