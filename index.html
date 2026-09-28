@@ -4134,13 +4134,17 @@ async function publierArticle(event){
 /* =====================================================================
    GESTION DES ARTICLES PUBLIÉS (modifier / supprimer)
    ===================================================================== */
+let boutiqueActiveGestion = null;
+
 function ouvrirGestionArticles(){
   document.getElementById("admin-accueil").style.display = "none";
   document.getElementById("gestionArticles").style.display = "block";
+  boutiqueActiveGestion = null;
   dessinerGestionArticles();
 }
 
 function fermerGestionArticles(){
+  boutiqueActiveGestion = null;
   document.getElementById("gestionArticles").style.display = "none";
   document.getElementById("admin-accueil").style.display = "block";
 }
@@ -4150,43 +4154,282 @@ function articlesUniques(){
   return Array.from(new Map(tous.map(a => [a.id, a])).values());
 }
 
+function optionsTousRayonsHTML(selectedCatId, selectedSousCatId){
+  return CATEGORIES.flatMap(cat => 
+    cat.sousCategories.map(sc => {
+      const val = `${cat.id}|${sc.id}`;
+      const isSelected = (cat.id === selectedCatId && sc.id === selectedSousCatId);
+      return `<option value="${val}" ${isSelected ? 'selected' : ''}>${cat.icone || '📁'} ${cat.nom} › ${sc.icone || ''} ${sc.nom}</option>`;
+    })
+  ).join("");
+}
+
 function dessinerGestionArticles(){
   const conteneur = document.getElementById("listeGestionArticles");
   const articles = articlesUniques();
 
   if(articles.length === 0){
-    conteneur.innerHTML = `<p style="color:#666;text-align:center;">Aucun article publié pour le moment.</p>`;
+    conteneur.innerHTML = `<p style="color:#666;text-align:center;padding:24px 0;">Aucun article publié pour le moment.</p>`;
     return;
   }
 
-  // Nouvelle grille identique au catalogue client, avec les boutons Admin
-  conteneur.innerHTML = `<div class="grille-produits">` + articles.map(a => {
-    const imageUrl = urlImageSecurisee(a.image_url);
-    return `
-    <div class="carte-produit ${a.masque ? "article-masque" : ""}" style="position:relative;">
-      <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(a.nom)})"` : ""}>
-        ${imageUrl
-          ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(a.nom)}" loading="lazy" decoding="async" onerror="this.closest('.zone-image').innerHTML='<span class=\\'icone-produit\\'>📦</span>'">`
-          : `<span class="icone-produit">📦</span>`}
+  // Si une boutique spécifique est sélectionnée, on affiche ses articles
+  if(boutiqueActiveGestion){
+    dessinerArticlesBoutique(boutiqueActiveGestion);
+    return;
+  }
+
+  // 1. VUE PAR BOUTIQUES : Grouper les articles par boutique
+  const boutiquesMap = new Map();
+  articles.forEach(a => {
+    const nomB = (a.nom_boutique && a.nom_boutique.trim()) ? a.nom_boutique.trim() : "Boutique sans nom";
+    if(!boutiquesMap.has(nomB)){
+      boutiquesMap.set(nomB, []);
+    }
+    boutiquesMap.get(nomB).push(a);
+  });
+
+  const listeBoutiques = Array.from(boutiquesMap.entries()).sort((a, b) => b[1].length - a[1].length);
+
+  let html = `
+    <div style="margin-bottom:18px;">
+      <p style="color:#555;font-size:14px;margin:0 0 12px;">
+        Choisissez une boutique pour voir ses articles ou déplacez directement <strong>tous les articles d'une boutique</strong> vers un autre catalogue.
+      </p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:16px;">
+  `;
+
+  listeBoutiques.forEach(([nomB, arts]) => {
+    const premier = arts[0] || {};
+    const tel = premier.telephone || premier.telephone_boutique || "";
+    const catActuelle = premier.categorie_id || "mode";
+    const sousCatActuelle = premier.sous_categorie_id || "vetements";
+
+    html += `
+      <div style="border:1px solid var(--gris-bordure); border-radius:14px; padding:16px; background:#fafafa; box-shadow:0 2px 8px rgba(0,0,0,0.03);">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+          <div>
+            <h4 style="margin:0 0 4px; font-size:16px; color:#1e293b; display:flex; align-items:center; gap:6px;">
+              🏪 ${echapperHtml(nomB)}
+              <span style="font-size:12px; font-weight:normal; background:var(--bleu); color:#fff; padding:2px 8px; border-radius:12px;">
+                ${arts.length} article(s)
+              </span>
+            </h4>
+            ${tel ? `<p style="margin:2px 0; font-size:13px; color:#64748b;">📞 ${echapperHtml(tel)}</p>` : ""}
+          </div>
+          <button type="button" onclick="selectionnerBoutiqueGestion(${echapperPourOnclick(nomB)})" style="padding:8px 14px; background:var(--bleu); color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:13px;">
+            👁️ Voir les articles ›
+          </button>
+        </div>
+
+        <!-- Bloc déplacement rapide de toute la boutique -->
+        <div style="margin-top:12px; padding-top:12px; border-top:1px dashed #e2e8f0; display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
+          <label style="font-size:12px; font-weight:600; color:#475569;">📁 Déplacer TOUTE la boutique vers :</label>
+          <select id="selectRayonBoutique_${echapperAttribut(nomB.replace(/[^a-zA-Z0-9]/g, '_'))}" style="padding:6px 10px; border-radius:6px; border:1px solid var(--gris-bordure); font-size:12px; background:#fff; max-width:260px;">
+            ${optionsTousRayonsHTML(catActuelle, sousCatActuelle)}
+          </select>
+          <button type="button" onclick="deplacerTouteLaBoutique(${echapperPourOnclick(nomB)})" style="padding:6px 12px; background:#16a34a; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">
+            🚚 Déplacer la boutique
+          </button>
+        </div>
       </div>
-      <h4>${echapperHtml(a.nom)} ${a.masque ? `<span class="etiquette-masque" style="font-size:10px;background:#666;color:#fff;padding:2px 6px;border-radius:4px;">masqué</span>` : ""}</h4>
-      ${a.nom_boutique ? `<p class="nom-boutique-produit">🏪 ${echapperHtml(a.nom_boutique)}</p>` : ""}
-      <div class="prix">${Number(a.prix).toLocaleString("fr-FR")} FCFA</div>
+    `;
+  });
+
+  html += `</div>`;
+  conteneur.innerHTML = html;
+}
+
+function selectionnerBoutiqueGestion(nomB){
+  boutiqueActiveGestion = nomB;
+  dessinerArticlesBoutique(nomB);
+}
+
+function retourListeBoutiquesGestion(){
+  boutiqueActiveGestion = null;
+  dessinerGestionArticles();
+}
+
+function dessinerArticlesBoutique(nomB){
+  const conteneur = document.getElementById("listeGestionArticles");
+  const tous = articlesUniques();
+  const articlesBoutique = tous.filter(a => ((a.nom_boutique && a.nom_boutique.trim()) || "Boutique sans nom") === nomB);
+
+  if(articlesBoutique.length === 0){
+    conteneur.innerHTML = `
+      <div style="margin-bottom:14px;">
+        <button type="button" onclick="retourListeBoutiquesGestion()" style="padding:6px 12px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">
+          ← Retour aux boutiques
+        </button>
+      </div>
+      <p style="color:#666;text-align:center;">Aucun article pour cette boutique.</p>
+    `;
+    return;
+  }
+
+  const premier = articlesBoutique[0];
+  const catActuelle = premier.categorie_id || "mode";
+  const sousCatActuelle = premier.sous_categorie_id || "vetements";
+
+  let html = `
+    <div style="margin-bottom:16px;">
+      <button type="button" onclick="retourListeBoutiquesGestion()" style="padding:6px 14px; background:#e2e8f0; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600; margin-bottom:10px;">
+        ← Retour aux boutiques
+      </button>
+      <h3 style="margin:4px 0 8px; font-size:17px; color:#1e293b; display:flex; align-items:center; gap:8px;">
+        🏪 Boutique : ${echapperHtml(nomB)}
+        <span style="font-size:13px; font-weight:normal; color:#64748b;">(${articlesBoutique.length} article(s))</span>
+      </h3>
       
-      <!-- BOUTONS ADMIN INTÉGRÉS À LA CARTE -->
-      <div style="display:flex; gap:8px; justify-content:center; margin-top:8px; width:100%;">
-        <button class="btn-modifier" onclick="basculerVisibiliteArticle(${a.id}, ${!a.masque})" title="${a.masque ? "Réafficher" : "Masquer"}" style="padding:6px 10px; border-radius:6px; border:1px solid var(--gris-bordure); background:var(--blanc); cursor:pointer;">
-          ${a.masque ? "🙈" : "👁️"}
-        </button>
-        <button class="btn-modifier" onclick='modifierArticleDepuisGestion(${a.id})' style="padding:6px 10px; border-radius:6px; border:1px solid var(--gris-bordure); background:var(--blanc); cursor:pointer;">
-          ✏️
-        </button>
-        <button class="btn-supprimer-gestion" onclick="supprimerArticleAdmin(${a.id}, ${echapperPourOnclick(a.nom)})" style="padding:6px 10px; border-radius:6px; border:1px solid var(--gris-bordure); background:var(--blanc); color:#dc2626; cursor:pointer;">
-          🗑️
+      <!-- Déplacement en lot pour tous les articles de cette boutique -->
+      <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:10px 14px; margin-top:8px; display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
+        <label style="font-size:12px; font-weight:600; color:#334155;">📁 Déplacer tous les articles de ${echapperHtml(nomB)} vers :</label>
+        <select id="selectRayonTous_${echapperAttribut(nomB.replace(/[^a-zA-Z0-9]/g, '_'))}" style="padding:6px 10px; border-radius:6px; border:1px solid #94a3b8; font-size:12px; background:#fff;">
+          ${optionsTousRayonsHTML(catActuelle, sousCatActuelle)}
+        </select>
+        <button type="button" onclick="deplacerTouteLaBoutique(${echapperPourOnclick(nomB)})" style="padding:6px 12px; background:#16a34a; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">
+          Appliquer à toute la boutique
         </button>
       </div>
     </div>
-  `; }).join("") + `</div>`;
+
+    <!-- Grille des articles de la boutique -->
+    <div class="grille-produits">
+  `;
+
+  html += articlesBoutique.map(a => {
+    const imageUrl = urlImageSecurisee(a.image_url);
+    const catArt = a.categorie_id || "mode";
+    const sousCatArt = a.sous_categorie_id || "vetements";
+
+    return `
+      <div class="carte-produit ${a.masque ? "article-masque" : ""}" style="position:relative; display:flex; flex-direction:column; justify-content:space-between;">
+        <div>
+          <div class="zone-image" ${imageUrl ? `onclick="ouvrirImageEnGrand(${echapperPourOnclick(imageUrl)}, ${echapperPourOnclick(a.nom)})"` : ""}>
+            ${imageUrl
+              ? `<img src="${echapperHtml(imageUrl)}" alt="${echapperHtml(a.nom)}" loading="lazy" decoding="async" onerror="this.closest('.zone-image').innerHTML='<span class=\'icone-produit\'>📦</span>'">`
+              : `<span class="icone-produit">📦</span>`}
+          </div>
+          <h4>${echapperHtml(a.nom)} ${a.masque ? `<span class="etiquette-masque" style="font-size:10px;background:#666;color:#fff;padding:2px 6px;border-radius:4px;">masqué</span>` : ""}</h4>
+          <div class="prix">${Number(a.prix).toLocaleString("fr-FR")} FCFA</div>
+        </div>
+
+        <!-- CHANGEMENT DIRECT DU CATALOGUE POUR CET ARTICLE -->
+        <div style="margin-top:10px; padding-top:8px; border-top:1px solid #f1f5f9; text-align:left; width:100%;">
+          <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Rayon :</label>
+          <select id="selectRayonArticle_${a.id}" onchange="deplacerArticleIndividuel(${a.id}, this.value)" style="width:100%; padding:5px 6px; border-radius:6px; border:1px solid #cbd5e1; font-size:11px; background:#fff;">
+            ${optionsTousRayonsHTML(catArt, sousCatArt)}
+          </select>
+        </div>
+
+        <!-- BOUTONS ACTIONS ADMIN -->
+        <div style="display:flex; gap:6px; justify-content:center; margin-top:10px; width:100%;">
+          <button class="btn-modifier" onclick="basculerVisibiliteArticle(${a.id}, ${!a.masque})" title="${a.masque ? "Réafficher" : "Masquer"}" style="padding:6px 10px; border-radius:6px; border:1px solid var(--gris-bordure); background:var(--blanc); cursor:pointer;">
+            ${a.masque ? "🙈" : "👁️"}
+          </button>
+          <button class="btn-modifier" onclick='modifierArticleDepuisGestion(${a.id})' title="Modifier nom/prix/photo" style="padding:6px 10px; border-radius:6px; border:1px solid var(--gris-bordure); background:var(--blanc); cursor:pointer;">
+            ✏️
+          </button>
+          <button class="btn-supprimer-gestion" onclick="supprimerArticleAdmin(${a.id}, ${echapperPourOnclick(a.nom)})" title="Supprimer" style="padding:6px 10px; border-radius:6px; border:1px solid var(--gris-bordure); background:var(--blanc); color:#dc2626; cursor:pointer;">
+            🗑️
+          </button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  html += `</div>`;
+  conteneur.innerHTML = html;
+}
+
+async function deplacerTouteLaBoutique(nomB){
+  const cleanId = nomB.replace(/[^a-zA-Z0-9]/g, '_');
+  const selectElem = document.getElementById(`selectRayonBoutique_${cleanId}`) || document.getElementById(`selectRayonTous_${cleanId}`);
+  if(!selectElem) return;
+
+  const valeurChoisie = selectElem.value;
+  const [catId, sousCatId] = valeurChoisie.split("|");
+  const catObj = CATEGORIES.find(c => c.id === catId);
+  const scObj = catObj ? catObj.sousCategories.find(s => s.id === sousCatId) : null;
+  const nomRayon = scObj ? `${catObj.nom} › ${scObj.nom}` : valeurChoisie;
+
+  if(!confirm(`Déplacer TOUS les articles de la boutique "${nomB}" vers "${nomRayon}" ?`)) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from("produits")
+      .update({ categorie_id: catId, sous_categorie_id: sousCatId })
+      .eq("nom_boutique", nomB);
+
+    if(error) throw error;
+
+    // Mise à jour immédiate de la mémoire locale
+    Object.keys(produitsParCle).forEach(cle => {
+      produitsParCle[cle].forEach(a => {
+        if(((a.nom_boutique && a.nom_boutique.trim()) || "Boutique sans nom") === nomB){
+          a.categorie_id = catId;
+          a.sous_categorie_id = sousCatId;
+        }
+      });
+    });
+
+    await chargerProduits();
+    construireCategories();
+
+    alert(`✅ Tous les articles de la boutique "${nomB}" sont maintenant dans "${nomRayon}" !`);
+
+    if(boutiqueActiveGestion){
+      dessinerArticlesBoutique(nomB);
+    } else {
+      dessinerGestionArticles();
+    }
+  } catch(err){
+    console.error("Erreur déplacement boutique :", err);
+    alert("❌ Erreur lors du déplacement : " + (err.message || err));
+  }
+}
+
+async function deplacerArticleIndividuel(articleId, valeurRayon){
+  if(!valeurRayon) return;
+  const [catId, sousCatId] = valeurRayon.split("|");
+  const catObj = CATEGORIES.find(c => c.id === catId);
+  const scObj = catObj ? catObj.sousCategories.find(s => s.id === sousCatId) : null;
+  const nomRayon = scObj ? `${catObj.nom} › ${scObj.nom}` : valeurRayon;
+
+  try {
+    const { error } = await supabaseClient
+      .from("produits")
+      .update({ categorie_id: catId, sous_categorie_id: sousCatId })
+      .eq("id", articleId);
+
+    if(error) throw error;
+
+    // Mise à jour immédiate de la mémoire locale
+    Object.keys(produitsParCle).forEach(cle => {
+      produitsParCle[cle].forEach(a => {
+        if(a.id === articleId){
+          a.categorie_id = catId;
+          a.sous_categorie_id = sousCatId;
+        }
+      });
+    });
+
+    await chargerProduits();
+    construireCategories();
+
+    // Notification visuelle discrète
+    alert(`✅ Article déplacé vers "${nomRayon}" avec succès !`);
+
+    if(boutiqueActiveGestion){
+      dessinerArticlesBoutique(boutiqueActiveGestion);
+    } else {
+      dessinerGestionArticles();
+    }
+  } catch(err){
+    console.error("Erreur déplacement article :", err);
+    alert("❌ Erreur lors du déplacement de l'article : " + (err.message || err));
+  }
 }
 
 async function basculerVisibiliteArticle(id, nouvelEtatMasque){
@@ -4194,7 +4437,11 @@ async function basculerVisibiliteArticle(id, nouvelEtatMasque){
     const { error } = await supabaseClient.from("produits").update({ masque: nouvelEtatMasque }).eq("id", id);
     if(error) throw error;
     await chargerProduits();
-    dessinerGestionArticles();
+    if(boutiqueActiveGestion){
+      dessinerArticlesBoutique(boutiqueActiveGestion);
+    } else {
+      dessinerGestionArticles();
+    }
   } catch(erreur){
     console.error("Impossible de changer la visibilité :", erreur);
     alert("Impossible de changer la visibilité de cet article pour le moment.");
@@ -4217,13 +4464,16 @@ async function supprimerArticleAdmin(id, nom){
     return;
   }
 
-  // Retire l'article de la mémoire locale tout de suite, sans attendre
-  // le temps réel — évite que la liste semble ne pas avoir bougé.
+  // Retire l'article de la mémoire locale tout de suite
   Object.keys(produitsParCle).forEach(cle => {
     produitsParCle[cle] = produitsParCle[cle].filter(a => a.id !== id);
   });
 
-  dessinerGestionArticles();
+  if(boutiqueActiveGestion){
+    dessinerArticlesBoutique(boutiqueActiveGestion);
+  } else {
+    dessinerGestionArticles();
+  }
   construireCategories();
 }
 
