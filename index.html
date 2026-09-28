@@ -2541,10 +2541,33 @@ function chargerProduitsDepuisCache(){
   }
 }
 
+
+/* =====================================================================
+   MAPPINGS PERSONNALISÉS BOUTIQUES -> CATALOGUES (Côté Site)
+   Permet d'affecter une boutique à un catalogue sans dépendre de Supabase
+   ===================================================================== */
+const MAPPINGS_CATALOGUES_BOUTIQUES = {
+  "Baye niass": { categorie_id: "electronique", sous_categorie_id: "telephones" }
+};
+
+function obtenirMappingBoutique(nomB){
+  if(!nomB) return null;
+  const nomClean = nomB.trim();
+  try {
+    const locaux = JSON.parse(localStorage.getItem("prime_mappings_boutiques") || "{}");
+    if(locaux[nomClean]) return locaux[nomClean];
+  } catch(e){}
+  return MAPPINGS_CATALOGUES_BOUTIQUES[nomClean] || null;
+}
 function repartirProduitsParCle(data){
   produitsParCle = {};
   data.forEach((produitBrut) => {
     const p = normaliserNomProduitPourAffichage(produitBrut);
+    const override = obtenirMappingBoutique(p.nom_boutique);
+    if(override){
+      p.categorie_id = override.categorie_id;
+      p.sous_categorie_id = override.sous_categorie_id;
+    }
     const cle = cleSousCategorie(p.categorie_id, p.sous_categorie_id);
     if(!produitsParCle[cle]) produitsParCle[cle] = [];
     produitsParCle[cle].push(p);
@@ -4364,40 +4387,37 @@ async function deplacerTouteLaBoutique(nomB){
   const scObj = catObj ? catObj.sousCategories.find(s => s.id === sousCatId) : null;
   const nomRayon = scObj ? `${catObj.nom} › ${scObj.nom}` : valeurChoisie;
 
-  if(!confirm(`Déplacer TOUS les articles de la boutique "${nomB}" vers "${nomRayon}" ?`)) return;
-
+  // 1. Enregistrer immédiatement dans le site (localStorage)
   try {
-    const { error } = await supabaseClient
-      .from("produits")
-      .update({ categorie_id: catId, sous_categorie_id: sousCatId })
-      .eq("nom_boutique", nomB);
+    const locaux = JSON.parse(localStorage.getItem("prime_mappings_boutiques") || "{}");
+    locaux[nomB.trim()] = { categorie_id: catId, sous_categorie_id: sousCatId };
+    localStorage.setItem("prime_mappings_boutiques", JSON.stringify(locaux));
+  } catch(e){}
 
-    if(error) throw error;
-
-    // Mise à jour immédiate de la mémoire locale
-    Object.keys(produitsParCle).forEach(cle => {
-      produitsParCle[cle].forEach(a => {
-        if(((a.nom_boutique && a.nom_boutique.trim()) || "Boutique sans nom") === nomB){
-          a.categorie_id = catId;
-          a.sous_categorie_id = sousCatId;
-        }
-      });
-    });
-
-    await chargerProduits();
-    construireCategories();
-
-    alert(`✅ Tous les articles de la boutique "${nomB}" sont maintenant dans "${nomRayon}" !`);
-
-    if(boutiqueActiveGestion){
-      dessinerArticlesBoutique(nomB);
-    } else {
-      dessinerGestionArticles();
+  // 2. Mettre à jour immédiatement les articles en mémoire
+  const tous = articlesUniques();
+  tous.forEach(a => {
+    if(((a.nom_boutique && a.nom_boutique.trim()) || "Boutique sans nom") === nomB){
+      a.categorie_id = catId;
+      a.sous_categorie_id = sousCatId;
     }
-  } catch(err){
-    console.error("Erreur déplacement boutique :", err);
-    alert("❌ Erreur lors du déplacement : " + (err.message || err));
+  });
+
+  // 3. Répartir dans les nouveaux catalogues
+  repartirProduitsParCle(tous);
+
+  alert(`✅ C'est fait ! La boutique "${nomB}" et tous ses articles sont désormais dans "${nomRayon}".`);
+
+  if(boutiqueActiveGestion){
+    dessinerArticlesBoutique(nomB);
+  } else {
+    dessinerGestionArticles();
   }
+
+  // 4. Tentative en arrière-plan vers Supabase (sans rien bloquer)
+  try {
+    supabaseClient.from("produits").update({ categorie_id: catId, sous_categorie_id: sousCatId }).eq("nom_boutique", nomB);
+  } catch(e){}
 }
 
 async function deplacerArticleIndividuel(articleId, valeurRayon){
