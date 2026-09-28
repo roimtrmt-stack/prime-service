@@ -1893,6 +1893,16 @@ const NOTIFICATION_LOGO_URL = new URL("./logo-prime-service.png", window.locatio
 // d'être inséré dans le HTML de la page — sinon quelqu'un pourrait écrire
 // du code à la place d'un nom et le faire exécuter chez tous les visiteurs
 // (faille XSS).
+function echapperAttribut(texte){
+  if(texte === null || texte === undefined) return "";
+  return String(texte)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function echapperHtml(texte){
   if(texte === null || texte === undefined) return "";
   return String(texte)
