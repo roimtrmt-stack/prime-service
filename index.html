@@ -3214,7 +3214,8 @@ async function envoyerCommande(event){
   } catch(erreur){
     console.error("Erreur enregistrement commande:", erreur);
     statutEnvoi.style.color = "#dc2626";
-    statutEnvoi.textContent = "❌ La commande n’a pas pu être enregistrée. Vérifiez votre connexion puis réessayez.";
+    const msg = (erreur && erreur.message) ? erreur.message : "Vérifiez votre connexion puis réessayez.";
+    statutEnvoi.textContent = `❌ ${msg}`;
     btnEnvoyer.disabled = false;
   }
 
