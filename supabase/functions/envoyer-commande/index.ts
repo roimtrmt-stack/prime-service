@@ -626,9 +626,8 @@ Deno.serve(async (req: Request) => {
     for (const item of items) {
       const product = productsById.get(item.id);
       const price = numberOrNull(product?.prix);
-      const stock = numberOrNull(product?.stock);
-      if (!product || product.masque || price === null || stock === null || stock < item.quantite) {
-        return jsonResponse(req, { error: "Stock insuffisant ou article indisponible" }, 409);
+      if (!product || product.masque || price === null) {
+        return jsonResponse(req, { error: "Article indisponible" }, 409);
       }
       const commission = Math.max(0, numberOrNull(product.commission) ?? 0);
       canonicalTotal += price * item.quantite;
@@ -649,10 +648,6 @@ Deno.serve(async (req: Request) => {
     if (Math.abs(canonicalTotal - declaredTotal) > 1) {
       return jsonResponse(req, { error: "Total de commande invalide" }, 400);
     }
-
-    const stockItems = items.map((item) => ({ id: item.id, quantite: item.quantite }));
-    const { error: stockError } = await supabaseAdmin.rpc("decrement_stock_batch", { p_items: stockItems });
-    if (stockError) return jsonResponse(req, { error: "Stock indisponible" }, 409);
 
     let commandId = "";
     let createdAt = new Date().toISOString();
@@ -676,7 +671,6 @@ Deno.serve(async (req: Request) => {
       commandId = String(command.id);
       createdAt = String(command.created_at || createdAt);
     } catch (error) {
-      await supabaseAdmin.rpc("increment_stock_batch", { p_items: stockItems });
       console.error("Commande non enregistrée, stock restauré", error);
       return jsonResponse(req, { error: "Commande impossible à enregistrer" }, 500);
     }
