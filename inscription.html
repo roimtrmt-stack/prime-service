@@ -1716,9 +1716,9 @@ async function envoyerSoumission(event){
 
   // Conditions obligatoires : toujours cochées et verrouillées. L'autorisation de
   // notification est demandée ici, pendant le clic réel d'envoi — les navigateurs
-  // n'acceptent cette demande que depuis un geste de l'utilisateur.
-  const notificationsOK = await activerNotifCommandeInscription();
-  if(!notificationsOK) return false;
+  // n'acceptent cette demande que depuis un geste de l'utilisateur. Un échec de
+  // notification ne doit jamais empêcher la publication des articles.
+  await activerNotifCommandeInscription();
 
   // Vérification de tous les champs
   for(const photo of photosAjoutees) {
@@ -1926,15 +1926,16 @@ let abonnementPushInscriptionCapture = null;
 async function activerNotifCommandeInscription(){
   const indicateur = document.getElementById("statutNotifInscription");
 
-  // Sur iPhone/iPad, Safari ne donne accès aux notifications que si le site a été ajouté à
-  // l'écran d'accueil et ouvert depuis cette icône (mode standalone) — jamais depuis un simple
-  // onglet. Aucun code ne peut contourner cette limite d'Apple : on guide vers le geste manuel.
+  // Sur iPhone/iPad en onglet Safari, Apple refuse toute demande de notification et
+  // tout abonnement push : seule l'app installée (mode standalone, iOS 16.4+) peut
+  // les recevoir. Aucun code ne peut contourner cette limite — on tente quand même
+  // l'envoi de l'article : le lien d'activation du premier SMS de commande reste le
+  // filet de sécurité pour activer les notifications après l'installation.
   const estIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const estStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
   if(estIOS && !estStandalone){
-    alert("Pour recevoir les notifications sur iPhone, vous devez d'abord installer le site (icône Partager, puis « Sur l'écran d'accueil »), puis réessayer l'envoi.");
-    if(indicateur) indicateur.textContent = "⚠️ Installez d'abord l'app sur l'écran d'accueil, puis réessayez l'envoi.";
-    return false;
+    if(indicateur) indicateur.textContent = "ℹ️ iPhone : installez l'app (Partager → « Sur l'écran d'accueil ») pour recevoir les notifications — le premier SMS de commande activera tout.";
+    return true;
   }
 
   if(!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)){
