@@ -2559,14 +2559,55 @@ function obtenirMappingBoutique(nomB){
   } catch(e){}
   return MAPPINGS_CATALOGUES_BOUTIQUES[nomClean] || null;
 }
+
+/* Déplacements individuels d'articles (côté site) : l'article garde son rayon
+   même après un rechargement ou un filtre par boutique. Le choix le plus
+   récent gagne : un déplacement global de boutique efface ces overrides. */
+function obtenirMappingArticles(){
+  try {
+    return JSON.parse(localStorage.getItem("prime_mappings_articles") || "{}");
+  } catch(e){
+    return {};
+  }
+}
+function sauverMappingArticle(articleId, categorieId, sousCategorieId){
+  try {
+    const mappings = obtenirMappingArticles();
+    mappings[String(articleId)] = { categorie_id: categorieId, sous_categorie_id: sousCategorieId };
+    localStorage.setItem("prime_mappings_articles", JSON.stringify(mappings));
+  } catch(e){}
+}
+function supprimerMappingsArticlesPourBoutique(nomB){
+  try {
+    const mappings = obtenirMappingArticles();
+    const ids = articlesUniques()
+      .filter(a => ((a.nom_boutique && a.nom_boutique.trim()) || "Boutique sans nom") === nomB)
+      .map(a => String(a.id));
+    let modifie = false;
+    ids.forEach(id => {
+      if(mappings[id]){
+        delete mappings[id];
+        modifie = true;
+      }
+    });
+    if(modifie) localStorage.setItem("prime_mappings_articles", JSON.stringify(mappings));
+  } catch(e){}
+}
 function repartirProduitsParCle(data){
   produitsParCle = {};
+  const mappingsArticles = obtenirMappingArticles();
   data.forEach((produitBrut) => {
     const p = normaliserNomProduitPourAffichage(produitBrut);
     const override = obtenirMappingBoutique(p.nom_boutique);
     if(override){
       p.categorie_id = override.categorie_id;
       p.sous_categorie_id = override.sous_categorie_id;
+    }
+    // Le déplacement individuel de l'article prime sur le filtre boutique.
+    const deplacementLocal = mappingsArticles[String(p.id)];
+    if(deplacementLocal){
+      p.categorie_id = deplacementLocal.categorie_id;
+      p.sous_categorie_id = deplacementLocal.sous_categorie_id;
     }
     const cle = cleSousCategorie(p.categorie_id, p.sous_categorie_id);
     if(!produitsParCle[cle]) produitsParCle[cle] = [];
@@ -4388,6 +4429,9 @@ async function deplacerTouteLaBoutique(nomB){
   const nomRayon = scObj ? `${catObj.nom} › ${scObj.nom}` : valeurChoisie;
 
   // 1. Enregistrer immédiatement dans le site (localStorage)
+  // Le déplacement global est le choix le plus récent : il absorbe les
+  // déplacements individuels précédents des articles de cette boutique.
+  supprimerMappingsArticlesPourBoutique(nomB.trim());
   try {
     const locaux = JSON.parse(localStorage.getItem("prime_mappings_boutiques") || "{}");
     locaux[nomB.trim()] = { categorie_id: catId, sous_categorie_id: sousCatId };
@@ -4427,38 +4471,39 @@ async function deplacerArticleIndividuel(articleId, valeurRayon){
   const scObj = catObj ? catObj.sousCategories.find(s => s.id === sousCatId) : null;
   const nomRayon = scObj ? `${catObj.nom} › ${scObj.nom}` : valeurRayon;
 
+  // 1. Enregistrer immédiatement dans le site (localStorage) : le déplacement
+  // s'affiche tout de suite et survit aux rechargements, sans dépendre du serveur.
+  sauverMappingArticle(articleId, catId, sousCatId);
+
+  // 2. Mise à jour immédiate de la mémoire + répartition dans les catalogues
+  Object.keys(produitsParCle).forEach(cle => {
+    produitsParCle[cle].forEach(a => {
+      if(a.id === articleId){
+        a.categorie_id = catId;
+        a.sous_categorie_id = sousCatId;
+      }
+    });
+  });
+  repartirProduitsParCle(articlesUniques());
+
+  // Notification visuelle discrète
+  alert(`✅ Article déplacé vers "${nomRayon}" avec succès !`);
+
+  if(boutiqueActiveGestion){
+    dessinerArticlesBoutique(boutiqueActiveGestion);
+  } else {
+    dessinerGestionArticles();
+  }
+
+  // 3. Tentative en arrière-plan vers Supabase (sans rien bloquer) : si le
+  // serveur l'accepte, les autres visiteurs verront aussi l'article déplacé.
   try {
-    const { error } = await supabaseClient
+    await supabaseClient
       .from("produits")
       .update({ categorie_id: catId, sous_categorie_id: sousCatId })
       .eq("id", articleId);
-
-    if(error) throw error;
-
-    // Mise à jour immédiate de la mémoire locale
-    Object.keys(produitsParCle).forEach(cle => {
-      produitsParCle[cle].forEach(a => {
-        if(a.id === articleId){
-          a.categorie_id = catId;
-          a.sous_categorie_id = sousCatId;
-        }
-      });
-    });
-
-    await chargerProduits();
-    construireCategories();
-
-    // Notification visuelle discrète
-    alert(`✅ Article déplacé vers "${nomRayon}" avec succès !`);
-
-    if(boutiqueActiveGestion){
-      dessinerArticlesBoutique(boutiqueActiveGestion);
-    } else {
-      dessinerGestionArticles();
-    }
   } catch(err){
-    console.error("Erreur déplacement article :", err);
-    alert("❌ Erreur lors du déplacement de l'article : " + (err.message || err));
+    console.warn("Déplacement non enregistré côté serveur (conservé sur le site) :", err);
   }
 }
 
