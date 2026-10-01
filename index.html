@@ -3690,14 +3690,17 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
         </a>
 
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;color:#334155;font-size:12.5px;line-height:1.5;">
-          <strong>Ce qu'il vous reste à faire :</strong>
+          <strong>Ce qu'il vous reste à faire (3 gestes, moins d'une minute) :</strong>
           <ol style="margin:6px 0 0;padding-left:20px;">
             <li>Touchez le bouton orange : le composeur s'ouvre avec le numéro <strong>${numeroPaiementSaisi}</strong> et le montant <strong>${commissionAffichee}</strong> déjà inscrits.</li>
-            <li>Ajoutez votre code secret Orange Money puis le symbole <strong>#</strong> à la fin (exemple : <strong>1234#</strong>).</li>
-            <li>Appuyez sur l'icône d'appel : l'envoi est fait, confirmation par SMS.</li>
+            <li>Dans le composeur, tapez votre code secret Orange Money puis <strong>#</strong>, juste à la fin du code affiché (exemple : ajouter <strong>1234#</strong>).</li>
+            <li>Appuyez ensuite sur <strong>Appeler</strong> ✆ : confirmez si Orange le demande, c'est envoyé (SMS de confirmation).</li>
           </ol>
+          <div style="margin-top:8px;padding:8px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:11.5px;color:#9a3412;line-height:1.45;">
+            ⚠️ Le code secret se tape dans le composeur <strong>avant</strong> d'appuyer sur Appeler (Orange l'exige). Avant d'appeler, vous devez voir : <strong>${codeUssdOrange}1234#</strong>
+          </div>
           <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e2e8f0;font-size:11.5px;color:#64748b;">
-            Si le composeur ne s'ouvre pas, composez manuellement : <strong>${codeUssdOrange}</strong> + votre code secret + <strong>#</strong>
+            Si le composeur ne s'ouvre pas, composez manuellement : <strong>${codeUssdOrange}</strong> + votre code secret + <strong>#</strong>, puis Appeler.
           </div>
         </div>
       </div>
