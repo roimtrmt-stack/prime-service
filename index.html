@@ -3670,25 +3670,35 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
     `;
 
     const numeroPaiementSaisi = CONFIG.NUMERO_PAIEMENT.replace(/\D/g, "");
+    // Code officiel Orange Mali (transfert national, source orangemali.com) :
+    // #144#1*1*Numero*Montant*1*CodeSecret# puis OK.
+    // Tout est pré-rempli ici : le client ajoute uniquement son code secret puis #.
+    const montantPaiementBrut = Math.round(Math.max(0, Number(commissionReelle) || 0));
+    const codeUssdOrange = montantPaiementBrut > 0
+      ? "#144#1*1*" + numeroPaiementSaisi + "*" + montantPaiementBrut + "*1*"
+      : "#144#";
+    const hrefUssdOrange = "tel:" + codeUssdOrange.replace(/#/g, "%23");
     divInstructions.innerHTML = `
       <div style="margin-bottom:12px;">
         <div style="font-weight:800;font-size:15px;margin-bottom:6px;color:#1f2937;">💳 Paiement direct par Orange Money</div>
         <span style="font-size:12.5px;color:#4b5563;">Touchez le bouton ci-dessous pour lancer l'envoi :</span>
         
-        <a href="tel:*144%23" onclick="copierNumeroPaiementAutomatique('${numeroPaiementSaisi}')" style="display:block;margin:10px 0;padding:16px 12px;border-radius:14px;background:linear-gradient(135deg, #ff7900 0%, #e05e00 100%);color:#fff;text-align:center;text-decoration:none;box-shadow:0 6px 18px rgba(224,94,0,.35);cursor:pointer;">
+        <a href="${hrefUssdOrange}" onclick="copierNumeroPaiementAutomatique('${codeUssdOrange}')" style="display:block;margin:10px 0;padding:16px 12px;border-radius:14px;background:linear-gradient(135deg, #ff7900 0%, #e05e00 100%);color:#fff;text-align:center;text-decoration:none;box-shadow:0 6px 18px rgba(224,94,0,.35);cursor:pointer;">
           <div style="font-size:13px;font-weight:600;opacity:0.95;text-transform:uppercase;letter-spacing:0.5px;">⚡ Lancer l'envoi Orange Money</div>
           <div style="font:800 20px/1.4 system-ui,sans-serif;margin-top:4px;">Appuyer pour envoyer l'argent</div>
-          <div style="font-size:12px;opacity:0.9;margin-top:2px;">(Numéro ${numeroPaiementSaisi} copié automatiquement)</div>
+          <div style="font-size:12px;opacity:0.9;margin-top:2px;">(Numéro ${numeroPaiementSaisi} et montant déjà remplis — ajoutez juste votre code secret)</div>
         </a>
 
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;color:#334155;font-size:12.5px;line-height:1.5;">
           <strong>Ce qu'il vous reste à faire :</strong>
           <ol style="margin:6px 0 0;padding-left:20px;">
-            <li>En touchant le bouton orange, l'appel Orange Money s'ouvre.</li>
-            <li>Orange vous demande le numéro du destinataire : tapez ou collez <strong>${numeroPaiementSaisi}</strong>.</li>
-            <li>Entrez le montant : <strong>${commissionAffichee}</strong>.</li>
-            <li>Tapez votre code secret Orange Money pour valider l'envoi.</li>
+            <li>Touchez le bouton orange : le composeur s'ouvre avec le numéro <strong>${numeroPaiementSaisi}</strong> et le montant <strong>${commissionAffichee}</strong> déjà inscrits.</li>
+            <li>Ajoutez votre code secret Orange Money puis le symbole <strong>#</strong> à la fin (exemple : <strong>1234#</strong>).</li>
+            <li>Appuyez sur l'icône d'appel : l'envoi est fait, confirmation par SMS.</li>
           </ol>
+          <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e2e8f0;font-size:11.5px;color:#64748b;">
+            Si le composeur ne s'ouvre pas, composez manuellement : <strong>${codeUssdOrange}</strong> + votre code secret + <strong>#</strong>
+          </div>
         </div>
       </div>
 
