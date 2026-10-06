@@ -3683,21 +3683,22 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
         <div style="font-weight:800;font-size:15px;margin-bottom:6px;color:#1f2937;">💳 Paiement direct par Orange Money</div>
         <span style="font-size:12.5px;color:#4b5563;">Touchez le bouton ci-dessous pour lancer l'envoi :</span>
         
-        <a href="${hrefUssdOrange}" onclick="copierNumeroPaiementAutomatique('${codeUssdOrange}')" style="display:block;margin:10px 0;padding:16px 12px;border-radius:14px;background:linear-gradient(135deg, #ff7900 0%, #e05e00 100%);color:#fff;text-align:center;text-decoration:none;box-shadow:0 6px 18px rgba(224,94,0,.35);cursor:pointer;">
+        <a href="${hrefUssdOrange}" onclick="copierNumeroPaiementAutomatique('${numeroPaiementSaisi}')" style="display:block;margin:10px 0;padding:16px 12px;border-radius:14px;background:linear-gradient(135deg, #ff7900 0%, #e05e00 100%);color:#fff;text-align:center;text-decoration:none;box-shadow:0 6px 18px rgba(224,94,0,.35);cursor:pointer;">
           <div style="font-size:13px;font-weight:600;opacity:0.95;text-transform:uppercase;letter-spacing:0.5px;">⚡ Lancer l'envoi Orange Money</div>
           <div style="font:800 20px/1.4 system-ui,sans-serif;margin-top:4px;">Appuyer pour envoyer l'argent</div>
-          <div style="font-size:12px;opacity:0.9;margin-top:2px;">(Numéro ${numeroPaiementSaisi} et montant déjà remplis — ajoutez juste votre code secret)</div>
+          <div style="font-size:12px;opacity:0.9;margin-top:2px;">(Numéro ${numeroPaiementSaisi} copié dans le presse-papiers)</div>
         </a>
 
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;color:#334155;font-size:12.5px;line-height:1.5;">
           <strong>Ce qu'il vous reste à faire (3 gestes, moins d'une minute) :</strong>
           <ol style="margin:6px 0 0;padding-left:20px;">
-            <li>Touchez le bouton orange : le composeur s'ouvre avec le numéro <strong>${numeroPaiementSaisi}</strong> et le montant <strong>${commissionAffichee}</strong> déjà inscrits.</li>
-            <li>Dans le composeur, tapez votre code secret Orange Money puis appuyez sur la grande touche <strong>#</strong> du clavier (en bas à droite, à côté du 0).</li>
-            <li>Appuyez ensuite sur <strong>Appeler</strong> ✆ : confirmez si Orange le demande, c'est envoyé (SMS de confirmation).</li>
+            <li>Touchez le bouton orange : votre numéro <strong>${numeroPaiementSaisi}</strong> est copié automatiquement et le composeur s'ouvre avec le code pré-rempli.</li>
+            <li>Tapez votre code secret Orange Money puis appuyez sur la grande touche <strong>#</strong> du clavier (en bas à droite, à côté du 0).</li>
+            <li>Appuyez sur <strong>Appeler</strong> ✆. Si Orange redemande le numéro du destinataire : restez appuyé sur l'écran puis touchez <strong>Coller</strong> — votre numéro <strong>${numeroPaiementSaisi}</strong> s'inscrit tout seul.</li>
+            <li>Orange vous demande ensuite le montant : tapez <strong>${commissionAffichee}</strong> (chiffres uniquement), puis validez.</li>
           </ol>
           <div style="margin-top:8px;padding:8px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:11.5px;color:#9a3412;line-height:1.45;">
-            ⚠️ Le code secret se tape dans le composeur <strong>avant</strong> d'appuyer sur Appeler (Orange l'exige). Avant d'appeler, la ligne doit ressembler à : <strong>${codeUssdOrange}</strong> + votre code secret + <strong>#</strong> (le # se tape après le code, il ne peut pas être pré-rempli).
+            ⚠️ Le code secret se tape dans le composeur <strong>avant</strong> d'appuyer sur Appeler (Orange l'exige). Avant d'appeler, la ligne doit ressembler à : <strong>${codeUssdOrange}</strong> + votre code secret + <strong>#</strong> (le # se tape après le code, il ne peut pas être pré-rempli). Votre numéro <strong>${numeroPaiementSaisi}</strong> est déjà copié : utilisez « Coller » si Orange le redemande.
           </div>
           <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e2e8f0;font-size:11.5px;color:#64748b;">
             Si le composeur ne s'ouvre pas, composez manuellement : <strong>${codeUssdOrange}</strong> + votre code secret + <strong>#</strong>, puis Appeler.
