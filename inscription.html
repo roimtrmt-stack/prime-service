@@ -1345,8 +1345,8 @@ function redessinerPhotos(){
       <select class="champ sous-categorie-photo" data-photo-id="${p.id}" onchange="changerSousCategoriePhoto(${p.id}, this.value)" required>
         ${optionsSousCategoriesHTML(p.categorie_id || "mode", p.sous_categorie_id || "vetements")}
       </select>
-      <label class="label" style="margin-top:8px;">Nom précis de l'article ${index + 1}</label>
-      <input type="text" class="champ nom-photo" data-photo-id="${p.id}" placeholder="Ex : Chemise manche longue, Robe bazin..." required>
+      <label class="label" style="margin-top:8px;">Nom de l'article ${index + 1} (facultatif)</label>
+      <input type="text" class="champ nom-photo" data-photo-id="${p.id}" placeholder="Ex : Chemise manche longue, Robe bazin...">
 
       <label class="label" style="margin-top:8px;">Prix (FCFA) — minimum 1000 FCFA</label>
       <input type="number" class="champ prix-photo" data-photo-id="${p.id}" placeholder="Ex : 5000" min="1000" step="1" required>

@@ -2542,23 +2542,13 @@ function chargerProduitsDepuisCache(){
 }
 
 
-/* =====================================================================
-   MAPPINGS PERSONNALISÉS BOUTIQUES -> CATALOGUES (Côté Site)
-   Permet d'affecter une boutique à un catalogue sans dépendre de Supabase
-   ===================================================================== */
-const MAPPINGS_CATALOGUES_BOUTIQUES = {
-  "Baye niass": { categorie_id: "electronique", sous_categorie_id: "telephones" }
-};
-
-function obtenirMappingBoutique(nomB){
-  if(!nomB) return null;
-  const nomClean = nomB.trim();
-  try {
-    const locaux = JSON.parse(localStorage.getItem("prime_mappings_boutiques") || "{}");
-    if(locaux[nomClean]) return locaux[nomClean];
-  } catch(e){}
-  return MAPPINGS_CATALOGUES_BOUTIQUES[nomClean] || null;
-}
+/* NOTE : l'ancien « mapping boutique entière » (qui plaçait de force tous les
+   articles d'une boutique dans un seul rayon côté affichage) a été supprimé :
+   il écrasait la catégorie choisie par le vendeur dans son formulaire.
+   Désormais, l'article s'affiche dans le rayon choisi à la publication (celui
+   enregistré dans Supabase), sauf déplacement individuel fait dans l'espace
+   gestion (prime_mappings_articles) ou déplacement global de boutique qui
+   met à jour Supabase directement. */
 
 /* Déplacements individuels d'articles (côté site) : l'article garde son rayon
    même après un rechargement ou un filtre par boutique. Le choix le plus
@@ -2598,12 +2588,8 @@ function repartirProduitsParCle(data){
   const mappingsArticles = obtenirMappingArticles();
   data.forEach((produitBrut) => {
     const p = normaliserNomProduitPourAffichage(produitBrut);
-    const override = obtenirMappingBoutique(p.nom_boutique);
-    if(override){
-      p.categorie_id = override.categorie_id;
-      p.sous_categorie_id = override.sous_categorie_id;
-    }
-    // Le déplacement individuel de l'article prime sur le filtre boutique.
+    // Le rayon affiché est celui choisi par le vendeur à la publication ;
+    // seul le déplacement individuel (espace gestion) peut le changer côté site.
     const deplacementLocal = mappingsArticles[String(p.id)];
     if(deplacementLocal){
       p.categorie_id = deplacementLocal.categorie_id;
@@ -4442,15 +4428,10 @@ async function deplacerTouteLaBoutique(nomB){
   const scObj = catObj ? catObj.sousCategories.find(s => s.id === sousCatId) : null;
   const nomRayon = scObj ? `${catObj.nom} › ${scObj.nom}` : valeurChoisie;
 
-  // 1. Enregistrer immédiatement dans le site (localStorage)
-  // Le déplacement global est le choix le plus récent : il absorbe les
+  // 1. Le déplacement global est le choix le plus récent : il absorbe les
   // déplacements individuels précédents des articles de cette boutique.
+  // (La cible est Supabase, à l'étape 4 — plus de couche locale boutique.)
   supprimerMappingsArticlesPourBoutique(nomB.trim());
-  try {
-    const locaux = JSON.parse(localStorage.getItem("prime_mappings_boutiques") || "{}");
-    locaux[nomB.trim()] = { categorie_id: catId, sous_categorie_id: sousCatId };
-    localStorage.setItem("prime_mappings_boutiques", JSON.stringify(locaux));
-  } catch(e){}
 
   // 2. Mettre à jour immédiatement les articles en mémoire
   const tous = articlesUniques();
