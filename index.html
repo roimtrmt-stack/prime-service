@@ -1638,9 +1638,9 @@ window.addEventListener('orientationchange', function() {
       <h2>Merci pour votre commande !</h2>
       <p id="texteMerci">Votre colis est en cours d'envoi et arrivera très bientôt chez vous.</p>
       <div class="bloc-paiement">
-        <p class="label-paiement">💳 Paiement à effectuer au numéro</p>
+        <p class="label-paiement">💳 Paiement de la commission du site (300 FCFA)</p>
         <p class="numero-paiement" id="numeroPaiementAffiche">94 13 44 08</p>
-        <p class="sous-texte-paiement" id="modePaiementAffiche">Orange Money ou Wave</p>
+        <p class="sous-texte-paiement" id="modePaiementAffiche">À envoyer par Orange Money — Votre contribution aide au développement du service</p>
       </div>
 
       <button id="btnRetourMerci" class="btn-principal" onclick="afficherAccueil()">Retour à l'accueil</button>
@@ -3625,7 +3625,7 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
   const numeroPaiementBrut = CONFIG.NUMERO_PAIEMENT.replace(/\D/g, "");
   const numero = numeroPaiementBrut.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
   document.getElementById("numeroPaiementAffiche").textContent = numero;
-  document.getElementById("modePaiementAffiche").textContent = "Orange Money";
+  document.getElementById("modePaiementAffiche").textContent = "À envoyer par Orange Money — Votre contribution aide au développement du service";
 
   // Le bouton Retour est désactivé pendant le délai de lecture client.
   const btnRetourAccueil = document.querySelector('#vue-merci .btn-principal');
