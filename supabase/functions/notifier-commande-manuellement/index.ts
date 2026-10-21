@@ -118,7 +118,8 @@ Deno.serve(async (req: Request) => {
       const phone = boutiquePhone(item.telephone_boutique);
       if (!phone) continue;
       const quantity = Math.max(1, Math.min(99, Math.round(amount(item.quantite) || 1)));
-      const netPerItem = Math.max(0, amount(item.prix) - amount(item.commission));
+      // Le client paie ce montant directement sur le numéro Orange Money de la boutique.
+      const netPerItem = Math.max(0, amount(item.prix));
       const shop = grouped.get(phone) || {
         phone,
         name: text(item.nom_boutique, 120) || "Boutique",
@@ -150,7 +151,7 @@ Deno.serve(async (req: Request) => {
         `Adresse boutique : ${shop.address}`,
         "Articles à préparer :",
         ...shop.items.map((item) => `• ${item.name} x${item.quantity}`),
-        `Montant NET à recevoir : ${Math.round(shop.net).toLocaleString("fr-FR")} FCFA`,
+        `Montant à recevoir du client : ${Math.round(shop.net).toLocaleString("fr-FR")} FCFA (Orange Money vers votre numéro)`,
         `Client : ${text(command.nom_client, 60) || "—"} — ${text(command.telephone_client, 24) || "—"}`,
         `Quartier de livraison : ${text(command.quartier_client, 160) || "Non renseigné"}`,
         `Précision de livraison : ${text(command.precision_livraison, 300) || "Aucune précision fournie"}`,
@@ -174,7 +175,6 @@ Deno.serve(async (req: Request) => {
     if (insertError) throw new Error("File de notification impossible");
 
     await startRetryWorker();
-    console.log("[manual-notification] file créée", JSON.stringify({ commandeId: command.id, boutiques: rows.length }));
     return jsonResponse(req, { success: true, queued: rows.length, mode: "relances-push" }, 201);
   } catch (error) {
     console.error("[manual-notification] erreur", error instanceof Error ? error.message : error);

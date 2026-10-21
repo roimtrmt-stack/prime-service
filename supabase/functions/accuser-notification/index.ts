@@ -76,16 +76,18 @@ async function loadDetails(
     return (boutiquePhone && itemPhone === boutiquePhone) || (!itemPhone && itemName === boutiqueName);
   });
 
-  let totalNet = 0;
+  // Le client paie ce montant DIRECTEMENT sur le numéro Orange Money de la boutique
+  // (articles, commission incluse) — pas de part en espèces à recalculer.
+  let montantTotalBoutique = 0;
   const articles = matchingArticles.map((article) => {
     const item = article as Record<string, unknown>;
     const quantity = Math.max(1, Math.min(99, Math.floor(numberOrZero(item.quantite))));
-    const net = Math.max(0, numberOrZero(item.prix) - numberOrZero(item.commission));
-    totalNet += net * quantity;
+    const montant = Math.max(0, numberOrZero(item.prix));
+    montantTotalBoutique += montant * quantity;
     return {
       nom: safeText(item.nom, 160) || "Article",
       quantite: quantity,
-      montant_net: Math.round(net * quantity),
+      montant_client: Math.round(montant * quantity),
       image_url: validImage(item.image_url),
     };
   });
@@ -104,7 +106,7 @@ async function loadDetails(
     precision_livraison: safeText(command.precision_livraison, 300) || "Aucune précision fournie",
     lat_client: numberOrZero(command.lat_client) || null,
     lng_client: numberOrZero(command.lng_client) || null,
-    montant_net_total: Math.round(totalNet),
+    montant_boutique_total: Math.round(montantTotalBoutique),
     articles,
     created_at: command.created_at,
   };

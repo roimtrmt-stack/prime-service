@@ -322,6 +322,5 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  console.log("[boutiquier-retries]", JSON.stringify({ now, processed: results.length, results }));
   return jsonResponse(req, { processed: results.length, results });
 })

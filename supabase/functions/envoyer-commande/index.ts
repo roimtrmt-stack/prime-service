@@ -16,6 +16,19 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 const SITE_ORIGIN = "https://roimtrmt-stack.github.io/prime-service";
 const ORANGE_PAYMENT_NUMBER = (Deno.env.get("ORANGE_PAYMENT_NUMBER") || "94134408").replace(/\D/g, "").slice(-8);
+// 🧾 Commission par paliers : 8 % du prix de base, arrondie au multiple de 100
+// supérieur, minimum 300 FCFA. Exemples : base 2000 → 300, 5000 → 400, 10000 → 800.
+// Même règle que côté navigateur (index.html / inscription.html) :
+// à modifier simultanément des deux côtés.
+const COMMISSION_MIN_FCFA = 300;
+const TAUX_COMMISSION_PCT = 8;
+function calculerCommissionPrimeService(prixBase: number): number {
+  const base = Math.max(0, Math.round(Number(prixBase) || 0));
+  if (base <= 0) return 0;
+  if (base < COMMISSION_MIN_FCFA) return COMMISSION_MIN_FCFA;
+  const multipleDe100 = Math.ceil((base * TAUX_COMMISSION_PCT) / 10000) * 100;
+  return Math.round(Math.min(Math.max(COMMISSION_MIN_FCFA, multipleDe100), base) / 100) * 100;
+}
 const rateState = new Map<string, { started: number; count: number }>();
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_MAX_REQUESTS = 20;
@@ -265,7 +278,7 @@ function orangeCommandMessage(
   const prefix = [
     `Prime Service commande #${commandId.slice(-8)}`,
     `Articles: ${articleSummary}`,
-    `Net boutique: ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+    `À recevoir du client: ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
     `Client: ${clip(clientName, 38)} ${clip(clientPhone, 18)}`,
     `Quartier: ${clip(quartier, 70)}`,
     `Précision: ${clip(precision || "Aucune", 70)}`,
@@ -315,7 +328,9 @@ function groupByShop(items: CanonicalItem[]): Shop[] {
     };
     existing.articles.push(`${item.nom} x${item.quantite}`);
     existing.items.push(item);
-    existing.amount += Math.max(0, item.prix - item.commission) * item.quantite;
+    // Paiement direct à la boutique : le client envoie le prix affiché (articles,
+    // commission incluse) sur le numéro Orange Money de la boutique concernée.
+    existing.amount += item.prix * item.quantite;
     existing.commission += item.commission * item.quantite;
     shops.set(key, existing);
   }
@@ -347,7 +362,7 @@ async function queueBoutiqueNotifications(
         `Adresse boutique : ${clip(shop.adresse || "Non renseignée", 240)}`,
         "Articles à préparer :",
         ...shop.items.map((item) => `• ${clip(item.nom, 100)} x${item.quantite}`),
-        `Montant NET à recevoir : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+        `Montant à recevoir du client : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA (Orange Money vers votre numéro)`,
         `Client : ${clip(clientName, 60)} — ${clip(clientPhone, 24)}`,
         `Quartier de livraison : ${clip(quartier, 160)}`,
         `Précision de livraison : ${clip(precision || "Aucune précision fournie", 240)}`,
@@ -400,6 +415,48 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
   }
 }
 
+// Totaux de commission à collecter cette semaine, par boutique (nom|téléphone).
+// Semaine civile : du lundi 00:00 UTC (Bamako est à UTC+0). La commande courante
+// est déjà insérée dans `commandes` avant cet appel, donc le total l'inclut.
+async function commissionsParBoutiqueCetteSemaine(
+  supabaseAdmin: ReturnType<typeof createClient>,
+): Promise<Map<string, number>> {
+  const maintenant = new Date();
+  const jour = (maintenant.getUTCDay() + 6) % 7; // 0 = lundi
+  const lundi = new Date(Date.UTC(
+    maintenant.getUTCFullYear(),
+    maintenant.getUTCMonth(),
+    maintenant.getUTCDate() - jour,
+    0, 0, 0, 0,
+  ));
+  const map = new Map<string, number>();
+  const TAILLE_LOT = 3_000;
+  for (let depart = 0; ; depart += TAILLE_LOT) {
+    const { data, error } = await supabaseAdmin
+      .from("commandes")
+      .select("articles")
+      .gte("created_at", lundi.toISOString())
+      .range(depart, depart + TAILLE_LOT - 1);
+    if (error) throw new Error(`lecture commandes impossible : ${error.message}`);
+    if (!data || data.length === 0) break;
+    for (const ligne of data) {
+      const articles = Array.isArray(ligne?.articles) ? ligne.articles : [];
+      for (const article of articles) {
+        if (!article || typeof article !== "object") continue;
+        const item = article as Record<string, unknown>;
+        const nom = text(item.nom_boutique, 120) || "Boutique";
+        const phone = normalizeMaliPhone(text(item.telephone_boutique || item.telephone, 40));
+        const cle = `${nom}|${phone || ""}`;
+        const commission = Math.max(0, numberOrNull(item.commission) ?? 0);
+        const quantite = Math.max(1, Math.round(numberOrNull(item.quantite) || 1));
+        map.set(cle, (map.get(cle) ?? 0) + commission * quantite);
+      }
+    }
+    if (data.length < TAILLE_LOT) break;
+  }
+  return map;
+}
+
 async function notifyInBackground(input: {
   commandId: string;
   createdAt: string;
@@ -407,39 +464,55 @@ async function notifyInBackground(input: {
   tel: string;
   quartier: string;
   precision: string | null;
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
   total: number;
   items: CanonicalItem[];
+  shops: Shop[];
 }): Promise<void> {
   try {
-    const address = await reverseGeocode(input.lat, input.lng);
-    const mapUrl = googleMapsUrl(input.lat, input.lng);
-    const shops = groupByShop(input.items);
+    const shops = input.shops;
+    // GPS facultatif : sans coordonnées, l'adresse du client est le quartier saisi.
+    const positionGPSValide = input.lat !== null && input.lng !== null;
+    const address = positionGPSValide ? await reverseGeocode(input.lat, input.lng) : "";
+    const mapUrl = positionGPSValide ? googleMapsUrl(input.lat, input.lng) : "";
     const activationByPhone = await queueBoutiqueNotifications(input.commandId, shops, input.nom, input.tel, input.quartier, input.precision, mapUrl);
     const commissionTotal = input.items.reduce(
       (sum, item) => sum + item.commission * item.quantite,
       0,
     );
+    let hebdo: Map<string, number> | null = null;
+    let commissionHebdoTotale = commissionTotal;
+    try {
+      hebdo = await commissionsParBoutiqueCetteSemaine(createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY));
+      commissionHebdoTotale = [...hebdo.values()].reduce((somme, valeur) => somme + valeur, 0);
+    } catch (erreurHebdo) {
+      console.error("[commission hebdo] totals indisponibles", erreurHebdo instanceof Error ? erreurHebdo.message : erreurHebdo);
+    }
     const lines = input.items.map((item) => {
       const displayedAmount = item.prix * item.quantite;
-      const shopAmount = Math.max(0, item.prix - item.commission) * item.quantite;
       const commissionAmount = item.commission * item.quantite;
       return [
         `• ${clip(item.nom, 100)} x${item.quantite}`,
         `  Prix affiché client : ${displayedAmount.toLocaleString("fr-FR")} FCFA`,
-        `  À remettre à la boutique : ${shopAmount.toLocaleString("fr-FR")} FCFA`,
-        `  Commission Prime Service : ${commissionAmount.toLocaleString("fr-FR")} FCFA`,
+        `  Commission : ${commissionAmount.toLocaleString("fr-FR")} FCFA`,
       ].join("\n");
     });
     const shopLines = shops.map((shop) => {
       const shopMapUrl = googleMapsUrl(shop.lat, shop.lng);
+      const numeroBoutiqueFormate = shop.phone
+        ? clip(maliPhoneDigits(shop.phone).replace(/(\d{2})(?=\d)/g, "$1 ").trim(), 20)
+        : "non renseigné";
+      const cleBoutique = `${shop.name}|${shop.phone || ""}`;
+      const totalSemaine = Math.round((hebdo?.get(cleBoutique) ?? shop.commission) || 0);
       return [
         `🏪 **${clip(shop.name, 80)}**`,
+        `   Numéro Orange Money boutique : ${numeroBoutiqueFormate}`,
         `   Adresse boutique : ${clip(shop.adresse || "Non renseignée", 240)}`,
         ...(shopMapUrl ? [`   🗺️ **Carte boutique :** ${shopMapUrl}`] : []),
-        `   À remettre à la boutique : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
-        `   Commission à garder : ${Math.round(shop.commission).toLocaleString("fr-FR")} FCFA`,
+        `   💠 Paiement reçu du client (Orange Money vers la boutique) : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+        `   🧾 Commission de cette commande (à collecter auprès du boutiquier) : ${Math.round(shop.commission).toLocaleString("fr-FR")} FCFA`,
+        `   🗓️ Total commission à collecter cette semaine de cette boutique : ${totalSemaine.toLocaleString("fr-FR")} FCFA`,
       ].join("\n");
     });
     const created = new Date(input.createdAt).toLocaleString("fr-FR", {
@@ -451,19 +524,29 @@ async function notifyInBackground(input: {
       `🕒 **Heure :** ${created}`,
       `👤 **Client :** ${clip(input.nom, 120)}`,
       `📞 **Téléphone :** ${clip(input.tel, 40)}`,
-      `📍 **Adresse :** ${address}`,
-      `🗺️ **Carte :** ${mapUrl}`,
+      `📍 **Adresse :** ${address || input.quartier || "Non précisée"}`,
+      `🗺️ **Carte :** ${mapUrl || "Non disponible (GPS facultatif non partagé)"}`,
       "",
       "📦 **Articles et répartition financière propriétaire :**",
       ...lines,
       "",
       ...shopLines,
+      "",
       `💰 **TOTAL CLIENT :** ${input.total.toLocaleString("fr-FR")} FCFA`,
-      `🧾 **COMMISSION TOTALE À GARDER :** ${Math.round(commissionTotal).toLocaleString("fr-FR")} FCFA`,
+      `🧾 **COMMISSION TOTALE DE CETTE COMMANDE (à collecter) :** ${Math.round(commissionTotal).toLocaleString("fr-FR")} FCFA`,
+      `🗓️ **COMMISSION TOTALE À COLLECTER CETTE SEMAINE (toutes boutiques) :** ${Math.round(commissionHebdoTotale).toLocaleString("fr-FR")} FCFA`,
       "",
       "💳 **PAIEMENT CLIENT À RECEVOIR**",
-      `Le client doit envoyer **${input.total.toLocaleString("fr-FR")} FCFA** à votre numéro Orange Money : **${ORANGE_PAYMENT_NUMBER.replace(/(\d{2})(?=\d)/g, "$1 ")}**.`,
-      "Composer #144#, choisir Transfert/Envoyer, saisir le numéro et le montant, vérifier le bénéficiaire, puis valider avec le code secret sur le téléphone.",
+      `Le client paie CHAQUE boutique directement sur son numéro Orange Money (aucune commission n'est payée par le client) :`,
+      ...shops.map((shop) => {
+        const numeroFormate = shop.phone
+          ? maliPhoneDigits(shop.phone).replace(/(\d{2})(?=\d)/g, "$1 ").trim()
+          : "non renseigné";
+        return `• ${clip(shop.name, 80)} : le client envoie **${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA** au numéro **${numeroFormate}**.`;
+      }),
+      "Composer #144#, choisir Transfert/Envoyer, saisir le numéro de la boutique et le montant, vérifier le bénéficiaire, puis valider avec le code secret sur le téléphone.",
+      "À la fin de la semaine, recoltez la commission auprès de chaque boutiquier (totaux ci-dessus), puis remettez à chaque boutique son propre paiement client.",
+      `Pour recevoir la commission collectée, votre numéro Orange Money reste : **${ORANGE_PAYMENT_NUMBER.replace(/(\d{2})(?=\d)/g, "$1 ")}**.`,
       "Ne jamais communiquer ni enregistrer le code secret. Vérifier le SMS ou le solde avant de considérer le paiement comme confirmé.",
     ].join("\n"), 1_950);
 
@@ -489,7 +572,7 @@ async function notifyInBackground(input: {
       title: `${clip(attachment.item.nom, 180)} x${attachment.item.quantite}`,
       description: [
         `Prix affiché : ${(attachment.item.prix * attachment.item.quantite).toLocaleString("fr-FR")} FCFA`,
-        `À remettre : ${(Math.max(0, attachment.item.prix - attachment.item.commission) * attachment.item.quantite).toLocaleString("fr-FR")} FCFA`,
+        `Prix payé par le client (Orange Money vers la boutique) : ${(attachment.item.prix * attachment.item.quantite).toLocaleString("fr-FR")} FCFA`,
         `Commission : ${(attachment.item.commission * attachment.item.quantite).toLocaleString("fr-FR")} FCFA`,
       ].join("\n"),
       image: { url: `attachment://${attachment.filename}` },
@@ -531,7 +614,7 @@ async function notifyInBackground(input: {
         `Boutique : ${clip(shop.name, 100)}`,
         "Articles à préparer :",
         ...shop.items.map((item) => `• ${clip(item.nom, 100)} x${item.quantite}`),
-        `Montant NET à recevoir : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+        `Montant à recevoir du client : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA (Orange Money vers votre numéro)`,
         `Client : ${clip(input.nom, 60)} — ${clip(input.tel, 24)}`,
         `Quartier de livraison : ${clip(input.quartier, 160)}`,
         `Précision de livraison : ${clip(input.precision || "Aucune précision fournie", 240)}`,
@@ -551,11 +634,6 @@ async function notifyInBackground(input: {
       );
       const sms = await sendBoutiqueSms(shop.phone, boutiqueText, orangeMessage);
       return { target: shop.name, sms };
-    }));
-    console.log("[notifications] commande traitée", JSON.stringify({
-      commandId: input.commandId,
-      owner: ownerResult,
-      shops: shopResults,
     }));
   } catch (error) {
     console.error("Erreur notifications commande", input.commandId, error);
@@ -588,11 +666,19 @@ Deno.serve(async (req: Request) => {
     const quartier = text(body?.quartier_client, 160);
     const precision = text(body?.precision_livraison, 300) || null;
     const paiement = text(body?.paiement, 40) || "À la livraison";
-    const lat = numberOrNull(body?.lat);
-    const lng = numberOrNull(body?.lng);
+    // GPS facultatif : des coordonnées absentes (null) sont acceptées ;
+    // des coordonnées fournies doivent rester valides.
+    const latBrut = numberOrNull(body?.lat);
+    const lngBrut = numberOrNull(body?.lng);
+    const positionFournie = latBrut !== null && lngBrut !== null;
+    const lat = positionFournie ? latBrut : null;
+    const lng = positionFournie ? lngBrut : null;
+    if (positionFournie && (Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0))) {
+      return jsonResponse(req, { error: "Position GPS invalide" }, 400);
+    }
     const declaredTotal = numberOrNull(body?.totalCommande);
     const rawPanier = Array.isArray(body?.panier) ? body.panier as RawItem[] : [];
-    if (!nom || !tel || !quartier || !Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0) || lat < -90 || lat > 90 || lng < -180 || lng > 180 ||
+    if (!nom || !tel || !quartier ||
       declaredTotal === null || declaredTotal <= 0 || rawPanier.length < 1 || rawPanier.length > MAX_PANIER_ITEMS) {
       return jsonResponse(req, { error: "Données de commande invalides" }, 400);
     }
@@ -629,12 +715,28 @@ Deno.serve(async (req: Request) => {
       if (!product || product.masque || price === null) {
         return jsonResponse(req, { error: "Article indisponible" }, 409);
       }
-      const commission = Math.max(0, numberOrNull(product.commission) ?? 0);
-      canonicalTotal += price * item.quantite;
+      // Recalcul de la commission par paliers à partir du prix de base :
+      // base = prix stocké − commission stockée, puis commission recalculée.
+      // Si elle diffère (article hérité non migré), le catalogue est remis à
+      // niveau et la commande est refusée jusqu'au prochain chargement.
+      const commissionStockee = Math.max(0, numberOrNull(product.commission) ?? 0);
+      const prixBase = Math.max(0, Math.round(price - commissionStockee));
+      const commission = Math.max(0, calculerCommissionPrimeService(prixBase));
+      const prixAffiche = prixBase + commission;
+      if (prixAffiche !== price || commission !== commissionStockee) {
+        const { error: erreurMajCatalogue } = await supabaseAdmin
+          .from("produits")
+          .update({ commission, prix: prixAffiche })
+          .eq("id", product.id);
+        if (erreurMajCatalogue) {
+          console.error("[catalogue] mise à jour commission impossible", product.id, erreurMajCatalogue.message);
+        }
+      }
+      canonicalTotal += prixAffiche * item.quantite;
       canonicalItems.push({
         id: item.id,
         nom: text(product.nom, 160) || "Article",
-        prix: price,
+        prix: prixAffiche,
         quantite: item.quantite,
         image_url: validStorageImage(product.image_url) ? product.image_url : null,
         adresse: text(product.adresse, 240) || null,
@@ -646,7 +748,7 @@ Deno.serve(async (req: Request) => {
       });
     }
     if (Math.abs(canonicalTotal - declaredTotal) > 1) {
-      return jsonResponse(req, { error: "Total de commande invalide" }, 400);
+      return jsonResponse(req, { error: "Total de commande invalide — le catalogue a été mis à jour, rechargez la page et réessayez" }, 400);
     }
 
     let commandId = "";
@@ -675,6 +777,21 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(req, { error: "Commande impossible à enregistrer" }, 500);
     }
 
+    
+    const shops = groupByShop(canonicalItems);
+    const commissionTotale = Math.round(
+      canonicalItems.reduce((somme, item) => somme + item.commission * item.quantite, 0),
+    );
+    // Paiement direct à la boutique : le client envoie le prix affiché (articles,
+    // commission incluse) au numéro Orange Money de chaque boutique concernée.
+    const boutiquesPayees = shops.map((shop) => ({
+      nom: shop.name,
+      telephone: shop.phone ? maliPhoneDigits(shop.phone) : null,
+      montant: Math.round(shop.amount),
+      commission: Math.round(shop.commission),
+      articles: shop.articles.slice(0, 30),
+    }));
+
     runInBackground(notifyInBackground({
       commandId,
       createdAt,
@@ -686,12 +803,15 @@ Deno.serve(async (req: Request) => {
       lng,
       total: Math.round(canonicalTotal),
       items: canonicalItems,
+      shops,
     }));
 
     return jsonResponse(req, {
       success: true,
       commandId,
       total: Math.round(canonicalTotal),
+      commission: commissionTotale,
+      boutiques: boutiquesPayees,
       notifications: "background",
     }, 201);
   } catch (error) {

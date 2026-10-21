@@ -1098,8 +1098,22 @@ const CATEGORIES_DISPONIBLES = [
 const CONFIG = {
   SUPABASE_URL: "https://kfxalpvbtbvkncztjwzc.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
-  COMMISSION_FCFA: 300,
+  // 🧾 Commission par paliers : 8 % du prix de base, arrondie au multiple de
+  // 100 supérieur, jamais en dessous de 300 FCFA (le minimum du service).
+  // Exemples : base 2000 → 300 │ base 5000 → 400 │ base 10000 → 800.
+  COMMISSION_MIN_FCFA: 300,
+  TAUX_COMMISSION_PCT: 8,
 };
+
+// Calcul de la commission par paliers — même règle que côté serveur
+// (supabase/functions/envoyer-commande). À modifier simultanément des deux côtés.
+function calculerCommissionPrimeService(prixBase){
+  const base = Math.max(0, Math.round(Number(prixBase) || 0));
+  if(base <= 0) return 0;
+  if(base < CONFIG.COMMISSION_MIN_FCFA) return CONFIG.COMMISSION_MIN_FCFA;
+  const multipleDe100 = Math.ceil((base * CONFIG.TAUX_COMMISSION_PCT) / 10000) * 100;
+  return Math.round(Math.min(Math.max(CONFIG.COMMISSION_MIN_FCFA, multipleDe100), base) / 100) * 100;
+}
 
 let supabaseClient = null;
 
@@ -1662,8 +1676,8 @@ async function traiterEtPublierArticle(articleData, nomBoutiquier, nomBoutique, 
 
   const nouvelArticle = {
     nom: (articleData.nomArticle && articleData.nomArticle.trim()) ? articleData.nomArticle.trim() : nomFinal,
-    prix: Number(articleData.prixSaisi) + CONFIG.COMMISSION_FCFA,
-    commission: CONFIG.COMMISSION_FCFA,
+    prix: Number(articleData.prixSaisi) + calculerCommissionPrimeService(Number(articleData.prixSaisi)),
+    commission: calculerCommissionPrimeService(Number(articleData.prixSaisi)),
     stock: 999,
     image_url: imageUrl,
     nom_boutiquier: nomBoutiquier,
@@ -1845,7 +1859,7 @@ async function envoyerSoumission(event){
           const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
           const nomArticle = champNom ? champNom.value.trim() : "Article";
           const prixSaisi = Number(champPrix?.value) || 0;
-          const prixFinal = prixSaisi + CONFIG.COMMISSION_FCFA;
+          const prixFinal = prixSaisi + calculerCommissionPrimeService(prixSaisi);
 
           discordTexte += `\n▪️ **${resultat.nom || nomArticle}** — ${prixFinal.toLocaleString("fr-FR")} FCFA — ${actionLabel}`;
 

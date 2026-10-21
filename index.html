@@ -1611,11 +1611,11 @@ window.addEventListener('orientationchange', function() {
         <option value="Orange Money">Orange Money</option>
       </select>
 
-      <label class="label">Votre position (obligatoire)</label>
+      <label class="label">Votre position GPS (facultative)</label>
       <button type="button" class="btn-secondaire" onclick="recupererPosition()">
-        📍 Utiliser ma position actuelle
+        📍 Utiliser ma position actuelle (facultatif)
       </button>
-      <p id="statutPosition" class="statut-position">Position non récupérée</p>
+      <p id="statutPosition" class="statut-position">Position non récupérée — facultative.</p>
       <input type="hidden" id="latClient">
       <input type="hidden" id="lngClient">
 
@@ -1637,10 +1637,9 @@ window.addEventListener('orientationchange', function() {
     <div class="carte-merci">
       <h2>Merci pour votre commande !</h2>
       <p id="texteMerci">Votre colis est en cours d'envoi et arrivera très bientôt chez vous.</p>
-      <div class="bloc-paiement">
-        <p class="label-paiement">💳 Paiement de la commission du site (300 FCFA)</p>
-        <p class="numero-paiement" id="numeroPaiementAffiche">94 13 44 08</p>
-        <p class="sous-texte-paiement" id="modePaiementAffiche">À envoyer par Orange Money — Votre contribution aide au développement du service</p>
+      <div class="bloc-paiement" id="blocPaiementBoutiques">
+        <p class="label-paiement">💳 Paiement Orange Money — direct à la boutique</p>
+        <p class="sous-texte-paiement" id="modePaiementAffiche">Le montant est envoyé directement au numéro Orange Money de chaque boutique concernée par votre commande.</p>
       </div>
 
       <button id="btnRetourMerci" class="btn-principal" onclick="afficherAccueil()">Retour à l'accueil</button>
@@ -1818,8 +1817,8 @@ window.addEventListener('orientationchange', function() {
       <input type="number" id="prixArticleAdmin" class="champ" placeholder="Ex : 65000" min="1000" step="1" oninput="actualiserPrixFinalAdmin()" required>
       <p id="prixFinalApercuAdmin" style="margin:-8px 0 12px;color:#166534;font-weight:700;">Prix affiché au client : — FCFA</p>
 
-      <label class="label">Commission fixe Prime Service (ajoutée au prix client)</label>
-      <input type="number" id="commissionArticleAdmin" class="champ" value="300" min="300" max="300" readonly required>
+      <label class="label">Commission Prime Service — calculée automatiquement selon le prix de base (8 %, arrondie au multiple de 100, minimum 300 FCFA)</label>
+      <input type="number" id="commissionArticleAdmin" class="champ" min="300" readonly required>
 
       <input type="hidden" id="stockArticleAdmin" value="999">
 
@@ -1884,8 +1883,25 @@ const CONFIG = {
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmeGFscHZidGJ2a25jenRqd3pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNTE2MDgsImV4cCI6MjA5OTcyNzYwOH0.bO1aExLXi1XTCNPMe98h0BFZrOHSM_bII_4WFX5ZPpg",
   NUMERO_PAIEMENT: "94134408",
   EMAIL_ADMIN_AUTORISE: "roimtrmt@gmail.com",
-  COMMISSION_FCFA: 300,
+  // 🧾 Commission par paliers : 8 % du prix de base, arrondie au multiple de
+  // 100 supérieur, jamais en dessous de 300 FCFA (le minimum du service).
+  // Exemples : base 2000 → 300 │ base 5000 → 400 │ base 10000 → 800.
+  // Jamais de montants du type 314/456/324 : uniquement 300, 400, 800…
+  COMMISSION_MIN_FCFA: 300,
+  TAUX_COMMISSION_PCT: 8,
 };
+
+// Calcul de la commission par paliers — même règle que côté serveur
+// (supabase/functions/envoyer-commande). À modifier simultanément des deux côtés.
+function calculerCommissionPrimeService(prixBase){
+  const base = Math.max(0, Math.round(Number(prixBase) || 0));
+  if(base <= 0) return 0;
+  if(base < CONFIG.COMMISSION_MIN_FCFA) return CONFIG.COMMISSION_MIN_FCFA;
+  // 8 % de la base, arrondis au multiple de 100 supérieur (base × 8 / 10000 paliers).
+  const multipleDe100 = Math.ceil((base * CONFIG.TAUX_COMMISSION_PCT) / 10000) * 100;
+  // Jamais plus que le prix de base, jamais en dessous du minimum du service.
+  return Math.round(Math.min(Math.max(CONFIG.COMMISSION_MIN_FCFA, multipleDe100), base) / 100) * 100;
+}
 const NOTIFICATION_LOGO_URL = new URL("./logo-prime-service.png", window.location.href).href;
 
 // Sécurité : tout texte venant d'un boutiquier ou d'un client (nom
@@ -3177,8 +3193,12 @@ async function envoyerCommande(event){
   const quartier = document.getElementById("quartierClient").value.trim();
   const precision = document.getElementById("precisionLivraison").value.trim();
   const paiement = document.getElementById("paiementClient").value;
-  const lat = Number(document.getElementById("latClient").value);
-  const lng = Number(document.getElementById("lngClient").value);
+  // GPS facultatif : on n'envoie des coordonnées que si le client les a partagées.
+  const latBrut = document.getElementById("latClient").value.trim();
+  const lngBrut = document.getElementById("lngClient").value.trim();
+  const positionFournie = latBrut !== "" && lngBrut !== "";
+  const lat = positionFournie ? Number(latBrut) : null;
+  const lng = positionFournie ? Number(lngBrut) : null;
 
   if(!/^[0-9+ ]{8,15}$/.test(tel)){
     statutEnvoi.style.color = "#dc2626";
@@ -3190,9 +3210,9 @@ async function envoyerCommande(event){
     statutEnvoi.textContent = "⚠️ Indiquez votre quartier pour la livraison.";
     return false;
   }
-  if(!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)){
+  if(positionFournie && (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0))){
     statutEnvoi.style.color = "#dc2626";
-    statutEnvoi.textContent = "⚠️ Merci de récupérer votre position avant de valider.";
+    statutEnvoi.textContent = "⚠️ Position invalide. Réessayez le bouton GPS ou laissez-le vide (facultatif).";
     return false;
   }
   if(panier.length === 0){
@@ -3263,14 +3283,14 @@ async function envoyerCommande(event){
     // fixée par article en base, 300 FCFA à la création) multipliée par sa quantité.
     // Priorité à la valeur du serveur si elle existe un jour (donnees.commission),
     // sinon calcul côté client à partir du panier avant qu'il ne soit vidé juste après.
-    const commissionCalculeeClient = panier.reduce((somme, article) => {
-      const commissionUnitaire = Number(article.commission) || CONFIG.COMMISSION_FCFA || 0;
-      return somme + commissionUnitaire * (Number(article.quantite) || 1);
-    }, 0);
-    const commissionTotale = Number(donnees.commission) || commissionCalculeeClient;
+    // Répartition par boutique : servie par les données recalculées du serveur,
+    // avec repli sur le panier local si le serveur n'a pas renvoyé le détail.
+    const boutiquesServeur = Array.isArray(donnees.boutiques) && donnees.boutiques.length > 0
+      ? donnees.boutiques
+      : boutiquesDepuisPanier(articlesPourConfirmation);
     panier = [];
     mettreAJourCompteur();
-    afficherPageMerci(paiement, Number(donnees.total) || totalCommande, false, lat, lng, articlesPourConfirmation, donnees.commandId || "", null, commissionTotale);
+    afficherPageMerci(paiement, Number(donnees.total) || totalCommande, false, lat, lng, articlesPourConfirmation, donnees.commandId || "", null, boutiquesServeur);
   } catch(erreur){
     console.error("Erreur enregistrement commande:", erreur);
     statutEnvoi.style.color = "#dc2626";
@@ -3537,7 +3557,7 @@ function restaurerPageMerciClient(){
     Array.isArray(p.articlesClient) ? p.articlesClient : [],
     p.commandId || "",
     Number(verrou.expireAt),
-    Number(p.commission) || 0
+    Array.isArray(p.boutiques) && p.boutiques.length > 0 ? p.boutiques : boutiquesDepuisPanier(Array.isArray(p.articlesClient) ? p.articlesClient : [])
   );
 }
 
@@ -3578,15 +3598,42 @@ function copierNumeroPaiementAutomatique(numero){
   } catch(e){}
 }
 
-function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClient = null, lngClient = null, articlesClient = [], commandId = "", verrouExpireAt = null, commissionTotale = 0){
+// Regroupe les articles du panier par boutique pour afficher un paiement
+// Orange Money distinct par boutique (nom, numéro, montant, articles).
+function boutiquesDepuisPanier(articles){
+  const liste = Array.isArray(articles) ? articles : [];
+  const map = new Map();
+  liste.forEach((article) => {
+    const nom = (String((article && (article.nom_boutique || article.boutique)) || "Boutique")).trim().slice(0, 120) || "Boutique";
+    const cle = nom.toLocaleLowerCase("fr-FR");
+    const telBrut = String((article && (article.telephone_boutique || article.telephone)) || "")
+      .replace(/\D/g, "").replace(/^223/, "").slice(-8);
+    const existant = map.get(cle) || { nom, telephone: "", montant: 0, articles: [] };
+    if(telBrut.length === 8 && !existant.telephone) existant.telephone = telBrut;
+    existant.montant += Math.max(0, Number(article && article.prix) || 0) * Math.max(1, Number(article && article.quantite) || 1);
+    existant.articles.push(`${String((article && article.nom) || "Article").slice(0, 120)} x${Math.max(1, Number(article && article.quantite) || 1)}`);
+    map.set(cle, existant);
+  });
+  return [...map.values()].slice(0, 30);
+}
+
+function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClient = null, lngClient = null, articlesClient = [], commandId = "", verrouExpireAt = null, boutiques = []){
   const estRestauration = verrouExpireAt !== null && verrouExpireAt !== undefined && Number.isFinite(Number(verrouExpireAt));
   const expireAt = estRestauration ? Number(verrouExpireAt) : Date.now() + DUREE_VERROUILLAGE_CLIENT_MERCI_MS;
   const quartierSaisi = document.getElementById("quartierClient")?.value?.trim() || "";
   const precisionSaisie = document.getElementById("precisionLivraison")?.value?.trim() || "";
+  const boutiquesRegroupees = (Array.isArray(boutiques) && boutiques.length > 0 ? boutiques : boutiquesDepuisPanier(articlesClient))
+    .map((b) => ({
+      nom: (String((b && b.nom) || "Boutique")).slice(0, 120) || "Boutique",
+      telephone: String((b && b.telephone) || "").replace(/\D/g, "").replace(/^223/, "").slice(-8),
+      montant: Math.max(0, Number(b && b.montant) || 0),
+      articles: Array.isArray(b && b.articles) ? b.articles.map(String).slice(0, 30) : [],
+    }))
+    .slice(0, 30);
   sauvegarderVerrouillageClientMerci(expireAt, {
     paiement,
     montant: Number(montant) || 0,
-    commission: Number(commissionTotale) || 0,
+    boutiques: boutiquesRegroupees,
     envoyeeHorsLigne: Boolean(envoyeeHorsLigne),
     latClient,
     lngClient,
@@ -3608,24 +3655,65 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
   if(btnPanier) { btnPanier.style.pointerEvents = 'auto'; btnPanier.style.opacity = '1'; }
   if(btnOptions) { btnOptions.style.pointerEvents = 'auto'; btnOptions.style.opacity = '1'; }
 
-  // --- ANCIENNE PARTIE (Affichage du prix et du numéro) ---
+  // --- Paiement direct à la boutique : un envoi Orange Money par boutique ---
+  // Le client ne paie JAMAIS la commission : le montant des articles part
+  // directement sur le numéro Orange Money de chaque boutique concernée.
+  // La commission reste un accord interne collecté par le propriétaire.
   const montantReel = Number(montant) || 0;
   const montantAffiche = montantReel.toLocaleString("fr-FR") + " FCFA";
-  // Nouveau mode de paiement : le client ne règle par Orange Money QUE la commission.
-  // La part boutique (le reste) est payée séparément, en espèces à la livraison.
-  const commissionReelle = Math.max(0, Math.min(Number(commissionTotale) || 0, montantReel));
-  const commissionAffichee = commissionReelle.toLocaleString("fr-FR") + " FCFA";
-  const montantBoutiqueReel = Math.max(0, montantReel - commissionReelle);
-  const montantBoutiqueAffiche = montantBoutiqueReel.toLocaleString("fr-FR") + " FCFA";
 
   document.getElementById("texteMerci").textContent = envoyeeHorsLigne
     ? "📡 Connectez-vous à internet pour valider votre commande. Elle est déjà enregistrée et sera envoyée automatiquement dès que vous serez connecté."
-    : "Votre colis est en cours d'envoi et arrivera très bientôt chez vous.";
+    : "Votre commande est enregistrée. Envoyez le montant des articles au numéro Orange Money de la boutique concernée ci-dessous, puis votre colis sera livré très bientôt.";
 
-  const numeroPaiementBrut = CONFIG.NUMERO_PAIEMENT.replace(/\D/g, "");
-  const numero = numeroPaiementBrut.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
-  document.getElementById("numeroPaiementAffiche").textContent = numero;
-  document.getElementById("modePaiementAffiche").textContent = "À envoyer par Orange Money — Votre contribution aide au développement du service";
+  const conteneurPaiement = document.getElementById("blocPaiementBoutiques");
+  if(conteneurPaiement){
+    const nombreBoutiques = boutiquesRegroupees.length;
+    const intro = nombreBoutiques > 1
+      ? `Votre commande est préparée par ${nombreBoutiques} boutiques : envoyez le montant de chacune au numéro Orange Money de la boutique concernée.`
+      : "Envoyez le montant des articles au numéro Orange Money de la boutique qui prépare votre commande :";
+    const cartes = boutiquesRegroupees.map((boutique) => {
+      const nom = echapperHtml(boutique.nom || "Boutique");
+      const montantBoutique = Math.round(boutique.montant).toLocaleString("fr-FR") + " FCFA";
+      if(!boutique.telephone){
+        return `
+          <div style="border:1px solid #e5e7eb;border-radius:14px;padding:12px;margin:10px 0;background:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.05);line-height:1.45;">
+            <div style="font-weight:800;font-size:14px;color:#1f2937;">🏪 ${nom}</div>
+            <div style="font-size:12.5px;color:#4b5563;margin-top:4px;line-height:1.5;">
+              Montant à régler auprès de cette boutique : <strong style="color:#9a3412;">${montantBoutique}</strong><br>
+              Numéro Orange Money non précisé : payez ce montant directement au boutiquier (Orange Money ou espèces selon son accord).
+            </div>
+          </div>`;
+      }
+      const numeroBrut = boutique.telephone;
+      const numeroFormate = numeroBrut.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
+      // Code officiel Orange Mali (transfert national, source orangemali.com) :
+      // #144#1*1*Numero*Montant*1*CodeSecret# puis OK — tout est pré-rempli,
+      // le client ajoute uniquement son code secret puis #.
+      const codeUssd = "#144#1*1*" + numeroBrut + "*" + Math.round(boutique.montant) + "*1*";
+      const hrefUssd = "tel:" + codeUssd.replace(/#/g, "%23");
+      const recapArticles = boutique.articles.join(", ");
+      return `
+        <div style="border:1px solid #e5e7eb;border-radius:14px;padding:12px;margin:10px 0;background:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.05);line-height:1.45;">
+          <div style="font-weight:800;font-size:14px;color:#1f2937;">🏪 ${nom}</div>
+          <div style="font-size:12.5px;color:#4b5563;margin-top:2px;">Montant à envoyer : <strong style="color:#166534;">${montantBoutique}</strong></div>
+          <div style="margin:6px 0 8px;">
+            <span style="font-size:12px;color:#64748b;">Numéro Orange Money :</span>
+            <span style="font-size:17px;font-weight:800;color:#2563eb;letter-spacing:1px;">${numeroFormate}</span>
+          </div>
+          <a href="${hrefUssd}" onclick="copierNumeroPaiementAutomatique('${numeroBrut}')" style="display:block;margin:4px 0;padding:14px 12px;border-radius:14px;background:linear-gradient(135deg, #ff7900 0%, #e05e00 100%);color:#fff;text-align:center;text-decoration:none;box-shadow:0 6px 18px rgba(224,94,0,.35);cursor:pointer;">
+            <div style="font-size:12.5px;font-weight:600;opacity:0.95;text-transform:uppercase;letter-spacing:0.5px;">⚡ Lancer l'envoi Orange Money</div>
+            <div style="font:800 18px/1.4 system-ui,sans-serif;margin-top:3px;">Payer ${montantBoutique}</div>
+            <div style="font-size:11.5px;opacity:0.9;margin-top:2px;">(Numéro ${numeroBrut} copié dans le presse-papiers)</div>
+          </a>
+          ${recapArticles ? `<div style="font-size:11px;color:#64748b;line-height:1.4;">Articles : ${echapperHtml(recapArticles.slice(0, 160))}${recapArticles.length > 160 ? "…" : ""}</div>` : ""}
+        </div>`;
+    }).join("");
+    conteneurPaiement.innerHTML =
+      `<p class="label-paiement">💳 Paiement Orange Money — direct à la boutique</p>
+       <p class="sous-texte-paiement" id="modePaiementAffiche">${intro}</p>
+       ${cartes}`;
+  }
 
   // Le bouton Retour est désactivé pendant le délai de lecture client.
   const btnRetourAccueil = document.querySelector('#vue-merci .btn-principal');
@@ -3655,49 +3743,34 @@ function afficherPageMerci(paiement, montant, envoyeeHorsLigne = false, latClien
       line-height: 1.35;
     `;
 
-    const numeroPaiementSaisi = CONFIG.NUMERO_PAIEMENT.replace(/\D/g, "");
-    // Code officiel Orange Mali (transfert national, source orangemali.com) :
-    // #144#1*1*Numero*Montant*1*CodeSecret# puis OK.
-    // Tout est pré-rempli ici : le client ajoute uniquement son code secret puis #.
-    const montantPaiementBrut = Math.round(Math.max(0, Number(commissionReelle) || 0));
-    const codeUssdOrange = montantPaiementBrut > 0
-      ? "#144#1*1*" + numeroPaiementSaisi + "*" + montantPaiementBrut + "*1*"
-      : "#144#";
-    const hrefUssdOrange = "tel:" + codeUssdOrange.replace(/#/g, "%23");
     divInstructions.innerHTML = `
       <div style="margin-bottom:12px;">
-        <div style="font-weight:800;font-size:15px;margin-bottom:6px;color:#1f2937;">💳 Paiement direct par Orange Money</div>
-        <span style="font-size:12.5px;color:#4b5563;">Touchez le bouton ci-dessous pour lancer l'envoi :</span>
-        
-        <a href="${hrefUssdOrange}" onclick="copierNumeroPaiementAutomatique('${numeroPaiementSaisi}')" style="display:block;margin:10px 0;padding:16px 12px;border-radius:14px;background:linear-gradient(135deg, #ff7900 0%, #e05e00 100%);color:#fff;text-align:center;text-decoration:none;box-shadow:0 6px 18px rgba(224,94,0,.35);cursor:pointer;">
-          <div style="font-size:13px;font-weight:600;opacity:0.95;text-transform:uppercase;letter-spacing:0.5px;">⚡ Lancer l'envoi Orange Money</div>
-          <div style="font:800 20px/1.4 system-ui,sans-serif;margin-top:4px;">Appuyer pour envoyer l'argent</div>
-          <div style="font-size:12px;opacity:0.9;margin-top:2px;">(Numéro ${numeroPaiementSaisi} copié dans le presse-papiers)</div>
-        </a>
+        <div style="font-weight:800;font-size:15px;margin-bottom:6px;color:#1f2937;">💳 Comment payer (3 gestes, moins d'une minute)</div>
+        <span style="font-size:12.5px;color:#4b5563;">Pour chaque boutique de votre commande, utilisez son bouton orange ci-dessus :</span>
 
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;color:#334155;font-size:12.5px;line-height:1.5;">
-          <strong>Ce qu'il vous reste à faire (3 gestes, moins d'une minute) :</strong>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;color:#334155;font-size:12.5px;line-height:1.5;margin-top:8px;">
           <ol style="margin:6px 0 0;padding-left:20px;">
-            <li>Touchez le bouton orange : votre numéro <strong>${numeroPaiementSaisi}</strong> est copié automatiquement et le composeur s'ouvre avec le code pré-rempli.</li>
+            <li>Touchez le bouton orange de la boutique concernée : son numéro est copié automatiquement et le composeur s'ouvre avec le code pré-rempli.</li>
             <li>Tapez votre code secret Orange Money puis appuyez sur la grande touche <strong>#</strong> du clavier (en bas à droite, à côté du 0).</li>
-            <li>Appuyez sur <strong>Appeler</strong> ✆. Si Orange redemande le numéro du destinataire : restez appuyé sur l'écran puis touchez <strong>Coller</strong> — votre numéro <strong>${numeroPaiementSaisi}</strong> s'inscrit tout seul.</li>
-            <li>Orange vous demande ensuite le montant : tapez <strong>${commissionAffichee}</strong> (chiffres uniquement), puis validez.</li>
+            <li>Appuyez sur <strong>Appeler</strong> ✆. Si Orange redemande le numéro du destinataire : restez appuyé sur l'écran puis touchez <strong>Coller</strong> — le numéro de la boutique s'inscrit tout seul.</li>
+            <li>Orange vous demande le montant : tapez le <strong>montant indiqué pour cette boutique</strong> (chiffres uniquement), puis validez.</li>
           </ol>
           <div style="margin-top:8px;padding:8px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:11.5px;color:#9a3412;line-height:1.45;">
-            ⚠️ Le code secret se tape dans le composeur <strong>avant</strong> d'appuyer sur Appeler (Orange l'exige). Avant d'appeler, la ligne doit ressembler à : <strong>${codeUssdOrange}</strong> + votre code secret + <strong>#</strong> (le # se tape après le code, il ne peut pas être pré-rempli). Votre numéro <strong>${numeroPaiementSaisi}</strong> est déjà copié : utilisez « Coller » si Orange le redemande.
+            ⚠️ Le code secret se tape dans le composeur <strong>avant</strong> d'appuyer sur Appeler (Orange l'exige). Avant d'appeler, la ligne doit ressembler à : <strong>#144#1*1*Numéro*Montant*1*</strong> + votre code secret + <strong>#</strong> (le # final se tape après le code, il ne peut pas être pré-rempli). Le numéro est déjà copié : utilisez « Coller » si Orange le redemande.
           </div>
           <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e2e8f0;font-size:11.5px;color:#64748b;">
-            Si le composeur ne s'ouvre pas, composez manuellement : <strong>${codeUssdOrange}</strong> + votre code secret + <strong>#</strong>, puis Appeler.
+            Si le composeur ne s'ouvre pas, composez manuellement : <strong>#144#1*1*Numéro*Montant*1*</strong> + votre code secret + <strong>#</strong>, puis Appeler.
           </div>
         </div>
       </div>
 
       <div style="border-top:1px solid #fed7aa;padding-top:10px;margin-top:8px;color:#4b5563;font-size:12px;line-height:1.5;">
         <strong style="color:#9a3412;">🏪 Vous n'avez pas de compte sur votre téléphone ?</strong><br>
-        Rendez-vous dans un <strong>kiosque / point de vente Orange Money</strong> et demandez simplement un transfert de <strong>${commissionAffichee}</strong> vers le numéro <strong>${numeroPaiementSaisi}</strong> pour valider votre commande.
+        Rendez-vous dans un <strong>kiosque / point de vente Orange Money</strong> et demandez simplement un transfert du <strong>montant indiqué</strong> vers le numéro Orange Money de la boutique concernée.
       </div>
-      <div style="margin-top:10px;padding:8px 10px;background:#f3f4f6;border-radius:10px;font-size:11.5px;color:#4b5563;line-height:1.4;">
-        📦 Le montant des articles est à régler séparément, en espèces, directement à la boutique lors de la livraison : à partir de <strong>${montantBoutiqueAffiche}</strong>.
+      <div style="margin-top:10px;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;font-size:11.5px;color:#166534;line-height:1.4;">
+        🧾 Total de votre commande : <strong>${montantAffiche}</strong>${boutiquesRegroupees.length > 1 ? " — puisqu'elle provient de plusieurs boutiques, répétez l'envoi pour chacune ; la somme des montants ci-dessus donne ce total." : " — envoyé directement à la boutique qui prépare les articles."}<br>
+        ♻️ Conservez le SMS de confirmation Orange Money : il constitue votre preuve de paiement.
       </div>
     `;
 
@@ -3853,8 +3926,8 @@ function ouvrirFormulaireArticle(articleAModifier){
     document.getElementById("nomArticleAdmin").value = articleAModifier.nom || "";
     document.getElementById("nomBoutiqueAdmin").value = articleAModifier.nom_boutique || "";
     document.getElementById("telephoneArticleAdmin").value = articleAModifier.telephone || articleAModifier.telephone_boutique || "";
-    document.getElementById("prixArticleAdmin").value = Math.max(0, Number(articleAModifier.prix || 0) - (Number(articleAModifier.commission) || CONFIG.COMMISSION_FCFA));
-    document.getElementById("commissionArticleAdmin").value = articleAModifier.commission ?? 300;
+    document.getElementById("prixArticleAdmin").value = Math.max(0, Number(articleAModifier.prix || 0) - (Number(articleAModifier.commission) || 0));
+    document.getElementById("commissionArticleAdmin").value = articleAModifier.commission ?? "";
     document.getElementById("stockArticleAdmin").value = articleAModifier.stock || 1;
     document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || articleAModifier.adresse_boutique || "";
     document.getElementById("latBoutiqueAdmin").value = articleAModifier.lat || "";
@@ -3880,8 +3953,8 @@ function ouvrirFormulaireArticle(articleAModifier){
 
     document.getElementById("nomBoutiqueAdmin").value = articleAModifier.nom_boutique || "";
     document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || articleAModifier["texte d'adresse"] || "";
-    document.getElementById("prixArticleAdmin").value = Math.max(0, Number(articleAModifier.prix || 0) - (Number(articleAModifier.commission) || CONFIG.COMMISSION_FCFA));
-    document.getElementById("commissionArticleAdmin").value = articleAModifier.commission ?? 300;
+    document.getElementById("prixArticleAdmin").value = Math.max(0, Number(articleAModifier.prix || 0) - (Number(articleAModifier.commission) || 0));
+    document.getElementById("commissionArticleAdmin").value = articleAModifier.commission ?? "";
     document.getElementById("stockArticleAdmin").value = articleAModifier.stock || 1;
     document.getElementById("adresseBoutiqueAdmin").value = articleAModifier.adresse || "";
 if(articleAModifier.lat && articleAModifier.lng){
@@ -3973,9 +4046,14 @@ async function actualiserPrixFinalAdmin(){
   const apercu = document.getElementById("prixFinalApercuAdmin");
   if(!champ || !apercu) return;
   const prixBase = Number(champ.value);
-  apercu.textContent = Number.isFinite(prixBase) && prixBase > 0
-    ? `Prix affiché au client : ${(prixBase + CONFIG.COMMISSION_FCFA).toLocaleString("fr-FR")} FCFA (commission ${CONFIG.COMMISSION_FCFA} FCFA incluse)`
-    : "Prix affiché au client : — FCFA";
+  if(Number.isFinite(prixBase) && prixBase > 0){
+    const commission = calculerCommissionPrimeService(prixBase);
+    document.getElementById("commissionArticleAdmin").value = commission;
+    apercu.textContent = `Prix affiché au client : ${(prixBase + commission).toLocaleString("fr-FR")} FCFA (commission ${commission.toLocaleString("fr-FR")} FCFA incluse)`;
+  } else {
+    document.getElementById("commissionArticleAdmin").value = "";
+    apercu.textContent = "Prix affiché au client : — FCFA";
+  }
 }
 
 async function previsualiserPhoto(event){
@@ -4065,7 +4143,7 @@ async function publierArticle(event){
   const nomBoutique = document.getElementById("nomBoutiqueAdmin").value.trim();
   const telephone = document.getElementById("telephoneArticleAdmin").value.trim();
   const prixBase = parseInt(document.getElementById("prixArticleAdmin").value, 10);
-  const commission = CONFIG.COMMISSION_FCFA;
+  const commission = calculerCommissionPrimeService(prixBase);
   const prix = prixBase + commission;
   const stock = parseInt(document.getElementById("stockArticleAdmin").value, 10);
   const adresse = document.getElementById("adresseBoutiqueAdmin").value.trim();

@@ -238,7 +238,6 @@ if (import.meta.main) {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     try {
       const results = await processPending(supabase);
-      console.log("[embellir-photo-produit]", JSON.stringify({ processed: results.length, results }));
       return jsonResponse(req, { processed: results.length, results });
     } catch (error) {
       console.error("[embellir-photo-produit]", error);

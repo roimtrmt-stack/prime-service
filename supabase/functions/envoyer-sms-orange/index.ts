@@ -118,12 +118,6 @@ Deno.serve(async (req: Request) => {
 
     const results = await sendOrangeSmsBatch(phones, message);
     const accepted = results.filter((result) => result.delivered).length;
-    console.log("[orange-sms-manuel]", JSON.stringify({
-      source: recipients.source,
-      targets: phones.length,
-      accepted,
-      refused: results.length - accepted,
-    }));
     return jsonResponse(req, {
       success: true,
       enabled: true,
