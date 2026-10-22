@@ -15,3 +15,7 @@ turso-migration/prime-service-veille.sql
 *Cle*.txt
 *cle*.txt
 *jeton*.txt
+turso-migration/.jeton-base-turso.txt
+turso-migration/.url-base-turso.txt
+turso-migration/__pycache__/
+turso-migration/node_modules/
