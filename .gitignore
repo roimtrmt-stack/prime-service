@@ -8,3 +8,10 @@ node_modules/
 .DS_Store
 *.log
 .dyad/
+
+# Copie de veille Turso : la base binaire et tout jeton local ne sont pas commités
+turso-migration/prime-service-veille.db
+turso-migration/prime-service-veille.sql
+*Cle*.txt
+*cle*.txt
+*jeton*.txt
