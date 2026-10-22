@@ -415,15 +415,17 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
   }
 }
 
-// Totaux de commission à collecter cette semaine, par boutique (nom|téléphone).
-// Semaine civile : du lundi 00:00 UTC (Bamako est à UTC+0). La commande courante
-// est déjà insérée dans `commandes` avant cet appel, donc le total l'inclut.
+// Totaux de commission du cycle de collecte en cours, par boutique (nom|téléphone).
+// Cycle calé sur la collecte du SAMEDI : de dimanche 00:00 UTC (Bamako est à
+// UTC+0) à samedi 23:59. Après la collecte du samedi, le compteur repart à
+// zéro le dimanche. La commande courante est déjà insérée dans `commandes`
+// avant cet appel, donc le total l'inclut.
 async function commissionsParBoutiqueCetteSemaine(
   supabaseAdmin: ReturnType<typeof createClient>,
 ): Promise<Map<string, number>> {
   const maintenant = new Date();
-  const jour = (maintenant.getUTCDay() + 6) % 7; // 0 = lundi
-  const lundi = new Date(Date.UTC(
+  const jour = maintenant.getUTCDay(); // 0 = dimanche → début du cycle
+  const dimanche = new Date(Date.UTC(
     maintenant.getUTCFullYear(),
     maintenant.getUTCMonth(),
     maintenant.getUTCDate() - jour,
@@ -435,7 +437,7 @@ async function commissionsParBoutiqueCetteSemaine(
     const { data, error } = await supabaseAdmin
       .from("commandes")
       .select("articles")
-      .gte("created_at", lundi.toISOString())
+      .gte("created_at", dimanche.toISOString())
       .range(depart, depart + TAILLE_LOT - 1);
     if (error) throw new Error(`lecture commandes impossible : ${error.message}`);
     if (!data || data.length === 0) break;
@@ -512,7 +514,7 @@ async function notifyInBackground(input: {
         ...(shopMapUrl ? [`   🗺️ **Carte boutique :** ${shopMapUrl}`] : []),
         `   💠 Paiement reçu du client (Orange Money vers la boutique) : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
         `   🧾 Commission de cette commande (à collecter auprès du boutiquier) : ${Math.round(shop.commission).toLocaleString("fr-FR")} FCFA`,
-        `   🗓️ Total commission à collecter cette semaine de cette boutique : ${totalSemaine.toLocaleString("fr-FR")} FCFA`,
+        `   🗓️ Total commission dû par cette boutique pour votre collecte du samedi : ${totalSemaine.toLocaleString("fr-FR")} FCFA`,
       ].join("\n");
     });
     const created = new Date(input.createdAt).toLocaleString("fr-FR", {
@@ -534,7 +536,7 @@ async function notifyInBackground(input: {
       "",
       `💰 **TOTAL CLIENT :** ${input.total.toLocaleString("fr-FR")} FCFA`,
       `🧾 **COMMISSION TOTALE DE CETTE COMMANDE (à collecter) :** ${Math.round(commissionTotal).toLocaleString("fr-FR")} FCFA`,
-      `🗓️ **COMMISSION TOTALE À COLLECTER CETTE SEMAINE (toutes boutiques) :** ${Math.round(commissionHebdoTotale).toLocaleString("fr-FR")} FCFA`,
+      `🗓️ **COMMISSION TOTALE À COLLECTER CE SAMEDI (toutes boutiques) :** ${Math.round(commissionHebdoTotale).toLocaleString("fr-FR")} FCFA`,
       "",
       "💳 **PAIEMENT CLIENT À RECEVOIR**",
       `Le client paie CHAQUE boutique directement sur son numéro Orange Money (aucune commission n'est payée par le client) :`,
@@ -545,7 +547,7 @@ async function notifyInBackground(input: {
         return `• ${clip(shop.name, 80)} : le client envoie **${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA** au numéro **${numeroFormate}**.`;
       }),
       "Composer #144#, choisir Transfert/Envoyer, saisir le numéro de la boutique et le montant, vérifier le bénéficiaire, puis valider avec le code secret sur le téléphone.",
-      "À la fin de la semaine, recoltez la commission auprès de chaque boutiquier (totaux ci-dessus), puis remettez à chaque boutique son propre paiement client.",
+      "Recoltez ces commissions chaque samedi auprès de chaque boutiquier (totaux ci-dessus) ; le compteur repart à zéro le dimanche suivant. Remettez ensuite à chaque boutique le paiement de son client.",
       `Pour recevoir la commission collectée, votre numéro Orange Money reste : **${ORANGE_PAYMENT_NUMBER.replace(/(\d{2})(?=\d)/g, "$1 ")}**.`,
       "Ne jamais communiquer ni enregistrer le code secret. Vérifier le SMS ou le solde avant de considérer le paiement comme confirmé.",
     ].join("\n"), 1_950);
