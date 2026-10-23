@@ -1676,8 +1676,8 @@ window.addEventListener('orientationchange', function() {
         <button class="item-menu-admin" onclick="afficherLienInscription()">
           <span class="icone-item">🔗</span> Lien d'inscription boutiquiers <span class="fleche">›</span>
         </button>
-        <button class="item-menu-admin" onclick="ouvrirEnvoiNotification()">
-          <span class="icone-item">🔔</span> Envoyer une notification <span class="fleche">›</span>
+        <button class="item-menu-admin" onclick="ouvrirBlocNotifications()">
+          <span class="icone-item">🔔</span> Notifications &amp; messages <span class="fleche">›</span>
         </button>
         <button class="item-menu-admin" onclick="ouvrirGestionCategories()">
           <span class="icone-item">🙈</span> Masquer des catégories <span class="fleche">›</span>
@@ -1685,9 +1685,24 @@ window.addEventListener('orientationchange', function() {
         <button class="item-menu-admin" onclick="ouvrirHistoriqueAchats()">
           <span class="icone-item">📋</span> Historique des achats <span class="fleche">›</span>
         </button>
-        <button class="item-menu-admin" onclick="ouvrirRenvoiNotifBoutiquier()">
-          <span class="icone-item">🔔</span> Renvoyer une notif boutiquier <span class="fleche">›</span>
+      </div>
+
+      <!-- ========== BLOC UNIQUE DES NOTIFICATIONS & MESSAGES ========== -->
+      <div id="blocNotifications" class="panneau-admin" style="display:none;">
+        <h3 class="titre-panneau">🔔 Notifications &amp; messages</h3>
+        <p class="sous-titre-panneau">Tous les envois de messages sont regroupés ici.</p>
+
+        <button class="item-menu-admin" onclick="ouvrirEnvoiNotification()">
+          <span class="icone-item">📣</span> Envoyer une notification (clients &amp; boutiquiers) <span class="fleche">›</span>
         </button>
+        <button class="item-menu-admin" onclick="ouvrirRenvoiNotifBoutiquier()">
+          <span class="icone-item">🔁</span> Renvoyer une notif boutiquier (commande récente) <span class="fleche">›</span>
+        </button>
+        <button class="item-menu-admin" onclick="ouvrirNotifCommissionSamedi()">
+          <span class="icone-item">💰</span> Prise de commission samedi (boutiquiers uniquement) <span class="fleche">›</span>
+        </button>
+
+        <button type="button" class="btn-retour-lien" onclick="fermerBlocNotifications()">Fermer</button>
       </div>
 
       <div id="blocLienInscription" class="panneau-admin" style="display:none;">
@@ -1720,9 +1735,37 @@ window.addEventListener('orientationchange', function() {
     <!-- ========== GESTION / SUPPRESSION DES ARTICLES PUBLIÉS ========== -->
     <div id="gestionArticles" class="panneau-admin" style="display:none;">
       <h3 class="titre-panneau">📋 Vos articles publiés</h3>
+      <div style="margin:12px 0 14px;display:flex;gap:10px;flex-wrap:wrap;">
+        <button type="button" onclick="ouvrirMasquageArticles()" style="padding:10px 16px;background:#111827;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;">🙈 Masquer / Réafficher les articles</button>
+      </div>
       <div style="margin-top:14px;"></div>
       <div id="listeGestionArticles" class="liste-gestion"><!-- injecté par JS --></div>
       <button type="button" class="btn-retour-lien" onclick="fermerGestionArticles()">Fermer</button>
+    </div>
+
+    <!-- ========== MASQUER DES ARTICLES (depuis Gérer mes articles) ========== -->
+    <div id="masquageArticles" class="panneau-admin" style="display:none;">
+      <h3 class="titre-panneau">🙈 Masquer les articles</h3>
+      <p class="sous-titre-panneau">Un article masqué disparaît du catalogue public. Réaffichez-le à tout moment.</p>
+      <div id="listeMasquageArticles"><!-- injecté par JS --></div>
+      <button type="button" class="btn-retour-lien" onclick="fermerMasquageArticles()">Retour à la gestion des articles</button>
+    </div>
+
+    <!-- ========== NOTIFICATION PRISE DE COMMISSION SAMEDI (BOUTIQUIERS UNIQUEMENT) ========== -->
+    <div id="notifCommissionSamedi" class="panneau-admin" style="display:none;">
+      <h3 class="titre-panneau">💰 Prise de commission — samedi</h3>
+      <p class="sous-titre-panneau">
+        Avertit uniquement les boutiquiers qui ont autorisé les notifications.
+        Les clients ne reçoivent rien.
+      </p>
+
+      <label class="label">Message</label>
+      <textarea id="messageNotifCommission" class="champ" rows="3" maxlength="200">La prise de commission se fera ce samedi. Merci de préparer la commission Prime Service à remettre.</textarea>
+      <p class="sous-titre-panneau">Le message part en notification push vers le navigateur de chaque boutiquier enregistré.</p>
+
+      <button id="btnNotifCommission" class="btn-principal" style="margin-top:14px;" onclick="avertirCommissionSamedi()">💰 Avertir les boutiquiers</button>
+      <p id="statutNotifCommission" class="statut-envoi"></p>
+      <button type="button" class="btn-retour-lien" onclick="fermerNotifCommissionSamedi()">Fermer</button>
     </div>
 
     <!-- ========== MASQUER DES CATEGORIES / SOUS-CATEGORIES ========== -->
@@ -4298,7 +4341,72 @@ function ouvrirGestionArticles(){
 function fermerGestionArticles(){
   boutiqueActiveGestion = null;
   document.getElementById("gestionArticles").style.display = "none";
+  document.getElementById("masquageArticles").style.display = "none";
   document.getElementById("admin-accueil").style.display = "block";
+}
+
+function ouvrirMasquageArticles(){
+  document.getElementById("gestionArticles").style.display = "none";
+  document.getElementById("masquageArticles").style.display = "block";
+  dessinerMasquageArticles();
+}
+
+function fermerMasquageArticles(){
+  document.getElementById("masquageArticles").style.display = "none";
+  document.getElementById("gestionArticles").style.display = "block";
+}
+
+async function dessinerMasquageArticles(){
+  const conteneur = document.getElementById("listeMasquageArticles");
+  if(!conteneur) return;
+
+  // On relit la base pour afficher un état du masquage le plus récent possible.
+  if(supabaseClient){
+    try{
+      const { data: liees, error } = await supabaseClient
+        .from("produits")
+        .select("id, nom, masque, nom_boutique, telephone_boutique, telephone");
+      if(!error && Array.isArray(liees)){
+        liees.forEach(produit => {
+          const existant = articlesUniques().find(a => String(a.id) === String(produit.id));
+          if(existant){
+            existant.masque = produit.masque;
+          } else {
+            produitsParCle["_masquage"] = [
+              ...(produitsParCle["_masquage"] || []),
+              produit,
+            ];
+          }
+        });
+      }
+    } catch(e){ console.warn("Relecture masquage impossible :", e); }
+  }
+
+  const articles = articlesUniques();
+  if(articles.length === 0){
+    conteneur.innerHTML = `<p style="color:#666;text-align:center;padding:24px 0;">Aucun article publié pour le moment.</p>`;
+    return;
+  }
+
+  conteneur.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      ${articles.map(a => `
+        <div style="border:1px solid var(--gris-bordure);border-radius:12px;padding:10px 12px;background:${a.masque ? "#f9fafb" : "#fff"};display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:14px;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              ${echapperHtml(a.nom)}
+              ${a.masque ? `<span class="etiquette-masque" style="font-size:10px;background:#666;color:#fff;padding:2px 6px;border-radius:4px;">masqué</span>` : ""}
+            </div>
+            <div style="font-size:12px;color:#64748b;">🏪 ${echapperHtml((a.nom_boutique && a.nom_boutique.trim()) || "Boutique sans nom")}</div>
+          </div>
+          <button type="button" onclick="basculerVisibiliteArticle(String(${a.id}), ${a.masque ? "true" : "false"})" style="padding:8px 12px;border-radius:8px;border:1px solid var(--gris-bordure);background:${a.masque ? "#16a34a" : "#f1f5f9"};color:${a.masque ? "#fff" : "#111827"};font-size:12px;font-weight:600;cursor:pointer;">
+            ${a.masque ? "👁️ Réafficher" : "🙈 Masquer"}
+          </button>
+        </div>
+      `).join("")}
+    </div>
+  `;
+  conteneur.dataset.maj = "1";
 }
 
 function articlesUniques(){
@@ -4585,7 +4693,9 @@ async function basculerVisibiliteArticle(id, nouvelEtatMasque){
     const { error } = await supabaseClient.from("produits").update({ masque: nouvelEtatMasque }).eq("id", id);
     if(error) throw error;
     await chargerProduits();
-    if(boutiqueActiveGestion){
+    if(document.getElementById("masquageArticles") && document.getElementById("masquageArticles").style.display !== "none"){
+      await dessinerMasquageArticles();
+    } else if(boutiqueActiveGestion){
       dessinerArticlesBoutique(boutiqueActiveGestion);
     } else {
       dessinerGestionArticles();
@@ -4828,12 +4938,79 @@ function reporterNotifOptin(){
 let articlesSelectionnesNotif = [];
 
 function ouvrirEnvoiNotification(){
+  document.getElementById("blocNotifications").style.display = "none";
   document.getElementById("admin-accueil").style.display = "none";
   document.getElementById("envoiNotification").style.display = "block";
 }
 function fermerEnvoiNotification(){
   document.getElementById("envoiNotification").style.display = "none";
+  document.getElementById("blocNotifications").style.display = "block";
+}
+
+function ouvrirBlocNotifications(){
+  document.getElementById("admin-accueil").style.display = "none";
+  document.getElementById("blocNotifications").style.display = "block";
+}
+function fermerBlocNotifications(){
+  document.getElementById("blocNotifications").style.display = "none";
   document.getElementById("admin-accueil").style.display = "block";
+}
+
+function ouvrirNotifCommissionSamedi(){
+  document.getElementById("blocNotifications").style.display = "none";
+  document.getElementById("admin-accueil").style.display = "none";
+  document.getElementById("notifCommissionSamedi").style.display = "block";
+}
+function fermerNotifCommissionSamedi(){
+  document.getElementById("notifCommissionSamedi").style.display = "none";
+  document.getElementById("blocNotifications").style.display = "block";
+}
+
+async function avertirCommissionSamedi(){
+  const statut = document.getElementById("statutNotifCommission");
+  const bouton = document.getElementById("btnNotifCommission");
+  const message = document.getElementById("messageNotifCommission").value.trim();
+
+  if(!message){
+    statut.style.color = "#dc2626";
+    statut.textContent = "⚠️ Écrivez un message avant d'envoyer.";
+    return;
+  }
+
+  if(bouton) bouton.disabled = true;
+  statut.style.color = "#666";
+  statut.textContent = "⏳ Envoi aux boutiquiers (boutiquiers uniquement)...";
+
+  try{
+    const tokenAdmin = await obtenirTokenAdmin();
+    const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/avertir-commission-samedi`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${tokenAdmin}`,
+      },
+      body: JSON.stringify({ message }),
+    });
+
+    const resultat = await reponse.json().catch(() => ({}));
+    if(!reponse.ok) throw new Error(resultat.error || "Échec de l'envoi (" + reponse.status + ")");
+
+    const nbEnvoyes = typeof resultat.envoyes === "number" ? resultat.envoyes : null;
+    let texte = "Notification traitée";
+    if(nbEnvoyes === 0){
+      texte = "0 boutiquier abonné aux notifications";
+    } else if(nbEnvoyes !== null){
+      texte = `${nbEnvoyes} boutiquier${nbEnvoyes > 1 ? "s" : ""}$ notifié${nbEnvoyes > 1 ? "s" : ""}`;
+    }
+    statut.style.color = "#16a34a";
+    statut.textContent = `✅ ${texte}${resultat.echecs ? ` (${resultat.echecs} échec${resultat.echecs > 1 ? "s" : ""})` : ""}.`;
+  } catch(erreur){
+    console.error("Erreur notification commission samedi :", erreur);
+    statut.style.color = "#dc2626";
+    statut.textContent = "❌ " + (erreur.message || "Envoi impossible pour le moment. Réessayez.");
+  } finally {
+    if(bouton) bouton.disabled = false;
+  }
 }
 
 function ouvrirChoixArticlesNotif(){
@@ -5457,6 +5634,7 @@ function ouvrirNotifManuelle(){
 const DUREE_LIMITE_RENVOI_NOTIF_MS = 5 * 60 * 60 * 1000; // 5 heures
 
 async function ouvrirRenvoiNotifBoutiquier(){
+  document.getElementById("blocNotifications").style.display = "none";
   document.getElementById("admin-accueil").style.display = "none";
   document.getElementById("renvoiNotifBoutiquier").style.display = "block";
   await chargerCommandesRecentesPourRenvoi();
@@ -5464,7 +5642,7 @@ async function ouvrirRenvoiNotifBoutiquier(){
 
 function fermerRenvoiNotifBoutiquier(){
   document.getElementById("renvoiNotifBoutiquier").style.display = "none";
-  document.getElementById("admin-accueil").style.display = "block";
+  document.getElementById("blocNotifications").style.display = "block";
 }
 
 async function chargerCommandesRecentesPourRenvoi(){

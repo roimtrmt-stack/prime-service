@@ -57,6 +57,7 @@
     <div id="photos" class="photos" hidden></div>
     <p id="compteur" class="compteur" hidden></p>
     <button id="btnAccuser" type="button" disabled>🔒 Lecture en cours…</button>
+    <button id="btnRechargerDetails" type="button" hidden style="margin-top:10px;">🔄 Réessayer le chargement</button>
     <p><small>Le bouton sera activé après 1 min 30 s de lecture. Après confirmation, les relances automatiques s’arrêtent.</small></p>
   </main>
   <script>
@@ -74,6 +75,13 @@
     let acknowledged = false;
     let expiresAtMs = 0;
     let countdownTimer = null;
+    let chargementTermine = false;
+    const boutonRecharger = document.getElementById("btnRechargerDetails");
+
+    // Durée maximale d’attente du réseau : au-delà, on affiche une erreur nette
+    // avec un bouton « Réessayer » au lieu de rester bloqué indéfiniment sur
+    // « Chargement sécurisé de la commande… » (cas de connexion très instable).
+    const DELAI_RESEAU_MS = 20_000;
 
     // Empêche de quitter la page pendant les 90 s de lecture obligatoire — même mécanisme
     // que le verrou déjà utilisé sur la page de confirmation client. Ce n'est qu'un frein
@@ -91,7 +99,6 @@
       button.disabled = true;
       if (countdownTimer) clearInterval(countdownTimer);
     }
-
     function addLine(label, value) {
       const line = document.createElement("div");
       line.className = "ligne";
@@ -275,11 +282,19 @@
     }
 
     async function callAction(action) {
-      const response = await fetch(ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, action }),
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), DELAI_RESEAU_MS);
+      let response;
+      try {
+        response = await fetch(ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, action }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
       let body = {};
       try { body = await response.json(); } catch { /* réponse vide */ }
       if (!response.ok) {
@@ -293,8 +308,10 @@
     async function loadPage() {
       if (status === "ack") return showAcknowledged();
       if (!token) return setError("Ce lien ne contient pas de jeton valide. Ouvrez le dernier message reçu.");
+      boutonRecharger.hidden = true;
       try {
         const body = await callAction("details");
+        chargementTermine = true;
         expiresAtMs = Date.parse(body.expiresAt || "") || 0;
         if (expiresAtMs && Date.now() >= expiresAtMs) return expirePage();
         if (!body.command) return setError("Les détails de cette commande sont indisponibles.");
@@ -306,9 +323,21 @@
         startCountdown(body.remainingSeconds);
       } catch (error) {
         if (error.code === "expired") return expirePage();
+        if (error.name === "AbortError") {
+          setError("⏳ Le chargement a pris trop de temps (connexion Internet instable). Réessayez quand vous retrouvez du réseau.");
+          boutonRecharger.hidden = false;
+          return;
+        }
         setError(error.message || "Impossible de charger les détails de la commande.");
       }
     }
+
+    boutonRecharger.addEventListener("click", () => {
+      if (chargementTermine || acknowledged) return;
+      box.className = "alerte";
+      box.textContent = "Chargement sécurisé de la commande…";
+      loadPage();
+    });
 
     button.addEventListener("click", async () => {
       if (!token || !canAcknowledge || acknowledged) return;
