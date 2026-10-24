@@ -81,7 +81,7 @@
     // Durée maximale d’attente du réseau : au-delà, on affiche une erreur nette
     // avec un bouton « Réessayer » au lieu de rester bloqué indéfiniment sur
     // « Chargement sécurisé de la commande… » (cas de connexion très instable).
-    const DELAI_RESEAU_MS = 20_000;
+    const DELAI_RESEAU_MS = 20000;
 
     // Empêche de quitter la page pendant les 90 s de lecture obligatoire — même mécanisme
     // que le verrou déjà utilisé sur la page de confirmation client. Ce n'est qu'un frein
@@ -331,6 +331,31 @@
         setError(error.message || "Impossible de charger les détails de la commande.");
       }
     }
+
+    // Filet de sécurité : si le chargement reste bloqué au-delà de 30 s
+    // malgré tout (ancien navigateur sans interruption correcte du fetch),
+    // afficher une erreur claire + bouton Réessayer au lieu de tourner en
+    // vase clos sur « Chargement sécurisé de la commande… ».
+    window.setTimeout(() => {
+      if (!chargementTermine && !acknowledged && !canAcknowledge &&
+          box.textContent.indexOf("Chargement sécurisé") === 0) {
+        box.className = "alerte error";
+        box.textContent = "⏳ Le chargement reste bloqué. Vérifiez votre connexion puis réessayez.";
+        boutonRecharger.hidden = false;
+      }
+    }, 30000);
+
+    // Autre filet : toute erreur JavaScript inattendue ne doit plus laisser
+    // la page figée sur le message de chargement initial.
+    window.addEventListener("error", (event) => {
+      if (acknowledged) return;
+      const details = (event.error && event.error.message) || event.message || "erreur inconnue";
+      if (box.textContent.indexOf("Chargement sécurisé") === 0 || !canAcknowledge) {
+        box.className = "alerte error";
+        box.textContent = "⚠️ Erreur de la page : " + details + ". Rechargez la page puis réessayez.";
+        boutonRecharger.hidden = false;
+      }
+    });
 
     boutonRecharger.addEventListener("click", () => {
       if (chargementTermine || acknowledged) return;

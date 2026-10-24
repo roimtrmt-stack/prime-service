@@ -1679,9 +1679,6 @@ window.addEventListener('orientationchange', function() {
         <button class="item-menu-admin" onclick="ouvrirBlocNotifications()">
           <span class="icone-item">🔔</span> Notifications &amp; messages <span class="fleche">›</span>
         </button>
-        <button class="item-menu-admin" onclick="ouvrirGestionCategories()">
-          <span class="icone-item">🙈</span> Masquer des catégories <span class="fleche">›</span>
-        </button>
         <button class="item-menu-admin" onclick="ouvrirHistoriqueAchats()">
           <span class="icone-item">📋</span> Historique des achats <span class="fleche">›</span>
         </button>
@@ -1737,6 +1734,7 @@ window.addEventListener('orientationchange', function() {
       <h3 class="titre-panneau">📋 Vos articles publiés</h3>
       <div style="margin:12px 0 14px;display:flex;gap:10px;flex-wrap:wrap;">
         <button type="button" onclick="ouvrirMasquageArticles()" style="padding:10px 16px;background:#111827;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;">🙈 Masquer / Réafficher les articles</button>
+        <button type="button" onclick="ouvrirGestionCategories()" style="padding:10px 16px;background:#111827;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;">🙈 Masquer des catégories</button>
       </div>
       <div style="margin-top:14px;"></div>
       <div id="listeGestionArticles" class="liste-gestion"><!-- injecté par JS --></div>
@@ -2626,6 +2624,15 @@ function sauverMappingArticle(articleId, categorieId, sousCategorieId){
     localStorage.setItem("prime_mappings_articles", JSON.stringify(mappings));
   } catch(e){}
 }
+function supprimerMappingArticle(articleId){
+  try {
+    const mappings = obtenirMappingArticles();
+    if(mappings[String(articleId)]){
+      delete mappings[String(articleId)];
+      localStorage.setItem("prime_mappings_articles", JSON.stringify(mappings));
+    }
+  } catch(e){}
+}
 function supprimerMappingsArticlesPourBoutique(nomB){
   try {
     const mappings = obtenirMappingArticles();
@@ -3239,9 +3246,20 @@ async function envoyerCommande(event){
   // GPS facultatif : on n'envoie des coordonnées que si le client les a partagées.
   const latBrut = document.getElementById("latClient").value.trim();
   const lngBrut = document.getElementById("lngClient").value.trim();
-  const positionFournie = latBrut !== "" && lngBrut !== "";
-  const lat = positionFournie ? Number(latBrut) : null;
-  const lng = positionFournie ? Number(lngBrut) : null;
+  let positionFournie = latBrut !== "" && lngBrut !== "";
+  let lat = positionFournie ? Number(latBrut) : null;
+  let lng = positionFournie ? Number(lngBrut) : null;
+  // GPS facultatif, seconde garde : si des coordonnées ont été partagées
+  // mais sont invalides ou obsolètes (0,0, valeurs non numériques), on les
+  // IGNORE au lieu de bloquer la commande. L'adresse textuelle suffit à la
+  // livraison ; le site ne doit jamais refuser de finaliser à cause du GPS.
+  if(positionFournie && (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0))){
+    positionFournie = false;
+    lat = null;
+    lng = null;
+    document.getElementById("latClient").value = "";
+    document.getElementById("lngClient").value = "";
+  }
 
   if(!/^[0-9+ ]{8,15}$/.test(tel)){
     statutEnvoi.style.color = "#dc2626";
@@ -3253,11 +3271,7 @@ async function envoyerCommande(event){
     statutEnvoi.textContent = "⚠️ Indiquez votre quartier pour la livraison.";
     return false;
   }
-  if(positionFournie && (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0))){
-    statutEnvoi.style.color = "#dc2626";
-    statutEnvoi.textContent = "⚠️ Position invalide. Réessayez le bouton GPS ou laissez-le vide (facultatif).";
-    return false;
-  }
+  // (Les coordonnées invalides ont déjà été abandonnées au-dessus : jamais de blocage GPS.)
   if(panier.length === 0){
     statutEnvoi.style.color = "#dc2626";
     statutEnvoi.textContent = "⚠️ Votre panier est vide.";
@@ -4616,10 +4630,53 @@ async function deplacerTouteLaBoutique(nomB){
 
   // 1. Le déplacement global est le choix le plus récent : il absorbe les
   // déplacements individuels précédents des articles de cette boutique.
-  // (La cible est Supabase, à l'étape 4 — plus de couche locale boutique.)
   supprimerMappingsArticlesPourBoutique(nomB.trim());
 
-  // 2. Mettre à jour immédiatement les articles en mémoire
+  // 2. IMPORTANT : supabase-js exécute une requête uniquement lorsqu'on
+  //    l'attends (await / .then). L'ancien code appelait update().eq()
+  //    sans await : la requête n'était JAMAIS envoyée, d'où un message de
+  //    succès alors que le catalogue ne changeait jamais côté base.
+  const ids = articlesUniques()
+    .filter(a => ((a.nom_boutique && a.nom_boutique.trim()) || "Boutique sans nom") === nomB)
+    .map(a => a.id);
+
+  let erreurServeur = "";
+  if(!supabaseClient){
+    erreurServeur = "connexion Supabase indisponible";
+  } else if(ids.length > 0){
+    const { data: majRows, error } = await supabaseClient
+      .from("produits")
+      .update({ categorie_id: catId, sous_categorie_id: sousCatId })
+      .in("id", ids)
+      .select("id");
+    if(error) erreurServeur = error.message;
+    else if(Array.isArray(majRows) && majRows.length !== ids.length){
+      erreurServeur = `seulement ${majRows.length}/${ids.length} article(s) enregistrés — réessayez`;
+    }
+  } else {
+    // Repli de compatibilité : si l'affichage n'a pas d'ID utilisable,
+    // on vise les articles par nom de boutique exact.
+    const { data: majRows, error } = await supabaseClient
+      .from("produits")
+      .update({ categorie_id: catId, sous_categorie_id: sousCatId })
+      .eq("nom_boutique", nomB.trim())
+      .select("id");
+    if(error) erreurServeur = error.message;
+    else if(!Array.isArray(majRows) || majRows.length === 0){
+      erreurServeur = "aucun article trouvé en base pour cette boutique";
+    }
+  }
+
+  if(erreurServeur){
+    console.error("Déplacement de boutique NON enregistré côté serveur :", erreurServeur);
+    alert(`⚠️ Le déplacement n'a PAS été enregistré : ${erreurServeur}.\nLa boutique reste dans son ancien rayon. Vérifiez votre connexion internet puis réessayez.`);
+    await chargerProduits(); // afficher l'état réel de la base
+    if(boutiqueActiveGestion) dessinerArticlesBoutique(nomB);
+    else dessinerGestionArticles();
+    return;
+  }
+
+  // 3. Serveur OK : mettre à jour l'affichage en mémoire et le catalogue.
   const tous = articlesUniques();
   tous.forEach(a => {
     if(((a.nom_boutique && a.nom_boutique.trim()) || "Boutique sans nom") === nomB){
@@ -4627,22 +4684,15 @@ async function deplacerTouteLaBoutique(nomB){
       a.sous_categorie_id = sousCatId;
     }
   });
-
-  // 3. Répartir dans les nouveaux catalogues
   repartirProduitsParCle(tous);
 
-  alert(`✅ C'est fait ! La boutique "${nomB}" et tous ses articles sont désormais dans "${nomRayon}".`);
+  alert(`\u2705 C'est fait ! La boutique "${nomB}" et tous ses articles sont désormais dans "${nomRayon}" (enregistré dans le catalogue).`);
 
   if(boutiqueActiveGestion){
     dessinerArticlesBoutique(nomB);
   } else {
     dessinerGestionArticles();
   }
-
-  // 4. Tentative en arrière-plan vers Supabase (sans rien bloquer)
-  try {
-    supabaseClient.from("produits").update({ categorie_id: catId, sous_categorie_id: sousCatId }).eq("nom_boutique", nomB);
-  } catch(e){}
 }
 
 async function deplacerArticleIndividuel(articleId, valeurRayon){
@@ -4652,11 +4702,45 @@ async function deplacerArticleIndividuel(articleId, valeurRayon){
   const scObj = catObj ? catObj.sousCategories.find(s => s.id === sousCatId) : null;
   const nomRayon = scObj ? `${catObj.nom} › ${scObj.nom}` : valeurRayon;
 
-  // 1. Enregistrer immédiatement dans le site (localStorage) : le déplacement
-  // s'affiche tout de suite et survit aux rechargements, sans dépendre du serveur.
+  // 1. Enregistrer d'abord côté serveur (await obligatoire : sans lui la
+  //    requête supabase-js n'est jamais envoyée). En cas d'échec, on prévient
+  //    clairement au lieu d'afficher un faux succès.
+  let erreurServeur = "";
+  if(!supabaseClient){
+    erreurServeur = "connexion Supabase indisponible";
+  } else {
+    try{
+      const { data: majRows, error } = await supabaseClient
+        .from("produits")
+        .update({ categorie_id: catId, sous_categorie_id: sousCatId })
+        .eq("id", articleId)
+        .select("id");
+      if(error) erreurServeur = error.message;
+      else if(!Array.isArray(majRows) || majRows.length === 0){
+        erreurServeur = "article introuvable côté serveur";
+      }
+    } catch(err){
+      erreurServeur = String((err && err.message) || err);
+    }
+  }
+
+  if(erreurServeur){
+    console.error("Déplacement d'article NON enregistré côté serveur :", erreurServeur);
+    alert(`\u26A0\uFE0F Le déplacement n'a PAS été enregistré : ${erreurServeur}.\nL'article reste dans son ancien rayon. Vérifiez votre connexion internet puis réessayez.`);
+    supprimerMappingArticle(articleId); // ne garder aucun faux état local
+    await chargerProduits();            // afficher l'état réel de la base
+    if(boutiqueActiveGestion){
+      dessinerArticlesBoutique(boutiqueActiveGestion);
+    } else {
+      dessinerGestionArticles();
+    }
+    return;
+  }
+
+  // 2. Serveur OK : enregistrer le choix pour l'affichage hors connexion +
+  //    mettre à jour la mémoire et le catalogue immédiatement.
   sauverMappingArticle(articleId, catId, sousCatId);
 
-  // 2. Mise à jour immédiate de la mémoire + répartition dans les catalogues
   Object.keys(produitsParCle).forEach(cle => {
     produitsParCle[cle].forEach(a => {
       if(a.id === articleId){
@@ -4667,24 +4751,12 @@ async function deplacerArticleIndividuel(articleId, valeurRayon){
   });
   repartirProduitsParCle(articlesUniques());
 
-  // Notification visuelle discrète
-  alert(`✅ Article déplacé vers "${nomRayon}" avec succès !`);
+  alert(`\u2705 Article déplacé vers "${nomRayon}" avec succès !`);
 
   if(boutiqueActiveGestion){
     dessinerArticlesBoutique(boutiqueActiveGestion);
   } else {
     dessinerGestionArticles();
-  }
-
-  // 3. Tentative en arrière-plan vers Supabase (sans rien bloquer) : si le
-  // serveur l'accepte, les autres visiteurs verront aussi l'article déplacé.
-  try {
-    await supabaseClient
-      .from("produits")
-      .update({ categorie_id: catId, sous_categorie_id: sousCatId })
-      .eq("id", articleId);
-  } catch(err){
-    console.warn("Déplacement non enregistré côté serveur (conservé sur le site) :", err);
   }
 }
 
@@ -5184,7 +5256,11 @@ async function envoyerNotification(){
 /* =====================================================================
    MASQUER DES CATEGORIES / SOUS-CATEGORIES (même vides)
    ===================================================================== */
+let CategoriesOuvertDepuisGestion = false;
 function ouvrirGestionCategories(){
+  const panneauGestion = document.getElementById("gestionArticles");
+  CategoriesOuvertDepuisGestion = !!(panneauGestion && panneauGestion.style.display !== "none");
+  if(CategoriesOuvertDepuisGestion) panneauGestion.style.display = "none";
   document.getElementById("admin-accueil").style.display = "none";
   document.getElementById("gestionCategories").style.display = "block";
 
@@ -5209,7 +5285,14 @@ function ouvrirGestionCategories(){
 
 function fermerGestionCategories(){
   document.getElementById("gestionCategories").style.display = "none";
-  document.getElementById("admin-accueil").style.display = "block";
+  if(CategoriesOuvertDepuisGestion){
+    // Ouvert depuis « Gérer / Supprimer mes articles » : on y revient.
+    CategoriesOuvertDepuisGestion = false;
+    document.getElementById("admin-accueil").style.display = "none";
+    document.getElementById("gestionArticles").style.display = "block";
+  } else {
+    document.getElementById("admin-accueil").style.display = "block";
+  }
 }
 
 async function sauvegarderCategoriesMasquees(){
