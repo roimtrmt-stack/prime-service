@@ -214,7 +214,7 @@
       addLine("Quartier de livraison :", command.quartier_client);
       addGoogleMapsLink("Carte de livraison :", command.lat_client, command.lng_client);
       addLine("Précision de livraison :", command.precision_livraison);
-      addLine("Montant à recevoir du client (Orange Money vers votre numéro) :", `${Number(command.montant_boutique_total ?? command.montant_net_total || 0).toLocaleString("fr-FR")} FCFA`);
+      addLine("Montant à recevoir du client (Orange Money vers votre numéro) :", `${(Number(command.montant_boutique_total) || Number(command.montant_net_total) || 0).toLocaleString("fr-FR")} FCFA`);
 
       const articles = Array.isArray(command.articles) ? command.articles : [];
       articles.forEach((article) => {
@@ -230,7 +230,7 @@
         const title = document.createElement("strong");
         title.textContent = `${article.nom || "Article"} x${article.quantite || 1}`;
         const net = document.createElement("small");
-        net.textContent = `Montant (payé par le client via Orange Money) : ${Number(article.montant_client ?? article.montant_net || 0).toLocaleString("fr-FR")} FCFA`;
+        net.textContent = `Montant (payé par le client via Orange Money) : ${(Number(article.montant_client) || Number(article.montant_net) || 0).toLocaleString("fr-FR")} FCFA`;
         card.append(title, net);
         photosBox.appendChild(card);
       });
