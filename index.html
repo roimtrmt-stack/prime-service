@@ -1710,9 +1710,6 @@ window.addEventListener('orientationchange', function() {
         <button class="item-menu-admin" onclick="ouvrirGestionArticles()">
           <span class="icone-item">📋</span> Gérer / Supprimer mes articles <span class="fleche">›</span>
         </button>
-        <button class="item-menu-admin" onclick="afficherLienInscription()">
-          <span class="icone-item">🔗</span> Lien d'inscription boutiquiers <span class="fleche">›</span>
-        </button>
         <button class="item-menu-admin" onclick="ouvrirBlocNotifications()">
           <span class="icone-item">🔔</span> Notifications &amp; messages <span class="fleche">›</span>
         </button>
@@ -1737,12 +1734,6 @@ window.addEventListener('orientationchange', function() {
         </button>
 
         <button type="button" class="btn-retour-lien" onclick="fermerBlocNotifications()">Fermer</button>
-      </div>
-
-      <div id="blocLienInscription" class="panneau-admin" style="display:none;">
-        <input type="text" id="champLienInscription" class="champ" readonly>
-        <button type="button" class="btn-retour-lien" onclick="copierLienInscription()">📋 Copier le lien</button>
-        <button type="button" class="btn-retour-lien" onclick="fermerBlocLienInscription()">Fermer</button>
       </div>
 
       <div class="bloc-pause-admin">
@@ -4841,23 +4832,6 @@ async function supprimerArticleAdmin(id, nom){
 /* =====================================================================
    MODALE "ARTICLE INDISPONIBLE"
    ===================================================================== */
-function afficherLienInscription(){
-  const champ = document.getElementById("champLienInscription");
-  const lien = new URL("inscription.html", window.location.href).href;
-  champ.value = lien;
-  afficherPanneauAdmin("blocLienInscription");
-}
-
-function copierLienInscription(){
-  const champ = document.getElementById("champLienInscription");
-  champ.select();
-  navigator.clipboard.writeText(champ.value).then(() => {
-    alert("✅ Lien copié ! Vous pouvez le coller dans votre bio TikTok ou vos messages.");
-  }).catch(() => {
-    alert("Sélectionnez et copiez le lien manuellement (Ctrl+C).");
-  });
-}
-
 function testerModaleIndisponible(nomArticle){
   document.getElementById("modaleTexte").textContent =
     `Désolé, l'article "${nomArticle}" est fini. Voulez-vous choisir un autre article à la place ?`;
@@ -5049,7 +5023,6 @@ let articlesSelectionnesNotif = [];
 const PANNEAUX_ADMIN = [
   "admin-accueil",
   "blocNotifications",
-  "blocLienInscription",
   "gestionArticles",
   "masquageArticles",
   "notifCommissionSamedi",
@@ -5111,9 +5084,6 @@ function fermerNotifCommissionSamedi(){
   afficherPanneauAdmin("blocNotifications");
 }
 
-function fermerBlocLienInscription(){
-  afficherPanneauAdmin("admin-accueil");
-}
 
 async function avertirCommissionSamedi(){
   const statut = document.getElementById("statutNotifCommission");
