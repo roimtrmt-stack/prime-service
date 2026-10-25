@@ -162,8 +162,12 @@ assert.match(index, /nettoyerNomArticleManuel/);
 assert.match(index, /prixBase \+ commission/);
 assert.match(index, /function construireLienGoogleMaps/);
 assert.match(index, /function lienCarteGoogleMapsHtml/);
-assert.match(index, /Quartier de livraison :/);
-assert.match(index, /Ouvrir la carte Google Maps/);
+// Historique des achats : mise en page carte structurée (en-tête, client, quartier, carte, articles, boutiques)
+assert.match(index, /function chargerHistoriqueAchats/);
+assert.match(index, /quartierClient/);
+assert.match(index, /cmd-carte/);
+assert.match(index, /cmd-entete/);
+assert.match(index, /cmd-total/);
 assert.match(index, /Prix affiché au client/);
 assert.match(index, /id: "bijoux", nom: "Montres"/);
 assert.match(index, /id="vue-boutiques"/);

@@ -1374,6 +1374,43 @@ button, a, input, select, textarea, .carte-produit, .btn-ajouter, .btn-action, .
   pointer-events: none;
 }
 
+/* ===== Historique des achats : cartes lisibles et bien structurées ===== */
+.cmd-carte{
+  border:1px solid var(--gris-bordure);
+  border-radius:14px;
+  background:#fff;
+  margin-bottom:12px;
+  overflow:hidden;
+}
+.cmd-entete{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  padding:12px 14px;
+  background:var(--gris-fond);
+  border-bottom:1px solid var(--gris-bordure);
+  flex-wrap:wrap;
+}
+.cmd-num{font-weight:800;}
+.cmd-date{display:block;font-size:12px;color:#666;margin-top:2px;font-weight:400;}
+.cmd-total{font-weight:800;color:#166534;white-space:nowrap;font-size:14px;}
+.cmd-corps{padding:12px 14px;display:flex;flex-direction:column;gap:8px;}
+.cmd-info{font-size:13px;color:#374151;line-height:1.5;}
+.cmd-bloc{
+  font-size:13px;color:#374151;
+  background:var(--gris-fond);
+  border-radius:10px;
+  padding:8px 10px;
+  line-height:1.5;
+}
+.cmd-bloc-titre{font-weight:700;color:#111827;}
+.cmd-articles-liste{margin:6px 0 0;padding-left:18px;font-size:13px;color:#374151;}
+.cmd-articles-liste li{margin:2px 0;}
+.cmd-lien-carte a{font-size:12px;color:#2563eb;text-decoration:none;word-break:break-all;}
+.cmd-lien-carte{display:inline-block;margin-top:3px;}
+.cmd-pied{display:flex;justify-content:flex-end;padding:0 14px 12px;}
+
 </style>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
@@ -1705,6 +1742,7 @@ window.addEventListener('orientationchange', function() {
       <div id="blocLienInscription" class="panneau-admin" style="display:none;">
         <input type="text" id="champLienInscription" class="champ" readonly>
         <button type="button" class="btn-retour-lien" onclick="copierLienInscription()">📋 Copier le lien</button>
+        <button type="button" class="btn-retour-lien" onclick="fermerBlocLienInscription()">Fermer</button>
       </div>
 
       <div class="bloc-pause-admin">
@@ -3966,9 +4004,7 @@ async function deconnexionAdmin(){
 let articleEnEdition = null; // id de l'article en cours de modification, ou null si ajout
 
 function ouvrirFormulaireArticle(articleAModifier){
-  document.getElementById("admin-accueil").style.display = "none";
-  document.getElementById("gestionArticles").style.display = "none";
-  document.getElementById("formArticle").style.display = "block";
+  afficherPanneauAdmin("formArticle");
   construireCasesACocher();
 
   const titreFormulaire = document.getElementById("titreFormArticle");
@@ -4053,7 +4089,7 @@ function reinitialiserFormulaireArticle(){
 
 function fermerFormulaireArticle(){
   reinitialiserFormulaireArticle();
-  document.getElementById("admin-accueil").style.display = "block";
+  afficherPanneauAdmin("admin-accueil");
 }
 
 document.addEventListener("click", function(e){
@@ -4346,28 +4382,23 @@ async function publierArticle(event){
 let boutiqueActiveGestion = null;
 
 function ouvrirGestionArticles(){
-  document.getElementById("admin-accueil").style.display = "none";
-  document.getElementById("gestionArticles").style.display = "block";
   boutiqueActiveGestion = null;
+  afficherPanneauAdmin("gestionArticles");
   dessinerGestionArticles();
 }
 
 function fermerGestionArticles(){
   boutiqueActiveGestion = null;
-  document.getElementById("gestionArticles").style.display = "none";
-  document.getElementById("masquageArticles").style.display = "none";
-  document.getElementById("admin-accueil").style.display = "block";
+  afficherPanneauAdmin("admin-accueil");
 }
 
 function ouvrirMasquageArticles(){
-  document.getElementById("gestionArticles").style.display = "none";
-  document.getElementById("masquageArticles").style.display = "block";
+  afficherPanneauAdmin("masquageArticles");
   dessinerMasquageArticles();
 }
 
 function fermerMasquageArticles(){
-  document.getElementById("masquageArticles").style.display = "none";
-  document.getElementById("gestionArticles").style.display = "block";
+  afficherPanneauAdmin("gestionArticles");
 }
 
 async function dessinerMasquageArticles(){
@@ -4811,11 +4842,10 @@ async function supprimerArticleAdmin(id, nom){
    MODALE "ARTICLE INDISPONIBLE"
    ===================================================================== */
 function afficherLienInscription(){
-  const bloc = document.getElementById("blocLienInscription");
   const champ = document.getElementById("champLienInscription");
   const lien = new URL("inscription.html", window.location.href).href;
   champ.value = lien;
-  bloc.style.display = bloc.style.display === "none" ? "block" : "none";
+  afficherPanneauAdmin("blocLienInscription");
 }
 
 function copierLienInscription(){
@@ -5009,33 +5039,80 @@ function reporterNotifOptin(){
 
 let articlesSelectionnesNotif = [];
 
+/* =====================================================================
+   NAVIGATION ADMIN ROBUSTE
+   Un seul panneau visible à la fois, et la page est toujours remontée
+   en haut de l'espace vendeur. Avant, si un autre état traînait à l'écran
+   (accueil, scroll en cours, panneau non fermé), le panneau s'ouvrait
+   PLUS BAS que l'écran : l'utilisateur voyait « rien qui se passe ».
+   ===================================================================== */
+const PANNEAUX_ADMIN = [
+  "admin-accueil",
+  "blocNotifications",
+  "blocLienInscription",
+  "gestionArticles",
+  "masquageArticles",
+  "notifCommissionSamedi",
+  "gestionCategories",
+  "envoiNotification",
+  "renvoiNotifBoutiquier",
+  "historiqueAchats",
+  "formArticle"
+];
+
+function masquerTousPanneauxAdmin(){
+  PANNEAUX_ADMIN.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = "none";
+  });
+}
+
+function afficherPanneauAdmin(idCible){
+  masquerTousPanneauxAdmin();
+  // Aucune autre vue (accueil, panier, checkout…) ne doit rester visible au-dessus.
+  document.querySelectorAll("section.vue").forEach(vue => {
+    if(vue.id !== "vue-admin") vue.style.display = "none";
+  });
+  const panneau = document.getElementById(idCible);
+  if(!panneau) return;
+  panneau.style.display = "block";
+  // Certains panneaux sont des ENFANTS d'autres panneaux (ex : blocNotifications
+  // est dans admin-accueil). On re-rend visibles les ancêtres masqués, sinon
+  // le panneau reste invisible malgré display:block.
+  let parent = panneau.parentElement;
+  while(parent && parent !== document.body){
+    if(getComputedStyle(parent).display === "none") parent.style.display = "block";
+    parent = parent.parentElement;
+  }
+  const vueAdmin = document.getElementById("vue-admin");
+  if(vueAdmin) vueAdmin.style.display = "block";
+  // Remonter en haut : le panneau est ainsi TOUJOURS sous les yeux.
+  window.scrollTo({ top: 0, behavior: "auto" });
+}
+
 function ouvrirEnvoiNotification(){
-  document.getElementById("blocNotifications").style.display = "none";
-  document.getElementById("admin-accueil").style.display = "none";
-  document.getElementById("envoiNotification").style.display = "block";
+  afficherPanneauAdmin("envoiNotification");
 }
 function fermerEnvoiNotification(){
-  document.getElementById("envoiNotification").style.display = "none";
-  document.getElementById("blocNotifications").style.display = "block";
+  afficherPanneauAdmin("blocNotifications");
 }
 
 function ouvrirBlocNotifications(){
-  document.getElementById("admin-accueil").style.display = "none";
-  document.getElementById("blocNotifications").style.display = "block";
+  afficherPanneauAdmin("blocNotifications");
 }
 function fermerBlocNotifications(){
-  document.getElementById("blocNotifications").style.display = "none";
-  document.getElementById("admin-accueil").style.display = "block";
+  afficherPanneauAdmin("admin-accueil");
 }
 
 function ouvrirNotifCommissionSamedi(){
-  document.getElementById("blocNotifications").style.display = "none";
-  document.getElementById("admin-accueil").style.display = "none";
-  document.getElementById("notifCommissionSamedi").style.display = "block";
+  afficherPanneauAdmin("notifCommissionSamedi");
 }
 function fermerNotifCommissionSamedi(){
-  document.getElementById("notifCommissionSamedi").style.display = "none";
-  document.getElementById("blocNotifications").style.display = "block";
+  afficherPanneauAdmin("blocNotifications");
+}
+
+function fermerBlocLienInscription(){
+  afficherPanneauAdmin("admin-accueil");
 }
 
 async function avertirCommissionSamedi(){
@@ -5256,13 +5333,8 @@ async function envoyerNotification(){
 /* =====================================================================
    MASQUER DES CATEGORIES / SOUS-CATEGORIES (même vides)
    ===================================================================== */
-let CategoriesOuvertDepuisGestion = false;
 function ouvrirGestionCategories(){
-  const panneauGestion = document.getElementById("gestionArticles");
-  CategoriesOuvertDepuisGestion = !!(panneauGestion && panneauGestion.style.display !== "none");
-  if(CategoriesOuvertDepuisGestion) panneauGestion.style.display = "none";
-  document.getElementById("admin-accueil").style.display = "none";
-  document.getElementById("gestionCategories").style.display = "block";
+  afficherPanneauAdmin("gestionCategories");
 
   const conteneur = document.getElementById("listeGestionCategories");
   conteneur.innerHTML = CATEGORIES.map(cat => `
@@ -5284,15 +5356,8 @@ function ouvrirGestionCategories(){
 }
 
 function fermerGestionCategories(){
-  document.getElementById("gestionCategories").style.display = "none";
-  if(CategoriesOuvertDepuisGestion){
-    // Ouvert depuis « Gérer / Supprimer mes articles » : on y revient.
-    CategoriesOuvertDepuisGestion = false;
-    document.getElementById("admin-accueil").style.display = "none";
-    document.getElementById("gestionArticles").style.display = "block";
-  } else {
-    document.getElementById("admin-accueil").style.display = "block";
-  }
+  // Le panneau n'est ouvert que depuis « Gérer / Supprimer mes articles ».
+  afficherPanneauAdmin("gestionArticles");
 }
 
 async function sauvegarderCategoriesMasquees(){
@@ -5520,8 +5585,7 @@ function ouvrirEspaceAdminDepuisPause(){
 let commandeSelectionneeNotif = null;
 
 async function ouvrirHistoriqueAchats(){
-  document.getElementById("admin-accueil").style.display = "none";
-  document.getElementById("historiqueAchats").style.display = "block";
+  afficherPanneauAdmin("historiqueAchats");
 
   // Afficher un message immédiatement pour éviter la page blanche
   const conteneur = document.getElementById("listeHistoriqueAchats");
@@ -5549,8 +5613,7 @@ async function supprimerCommande(id){
 }
 
 function fermerHistoriqueAchats(){
-  document.getElementById("historiqueAchats").style.display = "none";
-  document.getElementById("admin-accueil").style.display = "block";
+  afficherPanneauAdmin("admin-accueil");
 }
 
 async function toutSupprimerCommandes(){
@@ -5637,16 +5700,26 @@ async function chargerHistoriqueAchats(){
       return;
     }
 
-        conteneur.innerHTML = commandes.map(cmd => {
+      conteneur.innerHTML = `
+        <p style="margin:0 0 10px;color:#666;font-size:13px;">${commandes.length} commande(s) — les plus récentes en premier.</p>
+      ` + commandes.map(cmd => {
       const articles = Array.isArray(cmd.articles) ? cmd.articles : [];
       const nb = articles.reduce((n, a) => n + Math.max(0, Math.min(99, Number(a?.quantite) || 1)), 0);
-      const date = echapperHtml(new Date(cmd.created_at).toLocaleString("fr-FR"));
+      const dateCmd = new Date(cmd.created_at);
+      const date = echapperHtml(dateCmd.toLocaleDateString("fr-FR"));
+      const heure = echapperHtml(dateCmd.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }));
       const id = echapperHtml(cmd.id);
       const idJs = echapperPourOnclick(cmd.id);
       const nomClient = echapperHtml(cmd.nom_client || "—");
       const telephoneClient = echapperHtml(cmd.telephone_client || "—");
       const quartierClient = echapperHtml(cmd.quartier_client || "Quartier non renseigné");
-      const carteClient = lienCarteGoogleMapsHtml(cmd.lat_client, cmd.lng_client, "Ouvrir la carte Google Maps");
+      const carteClient = lienCarteGoogleMapsHtml(cmd.lat_client, cmd.lng_client, "🗺️ Carte de livraison");
+      const lignesArticles = articles.map(a => {
+        const nom = echapperHtml(String(a?.nom || a?.nom_article || "Article"));
+        const quantite = Math.max(0, Math.min(99, Number(a?.quantite) || 1));
+        const boutiqueArticle = echapperHtml(String(a?.nom_boutique || ""));
+        return `<li>${nom} ×${quantite}${boutiqueArticle ? ` — <span style="color:#666;">${boutiqueArticle}</span>` : ""}</li>`;
+      }).join("");
       const boutiques = [];
       const boutiquesVues = new Set();
       articles.forEach((article) => {
@@ -5656,33 +5729,40 @@ async function chargerHistoriqueAchats(){
         if(boutiquesVues.has(cle)) return;
         boutiquesVues.add(cle);
         const adresse = String(article?.adresse || "").trim();
-        const carte = lienCarteGoogleMapsHtml(article?.lat, article?.lng, "Ouvrir la carte de la boutique");
+        const carte = lienCarteGoogleMapsHtml(article?.lat, article?.lng, "🗺️ Carte de la boutique");
         if(adresse || carte) boutiques.push({ nom: nomBoutique, adresse, carte });
       });
-      const adressesBoutiques = boutiques.length > 0 ? `
-                <div style="font-size:13px;color:#666;margin-bottom:6px;">
-                  <strong>🏪 Adresse(s) boutique(s) :</strong>
-                  ${boutiques.map((boutique) => `<div style="margin-top:4px;">${echapperHtml(boutique.nom)} : ${echapperHtml(boutique.adresse || "Non renseignée")}${boutique.carte ? `<br>${boutique.carte}` : ""}</div>`).join("")}
-                </div>` : "";
+      const blocBoutiques = boutiques.length > 0 ? `
+            <div class="cmd-bloc"><span class="cmd-bloc-titre">🏪 Boutique(s)</span>
+              ${boutiques.map((boutique) => `<div style="margin-top:4px;">${echapperHtml(boutique.nom)} — ${echapperHtml(boutique.adresse || "Adresse non renseignée")}${boutique.carte ? `<span class="cmd-lien-carte">${boutique.carte}</span>` : ""}</div>`).join("")}
+            </div>` : "";
+      const blocArticles = articles.length > 0 ? `
+            <div class="cmd-bloc"><span class="cmd-bloc-titre">📦 ${nb} article(s)</span>
+              <ul class="cmd-articles-liste">${lignesArticles}</ul>
+            </div>` : "";
       return `
-        <div style="border:1px solid var(--gris-bordure);border-radius:12px;padding:12px;margin-bottom:10px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="cmd-carte">
+          <div class="cmd-entete">
             <div>
-              <div style="font-weight:700;">Commande #${id} — ${date}</div>
-              <div style="font-size:13px;color:#666;margin:4px 0;">
-                👤 ${nomClient} · 📞 ${telephoneClient} · 📦 ${nb} article(s)
-              </div>
-              <div style="font-size:13px;color:#666;margin-bottom:2px;">
-                📍 Quartier de livraison : ${quartierClient}${cmd.precision_livraison ? ` · ${echapperHtml(cmd.precision_livraison)}` : ""}
-              </div>
-              ${carteClient ? `<div style="font-size:13px;margin-bottom:6px;">${carteClient}</div>` : ""}
-              ${adressesBoutiques}
-              <div style="font-size:13px;color:#666;margin-bottom:4px;">
-                💰 ${Number(cmd.total || 0).toLocaleString("fr-FR")} FCFA
-              </div>
+              <span class="cmd-num">🧾 Commande #${id}</span>
+              <span class="cmd-date">${date} à ${heure}</span>
             </div>
+            <span class="cmd-total">💰 ${Number(cmd.total || 0).toLocaleString("fr-FR")} FCFA</span>
+          </div>
+          <div class="cmd-corps">
+            <div class="cmd-info">
+              👤 ${nomClient} — 📞 ${telephoneClient}
+            </div>
+            <div class="cmd-info">
+              📍 ${quartierClient}${cmd.precision_livraison ? ` · ${echapperHtml(cmd.precision_livraison)}` : ""}
+              ${carteClient ? `<span class="cmd-lien-carte">${carteClient}</span>` : ""}
+            </div>
+            ${blocArticles}
+            ${blocBoutiques}
+          </div>
+          <div class="cmd-pied">
             <button class="btn-supprimer-gestion" onclick="supprimerCommande(${idJs})" title="Supprimer cette commande">
-              🗑️
+              🗑️ Supprimer
             </button>
           </div>
         </div>
@@ -5717,15 +5797,12 @@ function ouvrirNotifManuelle(){
 const DUREE_LIMITE_RENVOI_NOTIF_MS = 5 * 60 * 60 * 1000; // 5 heures
 
 async function ouvrirRenvoiNotifBoutiquier(){
-  document.getElementById("blocNotifications").style.display = "none";
-  document.getElementById("admin-accueil").style.display = "none";
-  document.getElementById("renvoiNotifBoutiquier").style.display = "block";
+  afficherPanneauAdmin("renvoiNotifBoutiquier");
   await chargerCommandesRecentesPourRenvoi();
 }
 
 function fermerRenvoiNotifBoutiquier(){
-  document.getElementById("renvoiNotifBoutiquier").style.display = "none";
-  document.getElementById("blocNotifications").style.display = "block";
+  afficherPanneauAdmin("blocNotifications");
 }
 
 async function chargerCommandesRecentesPourRenvoi(){
