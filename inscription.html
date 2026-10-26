@@ -1674,6 +1674,24 @@ async function traiterEtPublierArticle(articleData, nomBoutiquier, nomBoutique, 
   const categorieChoisie = articleData.categorie_id || classement.categorie_id || "mode";
   const sousCategorieChoisie = articleData.sous_categorie_id || classement.sous_categorie_id || "vetements";
 
+  // ✋ GARDE ANTI-BLOCAGE : une boutique bloquée par l'administration (commission
+  // impayée) ne peut plus publier de nouveaux articles tant qu'elle n'est pas
+  // réautorisée. Vérifié côté navigateur ET côté base (policy « Insertion… »),
+  // donc bloquant même si quelqu'un contourne cette page.
+  const nomBoutiqueCanonique = String(nomBoutique || "").trim().toLocaleLowerCase("fr-FR").replace(/\s+/g, " ");
+  try{
+    const { data: listeBlocages } = await supabaseClient
+      .from("boutiques_bloquees")
+      .select("id, nom_boutique")
+      .limit(200);
+    if(Array.isArray(listeBlocages) && listeBlocages.some(l => String(l?.nom_boutique || "").trim().toLocaleLowerCase("fr-FR").replace(/\s+/g, " ") === nomBoutiqueCanonique)){
+      throw new Error("⛔ Votre boutique est bloquée par l'administration (commission impayée). Contactez Prime Service pour être réautorisé·e avant de publier des articles.");
+    }
+  } catch(erreurBlocage){
+    if(String(erreurBlocage?.message || "").includes("⛔")) throw erreurBlocage;
+    // Sans connexion, la policy côté serveur refuse aussi : on laisse passer ici.
+  }
+
   const nouvelArticle = {
     nom: (articleData.nomArticle && articleData.nomArticle.trim()) ? articleData.nomArticle.trim() : nomFinal,
     prix: Number(articleData.prixSaisi) + calculerCommissionPrimeService(Number(articleData.prixSaisi)),

@@ -1463,12 +1463,24 @@ window.addEventListener('orientationchange', function() {
   </div>
   <div class="header-right">
     <button id="btnRetour" class="btn-retour" style="display:none;">← Retour</button>
+    <button id="btnOptionsAdmin" class="btn-options" onclick="ouvrirEspaceAdmin()" title="Options vendeur" style="display:none;">⚙️</button>
     <button class="btn-panier" onclick="afficherPanier()">
       🛒 Panier <span id="compteurPanier" class="badge">0</span>
     </button>
-    <button id="btnOptionsAdmin" class="btn-options" onclick="ouvrirEspaceAdmin()" title="Options vendeur" style="display:none;">⚙️</button>
   </div>
 </header>
+
+<!-- ===================== BANDEAU « MODE ADMINISTRATEUR » ===================== -->
+<!-- Visible uniquement quand le compte administrateur est connecté sur cet appareil :
+     on peut revenir à la page d'accueil en RESTANT admin et regagner l'espace
+     vendeur en un clic, depuis toutes les pages du site. -->
+<div id="bandeauAdminActif" style="display:none;position:sticky;top:0;z-index:58;background:#1e3a5f;color:#ffffff;padding:8px 14px;box-shadow:0 2px 10px rgba(15,23,42,0.25);">
+  <div style="max-width:1000px;margin:0 auto;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:13px;">
+    <span style="font-weight:700;">🧑‍💼 Mode administrateur</span>
+    <button type="button" onclick="ouvrirEspaceAdmin()" style="background:#f59e0b;color:#111827;border:none;border-radius:8px;padding:7px 14px;font-weight:700;font-size:12px;cursor:pointer;">🏪 Espace vendeur</button>
+    <button type="button" onclick="deconnexionAdminDepuisBandeau()" style="background:rgba(255,255,255,0.15);color:#ffffff;border:1px solid rgba(255,255,255,0.35);border-radius:8px;padding:7px 14px;font-weight:600;font-size:12px;cursor:pointer;">🚪 Déconnexion</button>
+  </div>
+</div>
 
 <div class="bandeau-notif-optin" id="blocNotifOptin" style="display:none;">
   <span class="texte-bandeau-notif">🔔 Activez les notifications pour être prévenu dès qu'un nouvel article est publié.</span>
@@ -1538,10 +1550,9 @@ window.addEventListener('orientationchange', function() {
       <!-- BLOC MODERNE DEDIE AU BOUTIQUIER (VISIBLE APRES PUBLICATION) -->
       <div id="blocBoutonPartageBoutiquier" style="display:none;margin-top:20px;padding:16px;background:#18181b;border:1px solid rgba(255,255,255,0.18);border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,0.35);text-align:center;">
         <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px;">
-          <span style="font-size:16px;">🏪</span>
           <span id="labelTitreBoutiquier" style="color:#f4f4f5;font-weight:700;font-size:14px;letter-spacing:0.3px;">Espace Boutiquier</span>
         </div>
-        <div style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
+        <div id="rangeeBoutonsPartageBoutiquier" style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
           <!-- Bouton 1 : Partager WhatsApp -->
           <button type="button" onclick="partagerLienClientDepuisAccueil()" style="background:#16a34a;color:#ffffff;border:1px solid rgba(255,255,255,0.2);padding:12px 20px;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:10px;box-shadow:0 4px 14px rgba(22,163,74,0.35);">
             <span style="font-size:18px;">📲</span>
@@ -1710,8 +1721,10 @@ window.addEventListener('orientationchange', function() {
         <button class="item-menu-admin" onclick="ouvrirGestionArticles()">
           <span class="icone-item">📋</span> Gérer / Supprimer mes articles <span class="fleche">›</span>
         </button>
-        <button class="item-menu-admin" onclick="ouvrirBlocNotifications()">
-          <span class="icone-item">🔔</span> Notifications &amp; messages <span class="fleche">›</span>
+      <button class="item-menu-admin" onclick="ouvrirBlocNotifications()" style="position:relative;">
+          <span class="icone-item">🔔</span> Notifications &amp; messages
+          <span id="pastilleNouvellesCommandes" style="display:none;position:absolute;top:10px;right:44px;background:#ea580c;color:#fff;font-size:11px;font-weight:800;min-width:20px;height:20px;border-radius:10px;align-items:center;justify-content:center;padding:0 6px;">0</span>
+          <span class="fleche">›</span>
         </button>
         <button class="item-menu-admin" onclick="ouvrirHistoriqueAchats()">
           <span class="icone-item">📋</span> Historique des achats <span class="fleche">›</span>
@@ -1762,7 +1775,7 @@ window.addEventListener('orientationchange', function() {
     <div id="gestionArticles" class="panneau-admin" style="display:none;">
       <h3 class="titre-panneau">📋 Vos articles publiés</h3>
       <div style="margin:12px 0 14px;display:flex;gap:10px;flex-wrap:wrap;">
-        <button type="button" onclick="ouvrirMasquageArticles()" style="padding:10px 16px;background:#111827;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;">🙈 Masquer / Réafficher les articles</button>
+        <button type="button" onclick="ouvrirGestionBlocages()" style="padding:10px 16px;background:#7f1d1d;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;">🚫 Bloquer / Débloquer des boutiquiers</button>
         <button type="button" onclick="ouvrirGestionCategories()" style="padding:10px 16px;background:#111827;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;">🙈 Masquer des catégories</button>
       </div>
       <div style="margin-top:14px;"></div>
@@ -1770,29 +1783,41 @@ window.addEventListener('orientationchange', function() {
       <button type="button" class="btn-retour-lien" onclick="fermerGestionArticles()">Fermer</button>
     </div>
 
-    <!-- ========== MASQUER DES ARTICLES (depuis Gérer mes articles) ========== -->
-    <div id="masquageArticles" class="panneau-admin" style="display:none;">
-      <h3 class="titre-panneau">🙈 Masquer les articles</h3>
-      <p class="sous-titre-panneau">Un article masqué disparaît du catalogue public. Réaffichez-le à tout moment.</p>
-      <div id="listeMasquageArticles"><!-- injecté par JS --></div>
-      <button type="button" class="btn-retour-lien" onclick="fermerMasquageArticles()">Retour à la gestion des articles</button>
+    <!-- ========== BLOCAGE DES BOUTIQUIERS (commission impayée) ========== -->
+    <div id="gestionBlocages" class="panneau-admin" style="display:none;">
+      <h3 class="titre-panneau">🚫 Bloquer / Débloquer des boutiquiers</h3>
+      <p class="sous-titre-panneau">
+        Un boutiquier bloqué ne peut plus vendre sur le site (ses articles disparaissent du catalogue)
+        jusqu'à ce que vous le réautorisiez ici — typiquement tant que sa commission n'est pas payée.
+      </p>
+      <div id="listeGestionBlocages" style="margin:14px 0;"><p style="color:#666;text-align:center;">⏳ Chargement des boutiquiers...</p></div>
+      <p id="statutGestionBlocages" class="statut-envoi"></p>
+      <button type="button" class="btn-retour-lien" onclick="retourAdminPrecedent()">Retour</button>
     </div>
 
-    <!-- ========== NOTIFICATION PRISE DE COMMISSION SAMEDI (BOUTIQUIERS UNIQUEMENT) ========== -->
+    <!-- ========== COMMISSIONS & RAPPELS BOUTIQUIERS (automatiques) ========== -->
     <div id="notifCommissionSamedi" class="panneau-admin" style="display:none;">
-      <h3 class="titre-panneau">💰 Prise de commission — samedi</h3>
+      <h3 class="titre-panneau">💰 Commissions & rappels boutiquiers</h3>
       <p class="sous-titre-panneau">
-        Avertit uniquement les boutiquiers qui ont autorisé les notifications.
-        Les clients ne reçoivent rien.
+        La commission due de chaque boutique est calculée automatiquement à partir des commandes,
+        moins ce que vous avez déjà marqué comme réclamé. Un clic envoie le rappel directement
+        au boutiquier concerné — plus besoin de tout chercher à la main.
       </p>
 
-      <label class="label">Message</label>
-      <textarea id="messageNotifCommission" class="champ" rows="3" maxlength="200">La prise de commission se fera ce samedi. Merci de préparer la commission Prime Service à remettre.</textarea>
-      <p class="sous-titre-panneau">Le message part en notification push vers le navigateur de chaque boutiquier enregistré.</p>
+      <div id="listeCommissionsBoutiquiers" style="margin:14px 0;">
+        <p style="color:#666;text-align:center;">⏳ Calcul des commissions dues...</p>
+      </div>
+      <p id="statutRappelCommission" class="statut-envoi"></p>
 
-      <button id="btnNotifCommission" class="btn-principal" style="margin-top:14px;" onclick="avertirCommissionSamedi()">💰 Avertir les boutiquiers</button>
+      <hr style="border:none;border-top:1px solid var(--gris-bordure);margin:18px 0;">
+
+      <label class="label" style="font-weight:700;">Message global du samedi (tous les boutiquiers)</label>
+      <textarea id="messageNotifCommission" class="champ" rows="2" maxlength="200">La prise de commission se fera ce samedi. Merci de préparer la commission Prime Service à remettre.</textarea>
+      <p class="sous-titre-panneau">Ce message part en notification push à tous les boutiquiers qui ont autorisé les notifications. Les clients ne reçoivent rien.</p>
+      <button id="btnNotifCommission" class="btn-principal" style="margin-top:10px;" onclick="avertirCommissionSamedi()">💰 Avertir tous les boutiquiers</button>
       <p id="statutNotifCommission" class="statut-envoi"></p>
-      <button type="button" class="btn-retour-lien" onclick="fermerNotifCommissionSamedi()">Fermer</button>
+
+      <button type="button" class="btn-retour-lien" onclick="retourAdminPrecedent()">Retour</button>
     </div>
 
     <!-- ========== MASQUER DES CATEGORIES / SOUS-CATEGORIES ========== -->
@@ -2360,6 +2385,17 @@ let categoriesMasquees = []; // ex: ["moto", "mode|foulards"] -> catégorie ou s
 let produitsParCle = {}; // ex: "electronique|telephones" -> [ {id, nom, prix, adresse, lat, lng, image_url}, ... ]
 let vueEnCours = { nom: "accueil", idCategorie: null, idSousCategorie: null, cleBoutique: null };
 
+/* Position de scroll mémorisée AU MOMENT DU CLIC (phase capture), donc avant
+   tout changement de vue. On la réemploie dans replaceState pour que le bouton
+   « précédent » ramène EXACTEMENT au même endroit, sans saut de page. */
+let __psScrollAvantNav = 0;
+document.addEventListener("pointerdown", () => { __psScrollAvantNav = Math.max(0, Math.round(window.scrollY)); }, true);
+function scrollYAvantChangement(){
+  return (typeof __psScrollAvantNav === "number" && __psScrollAvantNav > 0)
+    ? __psScrollAvantNav
+    : Math.round(window.scrollY);
+}
+
 
 /* =====================================================================
    VERROUILLAGE 3MIN 30S & ROUTAGE BOUTIQUE CLIENT EXCLUSIF
@@ -2485,17 +2521,64 @@ function copierLienClientDepuisAccueil(){
 }
 
 
-function verifierEspaceBoutiquierSurAccueil(){
+async function verifierEspaceBoutiquierSurAccueil(){
   const bloc = document.getElementById("blocBoutonPartageBoutiquier");
   const lienManuel = document.getElementById("lienActiverBoutiquier");
   const nomBoutique = localStorage.getItem("ps_boutique_nom");
   const aPublie = localStorage.getItem("ps_a_publie");
-  if(bloc && (aPublie === "true" || nomBoutique)){
-    bloc.style.display = "block";
-    if(lienManuel) lienManuel.style.display = "none";
-    const titre = document.getElementById("labelTitreBoutiquier");
-    if(titre && nomBoutique) titre.textContent = "🏪 Votre Boutique — " + nomBoutique;
+  if(!bloc || !(aPublie === "true" || nomBoutique)){
+    majAvertissementBoutiqueBloquee(null);
+    return;
   }
+  bloc.style.display = "block";
+  if(lienManuel) lienManuel.style.display = "none";
+  const titre = document.getElementById("labelTitreBoutiquier");
+  if(titre && nomBoutique) titre.textContent = "Votre Boutique — " + nomBoutique;
+  // Un boutiquier bloqué (commission impayée) voit ici un avertissement clair,
+  // à la place des boutons de partage : il ne peut plus vendre avant réautorisation.
+  const idBoutique = cleBoutiqueCanonique(nomBoutique);
+  const bloque = await boutiqueTemporairementBloquee(idBoutique);
+  majAvertissementBoutiqueBloquee(bloque ? nomBoutique : null);
+}
+
+/* Vrai si la boutique est dans la liste des boutiques bloquées.
+   La liste est relue en ligne toutes les 2 minutes ; hors connexion, on
+   s'appuie sur le dernier état connu (cohérent avec le catalogue hors ligne). */
+let __horodatageCacheBlocage = 0;
+async function boutiqueTemporairementBloquee(idBoutique){
+  const cache = boutiquesBloqueesEnCache();
+  const nomEnCache = cache.some(ligne => cleBoutiqueCanonique(ligne?.nom_boutique) === idBoutique);
+
+  if(Date.now() - __horodatageCacheBlocage > 120000){
+    await rafraichirCacheBoutiquesBloquees();
+    __horodatageCacheBlocage = Date.now();
+    return boutiquesBloqueesEnCache().some(ligne => cleBoutiqueCanonique(ligne?.nom_boutique) === idBoutique);
+  }
+  return nomEnCache;
+}
+
+function majAvertissementBoutiqueBloquee(dernierAvertissement){
+  const bloc = document.getElementById("blocBoutonPartageBoutiquier");
+  if(!bloc) return;
+  let encart = document.getElementById("encartBoutiqueBloquee");
+  if(!dernierAvertissement){
+    if(encart) encart.style.display = "none";
+    const boutonsPartage = bloc.querySelector("#rangeeBoutonsPartageBoutiquier");
+    if(boutonsPartage) boutonsPartage.style.display = "flex";
+    return;
+  }
+  if(!encart){
+    encart = document.createElement("div");
+    encart.id = "encartBoutiqueBloquee";
+    encart.style.cssText = "margin-top:10px;padding:12px;border-radius:12px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;line-height:1.5;";
+    bloc.appendChild(encart);
+  }
+  const rangeeBoutons = bloc.querySelector("#rangeeBoutonsPartageBoutiquier");
+  if(rangeeBoutons) rangeeBoutons.style.display = "none";
+  encart.innerHTML = `⛔ <strong>Votre boutique est bloquée par l'administration</strong> —<br>
+    Elle n'est plus visible sur Prime Service et ne peut plus recevoir de commandes.
+    Recontactez Prime Service (paiement de la commission) pour être réautorisée.`;
+  encart.style.display = "block";
 }
 
 function activerManuellementBoutiquier(){
@@ -2524,7 +2607,7 @@ function cleSousCategorie(idCategorie, idSousCategorie){
    sauvegardée sur cet appareil, pour que le catalogue reste consultable.
    ===================================================================== */
 const CLE_CACHE_PRODUITS = "primeservice_produits_cache_v3";
-const VERSION_CACHE_PRODUITS = 3;
+const VERSION_CACHE_PRODUITS = 4; // à incrémenter quand la logique de placement des articles change
 
 async function chargerProduits(tentative = 1){
   // 1. AFFICHER IMMÉDIATEMENT LE CATALOGUE ENREGISTRÉ (pour éviter l'écran blanc)
@@ -2796,7 +2879,11 @@ function afficherRecherche(query, pousserHistorique = true){
       </div>`;
     }).join("");
   }
-  if(pousserHistorique) history.pushState({ vue: "recherche", query: recherche }, "");
+  if(pousserHistorique){
+    try{ if(history.state) history.replaceState({ ...history.state, scrollY: Math.round(scrollYAvantChangement()) }, ""); }catch(e){}
+    history.pushState({ vue: "recherche", query: recherche }, "");
+    window.scrollTo(0, 0);
+  }
 }
 
 function trouverProduitParId(id){
@@ -2824,7 +2911,12 @@ function afficherAccueil(pousserHistorique = true){
   document.getElementById("btnRetour").style.display = "none";
   afficherBoutiquesPreferees();
   verifierEspaceBoutiquierSurAccueil();
-  if(pousserHistorique) history.pushState({ vue: "accueil" }, "");
+  majBandeauAdmin();
+  if(pousserHistorique){
+    try{ if(history.state) history.replaceState({ ...history.state, scrollY: Math.round(scrollYAvantChangement()) }, ""); }catch(e){}
+    history.pushState({ vue: "accueil" }, "");
+    window.scrollTo(0, 0);
+  }
 }
 
 function afficherSousCategories(idCategorie, changerVue = true, pousserHistorique = true){
@@ -2854,7 +2946,11 @@ function afficherSousCategories(idCategorie, changerVue = true, pousserHistoriqu
     </div>`;
   }).join("");
 
-  if(pousserHistorique) history.pushState({ vue: "souscategories", idCategorie }, "");
+  if(pousserHistorique){
+    try{ if(history.state) history.replaceState({ ...history.state, scrollY: Math.round(scrollYAvantChangement()) }, ""); }catch(e){}
+    history.pushState({ vue: "souscategories", idCategorie }, "");
+    window.scrollTo(0, 0);
+  }
 }
 
 const CLE_BOUTIQUES_PREFEREES = "primeservice_boutiques_preferees";
@@ -2959,7 +3055,11 @@ function afficherBoutiques(idCategorie, idSousCategorie, pousserHistorique = tru
       <button type="button" class="btn-favori-boutique ${estBoutiquePreferee(boutique.cle) ? "est-favori" : ""}" data-boutique-favorite="${echapperHtml(boutique.cle)}" aria-pressed="${estBoutiquePreferee(boutique.cle) ? "true" : "false"}" onclick="basculerBoutiquePreferee(${cleJs}, event)">${estBoutiquePreferee(boutique.cle) ? "★ Suivie" : "☆ Suivre"}</button>
     </div>`;
   }).join("") : `<p style="grid-column:1/-1;text-align:center;color:#666;padding:30px 0;">Aucune boutique ne propose encore d’article dans cette sous-catégorie.</p>`;
-  if(pousserHistorique) history.pushState({ vue: "boutiques", idCategorie, idSousCategorie }, "");
+  if(pousserHistorique){
+    try{ if(history.state) history.replaceState({ ...history.state, scrollY: Math.round(scrollYAvantChangement()) }, ""); }catch(e){}
+    history.pushState({ vue: "boutiques", idCategorie, idSousCategorie }, "");
+    window.scrollTo(0, 0);
+  }
 }
 
 function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pousserHistorique = true, cleBoutique = null){
@@ -3007,7 +3107,11 @@ function afficherProduits(idCategorie, idSousCategorie, changerVue = true, pouss
     }).join("");
   }
 
-  if(pousserHistorique) history.pushState({ vue: "produits", idCategorie, idSousCategorie, cleBoutique }, "");
+  if(pousserHistorique){
+    try{ if(history.state) history.replaceState({ ...history.state, scrollY: Math.round(scrollYAvantChangement()) }, ""); }catch(e){}
+    history.pushState({ vue: "produits", idCategorie, idSousCategorie, cleBoutique }, "");
+    window.scrollTo(0, 0);
+  }
 }
 
 function afficherPanier(pousserHistorique = true){
@@ -3018,7 +3122,11 @@ function afficherPanier(pousserHistorique = true){
   btnRetour.style.display = "inline-block";
   btnRetour.onclick = () => afficherAccueil();
   dessinerPanier();
-  if(pousserHistorique) history.pushState({ vue: "panier" }, "");
+  if(pousserHistorique){
+    try{ if(history.state) history.replaceState({ ...history.state, scrollY: Math.round(scrollYAvantChangement()) }, ""); }catch(e){}
+    history.pushState({ vue: "panier" }, "");
+    window.scrollTo(0, 0);
+  }
 }
 
 function afficherCheckout(pousserHistorique = true){
@@ -3030,7 +3138,11 @@ function afficherCheckout(pousserHistorique = true){
   btnRetour.style.display = "inline-block";
   btnRetour.onclick = () => afficherPanier();
   document.getElementById("totalCheckout").textContent = calculerTotal().toLocaleString("fr-FR") + " FCFA";
-  if(pousserHistorique) history.pushState({ vue: "checkout" }, "");
+  if(pousserHistorique){
+    try{ if(history.state) history.replaceState({ ...history.state, scrollY: Math.round(scrollYAvantChangement()) }, ""); }catch(e){}
+    history.pushState({ vue: "checkout" }, "");
+    window.scrollTo(0, 0);
+  }
 }
 
 function construireCategories(){
@@ -3905,7 +4017,9 @@ async function ouvrirEspaceAdmin(pousserHistorique = true){
   btnRetour.style.display = "inline-block";
   btnRetour.onclick = () => afficherAccueil();
 
+  try{ if(history.state) history.replaceState({ ...history.state, scrollY: Math.round(scrollYAvantChangement()) }, ""); }catch(e){}
   if(pousserHistorique) history.pushState({ vue: "admin" }, "");
+  window.scrollTo(0, 0);
 
   await verifierSessionAdmin();
 }
@@ -3919,9 +4033,12 @@ async function verifierSessionAdmin(){
   if(session){
     const email = (session.user.email || "").toLowerCase();
     if(email === CONFIG.EMAIL_ADMIN_AUTORISE.toLowerCase()){
-      const btn = document.getElementById(btnOptionsAdmin);
-      if(btn && !(typeof estModeBoutiqueVerrouille === 'function' && estModeBoutiqueVerrouille())) btn.style.display = inline-block;
+      const btn = document.getElementById("btnOptionsAdmin");
+      if(btn && !(typeof estModeBoutiqueVerrouille === 'function' && estModeBoutiqueVerrouille())) btn.style.display = "inline-block";
+      localStorage.setItem("ps_admin_actif", "1");
       afficherEtatConnexion(true, session.user.email);
+      majBandeauAdmin();
+      majPastilleNouvellesCommandes();
       // Le premier chargement (avant connexion) ne voyait que les articles
       // visibles au public. Maintenant qu'on est authentifié en admin, on
       // recharge pour récupérer aussi les articles masqués en attente.
@@ -3932,7 +4049,9 @@ async function verifierSessionAdmin(){
     await supabaseClient.auth.signOut();
   }
 
+  localStorage.removeItem("ps_admin_actif");
   afficherEtatConnexion(false);
+  majBandeauAdmin();
 }
 
 function afficherFormulaireLogin(){
@@ -3986,10 +4105,61 @@ if(supabaseClient){
 }
 
 async function deconnexionAdmin(){
-  const btn = document.getElementById(btnOptionsAdmin);
-  if(btn) btn.style.display = none;
+  const btn = document.getElementById("btnOptionsAdmin");
+  if(btn) btn.style.display = "none";
   await supabaseClient.auth.signOut();
   afficherEtatConnexion(false);
+}
+
+/* Déconnexion depuis le bandeau « Mode administrateur » : on quitte la
+   session puis on revient à l'accueil (il faut au moins un changement de
+   page visible, sinon l'admin a l'impression que rien ne s'est passé). */
+async function deconnexionAdminDepuisBandeau(){
+  await deconnexionAdmin();
+  afficherAccueil();
+}
+
+/* Affiche ou masque le bandeau « Mode administrateur » selon l'état réel :
+   bandeau visible UNIQUEMENT sur les pages client (jamais dans l'espace
+   vendeur, jamais chez un visiteur non admin, jamais sous verrou boutique). */
+function majBandeauAdmin(){
+  const bandeau = document.getElementById("bandeauAdminActif");
+  if(!bandeau) return;
+  const vuAdminVisible = document.getElementById("vue-admin").style.display === "block";
+  const verrouBoutique = typeof estModeBoutiqueVerrouille === "function" && estModeBoutiqueVerrouille();
+  const actif = !vuAdminVisible && !verrouBoutique && localStorage.getItem("ps_admin_actif") === "1";
+  bandeau.style.display = actif ? "block" : "none";
+}
+
+/* PASTILLE : nombre de commandes nouvelles depuis la dernière lecture des
+   notifications, affiché sur le menu « Notifications & messages » de
+   l'espace vendeur. Une lecture de la section remet la pastille à zéro. */
+function marquerCommandesLues(){
+  try{ localStorage.setItem("ps_admin_commandes_lues_le", new Date().toISOString()); }catch(e){}
+  const pastille = document.getElementById("pastilleNouvellesCommandes");
+  if(pastille) pastille.style.display = "none";
+}
+
+async function majPastilleNouvellesCommandes(){
+  const pastille = document.getElementById("pastilleNouvellesCommandes");
+  if(!pastille || !supabaseClient){ return; }
+  try{
+    const luLe = localStorage.getItem("ps_admin_commandes_lues_le") || "1970-01-01T00:00:00Z";
+    const { count, error } = await supabaseClient
+      .from("commandes")
+      .select("id", { count: "exact", head: true })
+      .gt("created_at", luLe);
+    if(error) throw error;
+    if(count && count > 0){
+      pastille.textContent = count > 99 ? "99+" : String(count);
+      pastille.style.display = "inline-flex";
+    } else {
+      pastille.style.display = "none";
+    }
+  } catch(e){
+    console.warn("Pasille des nouvelles commandes indisponible :", e);
+    pasille.style.display = "none";
+  }
 }
 
 let articleEnEdition = null; // id de l'article en cours de modification, ou null si ajout
@@ -4080,7 +4250,7 @@ function reinitialiserFormulaireArticle(){
 
 function fermerFormulaireArticle(){
   reinitialiserFormulaireArticle();
-  afficherPanneauAdmin("admin-accueil");
+  retourAdminPrecedent();
 }
 
 document.addEventListener("click", function(e){
@@ -4225,6 +4395,15 @@ async function publierArticle(event){
   const nomSaisi = document.getElementById("nomArticleAdmin").value.trim();
   const nom = nettoyerNomArticleManuel(nomSaisi, "Article Prime Service");
   const nomBoutique = document.getElementById("nomBoutiqueAdmin").value.trim();
+
+  // Boutiques bloquées : on refuse de publier un supplément pour une boutique
+  // bloquée (commission impayée) jusqu'à sa réautorisation dans l'espace vendeur.
+  if(await boutiqueTemporairementBloquee(cleBoutiqueCanonique(nomBoutique))){
+    const statutPublication = document.getElementById("statutPublication");
+    statutPublication.style.color = "#dc2626";
+    statutPublication.textContent = "⛔ Boutique bloquée : réautorisez-la d'abord depuis l'espace vendeur avant de publier un article.";
+    return false;
+  }
   const telephone = document.getElementById("telephoneArticleAdmin").value.trim();
   const prixBase = parseInt(document.getElementById("prixArticleAdmin").value, 10);
   const commission = calculerCommissionPrimeService(prixBase);
@@ -4380,69 +4559,162 @@ function ouvrirGestionArticles(){
 
 function fermerGestionArticles(){
   boutiqueActiveGestion = null;
-  afficherPanneauAdmin("admin-accueil");
+  retourAdminPrecedent();
 }
 
-function ouvrirMasquageArticles(){
-  afficherPanneauAdmin("masquageArticles");
-  dessinerMasquageArticles();
+/* =====================================================================
+   BLOCAGE DES BOUTIQUIERS (commission impayée)
+   Un blocage = la marque « boutiques_bloquees » + tous les articles de la
+   boutique masqués : ils disparaissent du catalogue public et aucune
+   commande n'est plus possible (le serveur refuse les articles masqués).
+   ===================================================================== */
+function cleBoutiqueCanonique(nom){
+  return String(nom || "").trim().toLocaleLowerCase("fr-FR").replace(/s+/g, " ");
 }
 
-function fermerMasquageArticles(){
-  afficherPanneauAdmin("gestionArticles");
+function boutiquesBloqueesEnCache(){
+  try{
+    const donnees = JSON.parse(localStorage.getItem("ps_boutiques_bloquees_cache") || "[]");
+    if(Array.isArray(donnees)) return donnees;
+  }catch(e){}
+  return [];
 }
 
-async function dessinerMasquageArticles(){
-  const conteneur = document.getElementById("listeMasquageArticles");
+function estBoutiqueBloquee(nom){
+  const cle = cleBoutiqueCanonique(nom);
+  return !!cle && boutiquesBloqueesEnCache().some(ligne => cleBoutiqueCanonique(ligne?.nom_boutique) === cle);
+}
+
+async function rafraichirCacheBoutiquesBloquees(){
+  if(!supabaseClient) return;
+  try{
+    const { data } = await supabaseClient
+      .from("boutiques_bloquees")
+      .select("id, nom_boutique")
+      .limit(200);
+    if(Array.isArray(data)){
+      localStorage.setItem("ps_boutiques_bloquees_cache", JSON.stringify(data));
+    }
+  }catch(e){ console.warn("Lecture des boutiques bloquées impossible :", e); }
+}
+
+async function ouvrirGestionBlocages(){
+  afficherPanneauAdmin("gestionBlocages");
+  await dessinerGestionBlocages();
+}
+
+let __articlesParBoutiqueBlocage = {}; // cle canonique -> ids d'articles
+
+async function dessinerGestionBlocages(){
+  const conteneur = document.getElementById("listeGestionBlocages");
   if(!conteneur) return;
+  conteneur.innerHTML = `<p style="color:#666;text-align:center;">⏳ Chargement des boutiquiers...</p>`;
 
-  // On relit la base pour afficher un état du masquage le plus récent possible.
-  if(supabaseClient){
-    try{
-      const { data: liees, error } = await supabaseClient
-        .from("produits")
-        .select("id, nom, masque, nom_boutique, telephone_boutique, telephone");
-      if(!error && Array.isArray(liees)){
-        liees.forEach(produit => {
-          const existant = articlesUniques().find(a => String(a.id) === String(produit.id));
-          if(existant){
-            existant.masque = produit.masque;
-          } else {
-            produitsParCle["_masquage"] = [
-              ...(produitsParCle["_masquage"] || []),
-              produit,
-            ];
-          }
-        });
-      }
-    } catch(e){ console.warn("Relecture masquage impossible :", e); }
-  }
+  try{
+    const [ lecturesProduits, lecturesBlocages ] = await Promise.all([
+      supabaseClient.from("produits").select("id, nom_boutique, telephone_boutique, telephone").limit(1000),
+      supabaseClient.from("boutiques_bloquees").select("id, nom_boutique, bloque_le").limit(200),
+    ]);
+    if(lecturesProduits.error) throw lecturesProduits.error;
+    if(lecturesBlocages.error) throw lecturesBlocages.error;
 
-  const articles = articlesUniques();
-  if(articles.length === 0){
-    conteneur.innerHTML = `<p style="color:#666;text-align:center;padding:24px 0;">Aucun article publié pour le moment.</p>`;
-    return;
-  }
+    __articlesParBoutiqueBlocage = {};
+    const boutiques = new Map(); // cle canonique -> { affiche, telephone, total }
+    (lecturesProduits.data || []).forEach(produit => {
+      const cle = cleBoutiqueCanonique(produit.nom_boutique) || "boutique sans nom";
+      const ligne = boutiques.get(cle) || {
+        affiche: (String(produit.nom_boutique || "").trim() || "Boutique sans nom"),
+        telephone: String(produit.telephone_boutique || produit.telephone || "").trim(),
+        total: 0,
+      };
+      ligne.total += 1;
+      if(!ligne.telephone && (produit.telephone_boutique || produit.telephone)) ligne.telephone = String(produit.telephone_boutique || produit.telephone).trim();
+      __articlesParBoutiqueBlocage[cle] = __articlesParBoutiqueBlocage[cle] || [];
+      __articlesParBoutiqueBlocage[cle].push(Number(produit.id));
+      boutiques.set(cle, ligne);
+    });
+    const bloquees = new Set((lecturesBlocages.data || []).map(ligne => cleBoutiqueCanonique(ligne.nom_boutique)));
 
-  conteneur.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      ${articles.map(a => `
-        <div style="border:1px solid var(--gris-bordure);border-radius:12px;padding:10px 12px;background:${a.masque ? "#f9fafb" : "#fff"};display:flex;align-items:center;gap:10px;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:600;font-size:14px;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-              ${echapperHtml(a.nom)}
-              ${a.masque ? `<span class="etiquette-masque" style="font-size:10px;background:#666;color:#fff;padding:2px 6px;border-radius:4px;">masqué</span>` : ""}
+    if(boutiques.size === 0){
+      conteneur.innerHTML = `<p style="color:#666;text-align:center;padding:24px 0;">Aucune boutique enregistrée pour le moment.</p>`;
+      return;
+    }
+
+    const lignes = Array.from(boutiques.entries()).sort((a, b) => a[1].affiche.localeCompare(b[1].affiche));
+    conteneur.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        ${lignes.map(([cle, ligne]) => {
+          const bloque = bloquees.has(cle);
+          const cleJs = echapperPourOnclick(cle);
+          const afficheJs = echapperPourOnclick(ligne.affiche);
+          const telJs = echapperPourOnclick(ligne.telephone);
+          return `
+          <div style="border:1px solid var(--gris-bordure);border-radius:12px;padding:10px 12px;background:${bloque ? "#fef2f2" : "#fff"};display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:14px;color:#1e293b;">
+                🏪 ${echapperHtml(ligne.affiche)}
+                ${bloque ? `<span style="font-size:10px;background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px;margin-left:6px;">BLOQUÉE</span>` : ""}
+              </div>
+              <div style="font-size:12px;color:#64748b;">${ligne.telephone ? `📞 ${echapperHtml(ligne.telephone)} · ` : ""}${ligne.total} article(s)</div>
             </div>
-            <div style="font-size:12px;color:#64748b;">🏪 ${echapperHtml((a.nom_boutique && a.nom_boutique.trim()) || "Boutique sans nom")}</div>
-          </div>
-          <button type="button" onclick="basculerVisibiliteArticle(String(${a.id}), ${a.masque ? "true" : "false"})" style="padding:8px 12px;border-radius:8px;border:1px solid var(--gris-bordure);background:${a.masque ? "#16a34a" : "#f1f5f9"};color:${a.masque ? "#fff" : "#111827"};font-size:12px;font-weight:600;cursor:pointer;">
-            ${a.masque ? "👁️ Réafficher" : "🙈 Masquer"}
-          </button>
-        </div>
-      `).join("")}
-    </div>
-  `;
-  conteneur.dataset.maj = "1";
+            ${bloque
+              ? `<button type="button" onclick="debloquerBoutiquier(${cleJs})" style="padding:8px 12px;border-radius:8px;border:1px solid #dc2626;background:#dc2626;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">✅ Réautoriser</button>`
+              : `<button type="button" onclick="bloquerBoutiquier(${cleJs}, ${afficheJs}, ${telJs})" style="padding:8px 12px;border-radius:8px;border:1px solid #7f1d1d;background:#7f1d1d;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">🚫 Bloquer</button>`}
+          </div>`;
+        }).join("")}
+      </div>
+    `;
+  } catch(e){
+    console.error("Erreur chargement boutiquiers :", e);
+    conteneur.innerHTML = `<p style="color:#dc2626;text-align:center;">⚠️ ${echapperHtml(e?.message || "Impossible de charger les boutiquiers.")}</p>`;
+  }
+}
+
+async function bloquerBoutiquier(cle, affiche, telephone){
+  if(!supabaseClient){ alert("Connexion Supabase indisponible."); return; }
+  const confirmOk = confirm(`Bloquer « ${affiche} » ?\n\nTous ses articles disparaissent immédiatement du site et il ne peut plus recevoir de commandes, tant que vous ne le réautorisez pas ici.`);
+  if(!confirmOk) return;
+  const statut = document.getElementById("statutGestionBlocages");
+  try{
+    const { error: erreurInsert } = await supabaseClient
+      .from("boutiques_bloquees")
+      .upsert({ nom_boutique: cle, nom_affiche: affiche || cle, telephone_boutique: telephone || "" }, { onConflict: "nom_boutique" });
+    if(erreurInsert) throw erreurInsert;
+    const ids = __articlesParBoutiqueBlocage[cle] || [];
+    if(ids.length > 0){
+      const { error: erreurMasque } = await supabaseClient.from("produits").update({ masque: true }).in("id", ids);
+      if(erreurMasque) throw erreurMasque;
+    }
+    await rafraichirCacheBoutiquesBloquees();
+    if(statut){ statut.style.color = "#16a34a"; statut.textContent = `✅ Boutique « ${affiche} » bloquée : articles retirés du site.`; }
+    await chargerProduits();
+    await dessinerGestionBlocages();
+  } catch(e){
+    console.error("Blocage impossible :", e);
+    alert("Impossible de bloquer cette boutique : " + (e?.message || e));
+  }
+}
+
+async function debloquerBoutiquier(cle){
+  if(!supabaseClient){ alert("Connexion Supabase indisponible."); return; }
+  if(!confirm("Réautoriser cette boutique ? Ses articles redeviennent visibles et commandables.")) return;
+  const statut = document.getElementById("statutGestionBlocages");
+  try{
+    const { error: erreurDelete } = await supabaseClient.from("boutiques_bloquees").delete().eq("nom_boutique", cle);
+    if(erreurDelete) throw erreurDelete;
+    const ids = __articlesParBoutiqueBlocage[cle] || [];
+    if(ids.length > 0){
+      const { error: erreurMasque } = await supabaseClient.from("produits").update({ masque: false }).in("id", ids);
+      if(erreurMasque) throw erreurMasque;
+    }
+    await rafraichirCacheBoutiquesBloquees();
+    if(statut){ statut.style.color = "#16a34a"; statut.textContent = "✅ Boutique réautorisée."; }
+    await chargerProduits();
+    await dessinerGestionBlocages();
+  } catch(e){
+    console.error("Déblocage impossible :", e);
+    alert("Impossible de réautoriser cette boutique : " + (e?.message || e));
+  }
 }
 
 function articlesUniques(){
@@ -4787,8 +5059,8 @@ async function basculerVisibiliteArticle(id, nouvelEtatMasque){
     const { error } = await supabaseClient.from("produits").update({ masque: nouvelEtatMasque }).eq("id", id);
     if(error) throw error;
     await chargerProduits();
-    if(document.getElementById("masquageArticles") && document.getElementById("masquageArticles").style.display !== "none"){
-      await dessinerMasquageArticles();
+    if(document.getElementById("gestionBlocages") && document.getElementById("gestionBlocages").style.display !== "none"){
+      await dessinerGestionBlocages();
     } else if(boutiqueActiveGestion){
       dessinerArticlesBoutique(boutiqueActiveGestion);
     } else {
@@ -5024,7 +5296,7 @@ const PANNEAUX_ADMIN = [
   "admin-accueil",
   "blocNotifications",
   "gestionArticles",
-  "masquageArticles",
+  "gestionBlocages",
   "notifCommissionSamedi",
   "gestionCategories",
   "envoiNotification",
@@ -5040,7 +5312,7 @@ function masquerTousPanneauxAdmin(){
   });
 }
 
-function afficherPanneauAdmin(idCible){
+function afficherPanneauAdmin(idCible, pousserHistorique = true){
   masquerTousPanneauxAdmin();
   // Aucune autre vue (accueil, panier, checkout…) ne doit rester visible au-dessus.
   document.querySelectorAll("section.vue").forEach(vue => {
@@ -5059,31 +5331,242 @@ function afficherPanneauAdmin(idCible){
   }
   const vueAdmin = document.getElementById("vue-admin");
   if(vueAdmin) vueAdmin.style.display = "block";
+  // Chaque panneau ouvert est une VRAIE page de l'historique de navigation :
+  // « ← Retour » du navigateur revient au panneau précédent, comme un site normal.
+  if(pousserHistorique){
+    const etatActuel = history.state;
+    if(!(etatActuel && etatActuel.vue === "admin" && etatActuel.panneau === idCible)){
+      history.pushState({ vue: "admin", panneau: idCible }, "");
+    }
+  }
+  majBandeauAdmin();
   // Remonter en haut : le panneau est ainsi TOUJOURS sous les yeux.
   window.scrollTo({ top: 0, behavior: "auto" });
+}
+
+/* « Fermer » d'un panneau administrateur = retour à la page précédente.
+   Tant que l'utilisateur navigue dans l'espace vendeur, le retour du navigateur
+   retrace son chemin (admin-accueil → notifications → envoi de notif…). Si on
+   arrive tout en haut de la pile, on remet proprement l'accueil de l'espace. */
+function retourAdminPrecedent(){
+  const etat = history.state;
+  if(etat && etat.vue === "admin" && typeof etat.panneau === "string" && etat.panneau !== "admin-accueil"){
+    // On remplace l'état courant par l'accueil vendeur, puis on recule :
+    // le panneau courant disparaît SANS créer d'entrée en double.
+    try{ history.replaceState({ vue: "admin", panneau: "admin-accueil" }, ""); }catch(e){}
+    history.back();
+    return;
+  }
+  afficherPanneauAdmin("admin-accueil", false);
+}
+
+async function gererRetourAdminDepuisHistorique(etat){
+  const panneau = (etat && typeof etat.panneau === "string" && etat.panneau) ? etat.panneau : "admin-accueil";
+  cacherToutesLesVues();
+  document.getElementById("vue-admin").style.display = "block";
+  const btnRetourEspace = document.getElementById("btnRetour");
+  btnRetourEspace.style.display = "inline-block";
+  btnRetourEspace.onclick = () => afficherAccueil();
+  await verifierSessionAdmin();
+  // Si la session admin n'est plus valide, verifierSessionAdmin affiche
+  // lui-même l'écran de connexion ; on ne force donc pas le panneau.
+  if(document.getElementById("admin-accueil").style.display === "block" || panneau === "admin-accueil"){
+    afficherPanneauAdmin(panneau, false);
+    if(panneau === "gestionArticles" || panneau === "gestionBlocages" || panneau === "formArticle"){
+      if(panneau === "gestionArticles") dessinerGestionArticles();
+      else if(panneau === "formArticle") ouvrirFormulaireArticle();
+      else dessinerGestionBlocages();
+    }
+  }
+  majBandeauAdmin();
 }
 
 function ouvrirEnvoiNotification(){
   afficherPanneauAdmin("envoiNotification");
 }
 function fermerEnvoiNotification(){
-  afficherPanneauAdmin("blocNotifications");
+  retourAdminPrecedent();
 }
 
 function ouvrirBlocNotifications(){
   afficherPanneauAdmin("blocNotifications");
+  marquerCommandesLues();
 }
 function fermerBlocNotifications(){
-  afficherPanneauAdmin("admin-accueil");
+  retourAdminPrecedent();
 }
 
 function ouvrirNotifCommissionSamedi(){
   afficherPanneauAdmin("notifCommissionSamedi");
+  dessinerCommissionsBoutiquiers();
 }
 function fermerNotifCommissionSamedi(){
-  afficherPanneauAdmin("blocNotifications");
+  retourAdminPrecedent();
 }
 
+
+/* =====================================================================
+   RAPPELS DE COMMISSION AUTOMATIQUES PAR BOUTIQUE
+   Commission due = total des commissions des commandes de cette boutique
+   (champ « commission » de chaque article × quantité) moins ce que l'admin
+   a déjà marqué comme réclamé (table commissions_reclamees).
+   ===================================================================== */
+async function dessinerCommissionsBoutiquiers(){
+  const conteneur = document.getElementById("listeCommissionsBoutiquiers");
+  if(!conteneur) return;
+  conteneur.innerHTML = `<p style="color:#666;text-align:center;">⏳ Calcul des commissions dues...</p>`;
+
+  try{
+    const [ lecturesCommandes, lecturesReclamations ] = await Promise.all([
+      supabaseClient.from("commandes").select("created_at, articles").order("created_at", { ascending: false }).limit(500),
+      supabaseClient.from("commissions_reclamees").select("nom_boutique, total_reclame, reclame_le").limit(200),
+    ]);
+    if(lecturesCommandes.error) throw lecturesCommandes.error;
+    if(lecturesReclamations.error) throw lecturesReclamations.error;
+
+    const dues = new Map(); // cle canonique -> { affiche, telephone, doit (FCFA) }
+    (lecturesCommandes.data || []).forEach(cmd => {
+      const articles = Array.isArray(cmd.articles) ? cmd.articles : [];
+      articles.forEach(a => {
+        const nomBoutique = String(a?.nom_boutique || "").trim();
+        if(!nomBoutique) return;
+        const quantite = Math.max(1, Math.min(99, Number(a?.quantite) || 1));
+        const commission = Math.max(0, Math.round(Number(a?.commission) || 0));
+        if(commission <= 0) return;
+        const cle = cleBoutiqueCanonique(nomBoutique);
+        const ligne = dues.get(cle) || { affiche: nomBoutique, telephone: String(a?.telephone_boutique || a?.telephone || "").trim(), doit: 0 };
+        ligne.doit += commission * quantite;
+        if(!ligne.telephone && (a?.telephone_boutique || a?.telephone)) ligne.telephone = String(a?.telephone_boutique || a?.telephone).trim();
+        dues.set(cle, ligne);
+      });
+    });
+
+    (lecturesReclamations.data || []).forEach(recl => {
+      const cle = cleBoutiqueCanonique(recl.nom_boutique);
+      const ligne = dues.get(cle);
+      if(ligne) ligne.doit -= Math.max(0, Math.round(Number(recl.total_reclame) || 0));
+    });
+
+    if(dues.size === 0){
+      conteneur.innerHTML = `<p style="color:#666;text-align:center;padding:20px 0;">Aucune commande avec commission enregistrée pour le moment.</p>`;
+      return;
+    }
+
+    const lignes = Array.from(dues.entries()).sort((a, b) => b[1].doit - a[1].doit);
+    const nbARappeler = lignes.filter(([, l]) => l.doit > 0).length;
+
+    conteneur.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        ${lignes.map(([cle, ligne]) => {
+          const doit = Math.max(0, ligne.doit);
+          const cleJs = echapperPourOnclick(cle);
+          const afficheJs = echapperPourOnclick(ligne.affiche);
+          const telJs = echapperPourOnclick(ligne.telephone);
+          const couleur = doit > 0 ? "#b91c1c" : "#166534";
+          return `
+          <div style="border:1px solid var(--gris-bordure);border-radius:12px;padding:10px 12px;background:#fff;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:14px;color:#1e293b;">🏪 ${echapperHtml(ligne.affiche)}</div>
+              <div style="font-size:12px;color:#64748b;">${ligne.telephone ? `📞 ${echapperHtml(ligne.telephone)} · ` : ""}Commission à l'instant : <strong style="color:${couleur};">${doit.toLocaleString("fr-FR")} FCFA</strong></div>
+            </div>
+            ${doit > 0 ? `
+              <button type="button" onclick="envoyerRappelCommissionBoutiquier(${cleJs}, ${afficheJs}, ${String(doit)}, ${telJs})" style="padding:8px 12px;border-radius:8px;border:1px solid #b45309;background:#f59e0b;color:#111827;font-size:12px;font-weight:700;cursor:pointer;">💸 Envoyer le rappel</button>
+              <button type="button" onclick="marquerCommissionReclamee(${cleJs}, ${afficheJs}, ${String(doit)})" style="padding:8px 12px;border-radius:8px;border:1px solid var(--gris-bordure);background:#f1f5f9;color:#111827;font-size:12px;font-weight:600;cursor:pointer;">✅ Marquer réclamée</button>`
+            : `<span style="font-size:12px;color:#166534;font-weight:700;">✅ À jour</span>`}
+          </div>`;
+        }).join("")}
+      </div>
+      ${nbARappeler > 1 ? `
+      <button type="button" class="btn-principal" style="margin-top:12px;" onclick="envoyerTousLesRappelsCommission()">💸 Envoyer tous les rappels (${nbARappeler})</button>` : ""}
+    `;
+  } catch(e){
+    console.error("Erreur commissions ", e);
+    conteneur.innerHTML = `<p style="color:#dc2626;text-align:center;">⚠️ ${echapperHtml(e?.message || "Impossible de calculer les commissions.")}</p>`;
+  }
+}
+
+function messageRappelCommission(affiche, montantDue){
+  return `Bonjour ${affiche},\n\n` +
+    `La commission Prime Service me doit est actuellement de ${Number(montantDue).toLocaleString("fr-FR")} FCFA.\n\n` +
+    `Merci de préparer cette commission. Le paiement se fait par Orange Money au ${CONFIG.NUMERO_PAIEMENT}.\n\n` +
+    `Merci de votre collaboration.`;
+}
+
+async function envoyerRappelCommissionBoutiquier(cle, affiche, montantDue, telephone){
+  const statut = document.getElementById("statutRappelCommission");
+  if(statut){ statut.style.color = "#666"; statut.textContent = `⏳ Envoi du rappel à ${affiche}...`; }
+  try{
+    const tokenAdmin = await obtenirTokenAdmin();
+    const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/avertir-commission-samedi`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${tokenAdmin}`,
+      },
+      body: JSON.stringify({
+        message: messageRappelCommission(affiche, montantDue),
+        telephone_boutique: telephone || null,
+      }),
+    });
+    const resultat = await reponse.json().catch(() => ({}));
+    if(!reponse.ok) throw new Error(resultat.error || `Échec de l'envoi (HTTP ${reponse.status})`);
+    const envoyes = typeof resultat.envoyes === "number" ? resultat.envoyes : 0;
+    if(statut){ statut.style.color = "#16a34a"; statut.textContent = envoyes > 0
+      ? `✅ Rappel envoyé à ${affiche} (notification reçue par son navigateur).`
+      : `⚠️ ${affiche} n'a pas de notification activée — le message ne peut pas lui être délivré pour le moment.`; }
+  } catch(e){
+    console.error("Rappel commission impossible ", e);
+    if(statut){ statut.style.color = "#dc2626"; statut.textContent = "❌ " + (e?.message || "Envoi impossible. Réessayez."); }
+  }
+}
+
+async function marquerCommissionReclamee(cle, affiche, montantReclame){
+  if(!supabaseClient){ alert("Connexion Supabase indisponible."); return; }
+  if(!confirm(`Marquer ${Number(montantReclame).toLocaleString("fr-FR")} FCFA comme réclamés auprès de « ${affiche} » ?\n\nLa commission due affichée sera diminuée d'autant.`)) return;
+  try{
+    const { data: existant } = await supabaseClient
+      .from("commissions_reclamees")
+      .select("nom_boutique, total_reclame")
+      .eq("nom_boutique", cle)
+      .maybeSingle();
+    const totalActuel = Math.max(0, Math.round(Number(existant?.total_reclame) || 0));
+    const { error } = await supabaseClient
+      .from("commissions_reclamees")
+      .upsert({
+        nom_boutique: cle,
+        total_reclame: totalActuel + Math.round(Number(montantReclame) || 0),
+        reclame_le: new Date().toISOString(),
+      }, { onConflict: "nom_boutique" });
+    if(error) throw error;
+    const statut = document.getElementById("statutRappelCommission");
+    if(statut){ statut.style.color = "#16a34a"; statut.textContent = `✅ Commission de ${affiche} marquée comme réclamée (${Number(montantReclame).toLocaleString("fr-FR")} FCFA).`; }
+    await dessinerCommissionsBoutiquiers();
+  } catch(e){
+    console.error("Marquage commission impossible ", e);
+    alert("Impossible d'enregistrer le marquage : " + (e?.message || e));
+  }
+}
+
+async function envoyerTousLesRappelsCommission(){
+  const statut = document.getElementById("statutRappelCommission");
+  try{
+    const boutons = Array.from(document.querySelectorAll("#listeCommissionsBoutiquiers button"));
+    const cibles = boutons.filter(b => String(b.textContent || "").includes("Envoyer le rappel"));
+    if(cibles.length === 0){
+      if(statut){ statut.style.color = "#666"; statut.textContent = "Aucun rappel à envoyer pour le moment."; }
+      return;
+    }
+    for(const bouton of cibles){
+      bouton.disabled = true;
+      bouton.click();
+      await new Promise((resoudre) => setTimeout(resoudre, 250));
+    }
+    if(statut){ statut.style.color = "#16a34a"; statut.textContent = `✅ ${cibles.length} rappel(s) envoyé(s).`; }
+  } catch(e){
+    console.error("Envoi groupé impossible ", e);
+    if(statut){ statut.style.color = "#dc2626"; statut.textContent = "❌ Envoi groupé impossible. Réessayez."; }
+  }
+}
 
 async function avertirCommissionSamedi(){
   const statut = document.getElementById("statutNotifCommission");
@@ -5327,7 +5810,7 @@ function ouvrirGestionCategories(){
 
 function fermerGestionCategories(){
   // Le panneau n'est ouvert que depuis « Gérer / Supprimer mes articles ».
-  afficherPanneauAdmin("gestionArticles");
+  retourAdminPrecedent();
 }
 
 async function sauvegarderCategoriesMasquees(){
@@ -5583,7 +6066,7 @@ async function supprimerCommande(id){
 }
 
 function fermerHistoriqueAchats(){
-  afficherPanneauAdmin("admin-accueil");
+  retourAdminPrecedent();
 }
 
 async function toutSupprimerCommandes(){
@@ -5654,7 +6137,6 @@ async function chargerHistoriqueAchats(){
         <div style="border:1px dashed var(--orange);border-radius:12px;padding:16px;background:#fff7ed;text-align:center;">
           <p style="color:#666;margin:0 0 12px;">⚠️ ${echapperHtml(error.message || "Impossible de charger les commandes")}</p>
           <p style="color:#666;margin:0 0 12px;font-size:13px;">La table "commandes" n'existe peut-être pas encore dans Supabase, ou les permissions RLS bloquent l'accès.</p>
-          <button class="btn-principal" style="margin:0;" onclick="ouvrirNotifManuelle()">✏️ Écrire un message manuel</button>
         </div>
       `;
       return;
@@ -5664,7 +6146,6 @@ async function chargerHistoriqueAchats(){
       conteneur.innerHTML = `
         <div style="border:1px dashed var(--gris-bordure);border-radius:12px;padding:16px;background:var(--gris-fond);text-align:center;">
           <p style="color:#666;margin:0 0 12px;">Aucune commande enregistrée pour le moment.</p>
-          <button class="btn-principal" style="margin:0;" onclick="ouvrirNotifManuelle()">✏️ Écrire un message manuel</button>
         </div>
       `;
       return;
@@ -5743,25 +6224,9 @@ async function chargerHistoriqueAchats(){
     conteneur.innerHTML = `
       <div style="border:1px dashed var(--orange);border-radius:12px;padding:16px;background:#fff7ed;text-align:center;">
         <p style="color:#666;margin:0 0 12px;">⚠️ Erreur de connexion à Supabase.</p>
-        <button class="btn-principal" style="margin:0;" onclick="ouvrirNotifManuelle()">✏️ Écrire un message manuel</button>
       </div>
     `;
   }
-}
-
-function ouvrirNotifManuelle(){
-  commandeSelectionneeNotif = null;
-  document.getElementById("messageNotifBoutiquier").value = 
-    `Nouvelle commande reçue !\n\n` +
-    `👤 Client: (à compléter)\n` +
-    `📞 Téléphone: (à compléter)\n` +
-    `📍 Quartier: (à compléter)\n\n` +
-    `📦 Articles:\n` +
-    `- (article 1)\n\n` +
-    `💰 Total: FCFA\n` +
-    `💳 Paiement: Orange Money`;
-  document.getElementById("modaleNotifBoutiquier").style.display = "flex";
-  document.getElementById("statutNotifBoutiquier").textContent = "";
 }
 
 const DUREE_LIMITE_RENVOI_NOTIF_MS = 5 * 60 * 60 * 1000; // 5 heures
@@ -5772,7 +6237,7 @@ async function ouvrirRenvoiNotifBoutiquier(){
 }
 
 function fermerRenvoiNotifBoutiquier(){
-  afficherPanneauAdmin("blocNotifications");
+  retourAdminPrecedent();
 }
 
 async function chargerCommandesRecentesPourRenvoi(){
@@ -5944,7 +6409,7 @@ verifierEtatPause();
    Sans ceci, "précédent" quitte directement le site (ex: vers Google) au
    lieu de revenir à l'écran précédent à l'intérieur de Prime Service.
    ===================================================================== */
-window.addEventListener("popstate", (event) => {
+window.addEventListener("popstate", async (event) => {
   if(estClientVerrouilleSurBoutique()){
     // Empêche complètement de reculer avec les flèches du navigateur
     history.pushState({ psBoutiqueVerrou: true }, "", window.location.href);
@@ -5960,6 +6425,12 @@ window.addEventListener("popstate", (event) => {
     return;
   }
   const etat = event.state || { vue: "accueil" };
+  // On lit la position ENREGISTRÉE AVANT tout rendu (le rendu ci-dessous fait
+  // un replaceState qui écraserait sinon l'état lu après le switch).
+  const positionPrecedente = typeof etat.scrollY === "number" ? Math.max(0, etat.scrollY) : 0;
+  // Pendant le popstate, tout replaceState interne doit réutiliser CETTE
+  // position (les afficherX* le font via scrollYAvantChangement()).
+  __psScrollAvantNav = positionPrecedente;
   switch(etat.vue){
     case "souscategories":
       afficherSousCategories(etat.idCategorie, true, false);
@@ -5980,12 +6451,15 @@ window.addEventListener("popstate", (event) => {
       afficherCheckout(false);
       break;
     case "admin":
-      ouvrirEspaceAdmin(false);
+      await gererRetourAdminDepuisHistorique(event.state || {});
       break;
     case "accueil":
     default:
       afficherAccueil(false);
   }
+  // On retrouve TOUT DE SUITE la position exacte où l'utilisateur était
+  // quand il avait quitté cette page : plus aucun saut de page au retour.
+  window.scrollTo({ top: positionPrecedente, behavior: "auto" });
 });
 
 // Etat de départ : permet au tout premier clic sur "précédent" de fonctionner correctement.
@@ -6104,6 +6578,12 @@ function detecterAccesAdminSecret() {
 }
 
 detecterAccesAdminSecret();
+
+// Bandeau admin + liste des boutiques bloquées dès l'ouverture du site.
+try{
+  majBandeauAdmin();
+  rafraichirCacheBoutiquesBloquees();
+}catch(e){ console.warn("Initialisation bandeau/blocages impossible :", e); }
 </script>
 </body>
 </html>

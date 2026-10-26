@@ -100,6 +100,10 @@ function text(value: unknown, max: number): string {
 }
 
 function numberOrNull(value: unknown): number | null {
+  // PIÈGE JS : Number(null) === 0, donc sans ce garde-fou, le "lat": null du
+  // navigateur devenait 0 côté serveur et était rejeté comme « Position GPS invalide »
+  // même avec le correctif GPS facultatif. null / undefined / "" = valeur absente.
+  if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -709,6 +713,30 @@ Deno.serve(async (req: Request) => {
     const productsById = new Map<number, Product>(
       (products as Product[]).map((product) => [Number(product.id), product]),
     );
+
+    // Note : la liste des boutiques bloquées est petite (quelques lignes) ;
+    // on la charge intégralement puis on compare en JS en ignorant la casse
+    // et les espaces, comme le navigateur.
+    const nomsCommande = [...new Set((products as Product[])
+      .map((produit) => String(produit.nom_boutique || "").trim().toLocaleLowerCase("fr-FR"))
+      .filter(Boolean))];
+    if (nomsCommande.length > 0) {
+      const { data: lignesBloquees, error: erreurBlocage } = await supabaseAdmin
+        .from("boutiques_bloquees")
+        .select("nom_boutique")
+        .limit(200);
+      if (erreurBlocage) {
+        console.error("[blocage] lecture des boutiques bloquées impossible", erreurBlocage.message);
+      } else {
+        const bloquees = new Set((lignesBloquees || []).map((ligne) =>
+          String(ligne.nom_boutique || "").trim().toLocaleLowerCase("fr-FR")));
+        const nomsInterdits = nomsCommande.filter((nom) => bloquees.has(nom));
+        if (nomsInterdits.length > 0) {
+          return jsonResponse(req, { error: "Boutique actuellement indisponible — contactez Prime Service." }, 409);
+        }
+      }
+    }
+
     const canonicalItems: CanonicalItem[] = [];
     let canonicalTotal = 0;
     for (const item of items) {

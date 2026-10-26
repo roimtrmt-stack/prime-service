@@ -245,7 +245,7 @@ assert.match(inscriptionPage, /for\(const fichierOriginal of fichiersSelectionne
 assert.doesNotMatch(inscriptionPage, /compresserImageAncienne|chargerImagePourCorrection/);
 assert.doesNotMatch(index + inscriptionPage, /photo-optimizer\.js\?v=white-1|fond blanc|fond catalogue uniforme/);
 assert.match(index, /primeservice_produits_cache_v3/);
-assert.match(index, /VERSION_CACHE_PRODUITS = 3/);
+assert.match(index, /VERSION_CACHE_PRODUITS = 4/);
 assert.match(index, /normaliserNomProduitPourAffichage/);
 assert.match(index, /Sélection Signature/);
 assert.doesNotMatch(inscriptionPage, /trouverArticleEquivalent|score >= 0\.90|fusionner_stock_si_meme_boutique|action: "fusion"/);

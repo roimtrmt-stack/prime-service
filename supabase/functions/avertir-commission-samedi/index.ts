@@ -64,6 +64,11 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(req, { error: "Configuration VAPID serveur incomplète" }, 500);
     }
 
+    // Cible optionnelle : si un numéro de boutique est fourni, on avertit
+    // UNIQUEMENT cette boutique (rappel de commission personnalisé). Sinon,
+    // on avertit tous les boutiquiers comme avant.
+    const cibleDemandee = normaliserTelephone(body?.telephone_boutique || "");
+
     // Sélection côté serveur : UNIQUEMENT les abonnements liés à un numéro de
     // boutique (les navigaleurs des clients ont telephone_boutique = null et
     // sont de toute façon exclus ici). Aucune liste de numéros ne passe par
@@ -77,11 +82,14 @@ Deno.serve(async (req: Request) => {
     if (lectureError) throw lectureError;
 
     // Une même boutique peut avoir plusieurs navigateurs (2 téléphones...) ;
-    // on n'envoie qu'une notification par numéro de boutique.
+    // on n'envoie qu'une notification par numéro de boutique. Le filtrage se
+    // fait en JS après normalisation des numéros (tolérant aux formats
+    // « +223… » / « 00223… » / « 94134408 » stockés dans la base).
     const numerosVus = new Set<string>();
     const selection = (abonnements || []).filter((ligne) => {
       const numero = normaliserTelephone(ligne.telephone_boutique);
       if (!numero || numerosVus.has(numero)) return false;
+      if (cibleDemandee && numero !== cibleDemandee) return false;
       numerosVus.add(numero);
       return true;
     });
