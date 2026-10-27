@@ -2,6 +2,11 @@ name: Déploiement des fonctions Supabase
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+      - ".github/workflows/deploy-functions.yml"
 
 permissions:
   contents: read
@@ -34,6 +39,12 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: supabase functions deploy envoyer-commande --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+
+      - name: Déployer acces-boutiquier
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: supabase functions deploy acces-boutiquier --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
 
       - name: Déployer envoyer-sms-orange
         env:

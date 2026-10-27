@@ -1482,11 +1482,57 @@ window.addEventListener('orientationchange', function() {
   </div>
 </div>
 
+<!-- ===================== BANDEAU « MODE BOUTIQUIER » ===================== -->
+<!-- Visible UNIQUEMENT sur l'appareil où le boutiquier concerné s'est connecté
+     (code SMS reçu sur son numéro) : il peut gérer SES articles par lui-même.
+     Le jeton de session vient du serveur — impossible à partager. -->
+<div id="bandeauModeBoutiquier" style="display:none;position:sticky;top:0;z-index:57;background:#14532d;color:#ffffff;padding:8px 14px;box-shadow:0 2px 10px rgba(15,23,42,0.25);">
+  <div style="max-width:1000px;margin:0 auto;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:13px;">
+    <span style="font-weight:700;">🛍️ Mode boutiquier — <span id="bandeauBoutiquierNom"></span></span>
+    <button type="button" onclick="ouvrirPanneauBoutiquier()" style="background:#16a34a;color:#ffffff;border:none;border-radius:8px;padding:7px 14px;font-weight:700;font-size:12px;cursor:pointer;">🛍️ Gérer mes articles</button>
+    <button type="button" onclick="deconnexionBoutiquier()" style="background:rgba(255,255,255,0.15);color:#ffffff;border:1px solid rgba(255,255,255,0.35);border-radius:8px;padding:7px 14px;font-weight:600;font-size:12px;cursor:pointer;">🚪 Quitter</button>
+  </div>
+</div>
+
 <div class="bandeau-notif-optin" id="blocNotifOptin" style="display:none;">
   <span class="texte-bandeau-notif">🔔 Activez les notifications pour être prévenu dès qu'un nouvel article est publié.</span>
   <div class="boutons-bandeau-notif">
     <button class="btn-bandeau-oui" onclick="activerNotifDepuisBouton()">Autoriser</button>
     <button class="btn-bandeau-plus-tard" onclick="reporterNotifOptin()">Plus tard</button>
+  </div>
+</div>
+
+<!-- ===================== MODALES ESPACE PRIVÉ BOUTIQUIER ===================== -->
+<div id="modaleAccesBoutiquier" class="modale" style="display:none;">
+  <div class="modale-contenu">
+    <h3 style="margin-top:0;">🔒 Accès boutique privé</h3>
+    <div id="etapeNomBoutiquier">
+      <p style="font-size:13px;">Entrez le <strong>nom exact de votre boutique</strong> (comme affiché sur le site). Un code de sécurité à 6 chiffres sera envoyé par SMS sur le numéro du site Prime Service.</p>
+      <input type="text" id="champNomAccesBoutiquier" class="champ" placeholder="Ex : Boutique test" style="width:100%;">
+      <button type="button" class="btn-vert" onclick="demanderCodeBoutiquier()" style="width:100%;margin-top:10px;">📲 Recevoir un code par SMS</button>
+    </div>
+    <div id="etapeCodeBoutiquier" style="display:none;">
+      <p style="font-size:13px;">Code envoyé au <strong id="telMasqueBoutiquier"></strong> — valable <strong>10 minutes</strong>.</p>
+      <input type="text" inputmode="numeric" maxlength="6" id="champCodeBoutiquier" class="champ" placeholder="Code à 6 chiffres" style="width:100%;text-align:center;letter-spacing:8px;font-size:20px;" onkeypress="if(event.key === 'Enter') connecterBoutiquier()">
+      <button type="button" class="btn-vert" onclick="connecterBoutiquier()" style="width:100%;margin-top:10px;">🔓 Se connecter</button>
+    </div>
+    <p id="statutAccesBoutiquier" style="font-size:12px;margin:10px 0;min-height:16px;"></p>
+    <button type="button" class="btn-retour-lien" onclick="fermerAccesBoutiquier()">Annuler</button>
+  </div>
+</div>
+
+<div id="modaleBoutiquier" class="modale" style="display:none;">
+  <div class="modale-contenu" style="max-width:680px;width:95%;text-align:left;max-height:86vh;overflow:auto;">
+    <h3 style="margin-top:0;">🛍️ Mes articles — <span id="boutiquierNomAffiche"></span></h3>
+    <div style="font-size:12px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin-bottom:10px;">
+      📞 <strong id="boutiquierTelMaskee"></strong> — Le <strong>numéro de la boutique est verrouillé</strong> 🔒 (il ne peut pas être modifié).<br>
+      Vous pouvez <strong>renommer</strong> vos articles et modifier leur <strong>prix</strong>. Les changements sont visibles immédiatement pour les clients.
+    </div>
+    <div id="listeArticlesBoutiquier">
+      <p style="color:#666;text-align:center;">⏳ Chargement…</p>
+    </div>
+    <p id="statutPanneauBoutiquier" style="font-size:12px;margin:8px 0;min-height:16px;"></p>
+    <button type="button" class="btn-retour-lien" onclick="fermerPanneauBoutiquier()">Fermer</button>
   </div>
 </div>
 
@@ -1570,6 +1616,12 @@ window.addEventListener('orientationchange', function() {
       <!-- Lien d'activation rapide si le navigateur a vidé le cache -->
       <div id="lienActiverBoutiquier" style="margin-top:10px;">
         <a href="javascript:void(0)" onclick="activerManuellementBoutiquier()" style="font-size:12px;color:#2563eb;text-decoration:underline;">Vous avez déjà publié des articles ? Cliquez ici</a>
+      </div>
+
+      <!-- Accès privé « Mode boutiquier » : le code part par SMS sur le numéro
+           enregistré de la boutique — seul le titulaire du numéro peut entrer. -->
+      <div style="margin-top:6px;">
+        <a href="javascript:void(0)" onclick="ouvrirAccesBoutiquier()" style="font-size:12px;color:#475569;text-decoration:underline;">🔒 Vous êtes boutiquier ? Connectez-vous pour gérer vos articles</a>
       </div>
     </div>
 
@@ -4106,6 +4158,9 @@ function majBandeauAdmin(){
   const verrouBoutique = typeof estModeBoutiqueVerrouille === "function" && estModeBoutiqueVerrouille();
   const actif = !vuAdminVisible && !verrouBoutique && localStorage.getItem("ps_admin_actif") === "1";
   bandeau.style.display = actif ? "block" : "none";
+  // Le bandeau boutiquier partage la même règle d'affichage (jamais dans
+  // l'espace vendeur, jamais sous verrou boutique) : le rafraîchir ensemble.
+  if(typeof majBandeauBoutiquier === "function") majBandeauBoutiquier();
 }
 
 /* PASTILLE : nombre de commandes nouvelles depuis la dernière lecture des
@@ -6345,11 +6400,217 @@ function detecterAccesAdminSecret() {
   }
 }
 
+/* =====================================================================
+   ESPACE PRIVÉ « MODE BOUTIQUIER »
+   Le boutiquier concerné se connecte avec un code SMS envoyé UNIQUEMENT
+   sur le numéro enregistré de sa boutique ; le serveur répond ensuite un
+   jeton de session de 7 jours, résidant sur cet appareil : l'accès est
+   donc impossible à partager ou à usurper depuis un navigateur.
+   Sur le serveur, il ne peut renommer / repriser QUE les articles de sa
+   boutique, et jamais le numéro (verrouillé côté code ET côté serveur).
+   ===================================================================== */
+
+const CLE_SESSION_BOUTIQUIER = "ps_mode_boutiquier";
+
+function sessionBoutiquier(){
+  try{
+    const donnees = JSON.parse(localStorage.getItem(CLE_SESSION_BOUTIQUIER) || "null");
+    if(!donnees || !donnees.token || !donnees.expire_le) return null;
+    if(new Date(donnees.expire_le).getTime() <= Date.now()){
+      localStorage.removeItem(CLE_SESSION_BOUTIQUIER);
+      return null;
+    }
+    return donnees;
+  }catch(e){ return null; }
+}
+
+/* Affiche le bandeau comme celui de l'admin : uniquement hors espace
+   vendeur, hors verrou boutique, et sur appareil connecté. */
+function majBandeauBoutiquier(){
+  const bandeau = document.getElementById("bandeauModeBoutiquier");
+  if(!bandeau) return;
+  const session = sessionBoutiquier();
+  const vuAdminVisible = document.getElementById("vue-admin")?.style.display === "block";
+  const verrouBoutique = typeof estModeBoutiqueVerrouille === "function" && estModeBoutiqueVerrouille();
+  const actif = !!session && !vuAdminVisible && !verrouBoutique;
+  bandeau.style.display = actif ? "block" : "none";
+  if(actif){
+    const nom = document.getElementById("bandeauBoutiquierNom");
+    if(nom && session.nom_affiche) nom.textContent = session.nom_affiche;
+  }
+}
+
+async function appelAccesBoutiquier(corps){
+  const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/acces-boutiquier`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(corps),
+  });
+  const resultat = await reponse.json().catch(() => ({}));
+  if(!reponse.ok) throw new Error(resultat.error || `Échec (HTTP ${reponse.status})`);
+  return resultat;
+}
+
+function statutAccesBoutiquier(message, couleur){
+  const statut = document.getElementById("statutAccesBoutiquier");
+  if(statut){ statut.style.color = couleur || "#475569"; statut.textContent = message; }
+}
+
+function ouvrirAccesBoutiquier(){
+  const modale = document.getElementById("modaleAccesBoutiquier");
+  if(!modale) return;
+  modale.style.display = "flex";
+  statutAccesBoutiquier("");
+  document.getElementById("etapeNomBoutiquier").style.display = "block";
+  document.getElementById("etapeCodeBoutiquier").style.display = "none";
+  const champ = document.getElementById("champNomAccesBoutiquier");
+  if(champ){ champ.value = ""; champ.focus(); }
+}
+
+function fermerAccesBoutiquier(){
+  const modale = document.getElementById("modaleAccesBoutiquier");
+  if(modale) modale.style.display = "none";
+}
+
+let nomAccesBoutiquierEnCours = "";
+
+async function demanderCodeBoutiquier(){
+  const nom = (document.getElementById("champNomAccesBoutiquier")?.value || "").trim();
+  if(!nom){ statutAccesBoutiquier("⚠️ Entrez le nom exact de votre boutique.", "#dc2626"); return; }
+  nomAccesBoutiquierEnCours = nom;
+  statutAccesBoutiquier("⏳ Envoi du code SMS en cours…", "#475569");
+  try{
+    const resultat = await appelAccesBoutiquier({ action: "demander-code", nom_boutique: nom });
+    document.getElementById("telMasqueBoutiquier").textContent = resultat.telephone_masque;
+    document.getElementById("etapeNomBoutiquier").style.display = "none";
+    document.getElementById("etapeCodeBoutiquier").style.display = "block";
+    statutAccesBoutiquier(`✅ Code envoyé au ${resultat.telephone_masque} — regardez vos SMS.`, "#16a34a");
+    document.getElementById("champCodeBoutiquier").focus();
+  }catch(e){
+    statutAccesBoutiquier("❌ " + (e?.message || "Envoi impossible. Réessayez."), "#dc2626");
+  }
+}
+
+async function connecterBoutiquier(){
+  const code = (document.getElementById("champCodeBoutiquier")?.value || "").replace(/\D/g, "");
+  if(code.length !== 6){ statutAccesBoutiquier("⚠️ Le code contient 6 chiffres.", "#dc2626"); return; }
+  statutAccesBoutiquier("⏳ Vérification du code…", "#475569");
+  try{
+    const resultat = await appelAccesBoutiquier({ action: "connexion", nom_boutique: nomAccesBoutiquierEnCours, code });
+    localStorage.setItem(CLE_SESSION_BOUTIQUIER, JSON.stringify({
+      token: resultat.token,
+      nom_affiche: resultat.nom_affiche,
+      telephone_masque: resultat.telephone_masque,
+      expire_le: resultat.expire_le,
+    }));
+    fermerAccesBoutiquier();
+    majBandeauBoutiquier();
+    await ouvrirPanneauBoutiquier();
+  }catch(e){
+    statutAccesBoutiquier("❌ " + (e?.message || "Connexion impossible."), "#dc2626");
+  }
+}
+
+function statutBoutiquier(message, couleur){
+  const statut = document.getElementById("statutPanneauBoutiquier");
+  if(statut){ statut.style.color = couleur || "#475569"; statut.textContent = message; }
+}
+
+async function ouvrirPanneauBoutiquier(){
+  const session = sessionBoutiquier();
+  if(!session){ fermerPanneauBoutiquier(); ouvrirAccesBoutiquier(); return; }
+  const modale = document.getElementById("modaleBoutiquier");
+  if(!modale) return;
+  modale.style.display = "flex";
+  document.getElementById("boutiquierNomAffiche").textContent = session.nom_affiche;
+  document.getElementById("boutiquierTelMaskee").textContent = session.telephone_masque;
+  document.getElementById("listeArticlesBoutiquier").innerHTML = "<p style='color:#666;text-align:center;'>⏳ Chargement…</p>";
+  statutBoutiquier("");
+  try{
+    const resultat = await appelAccesBoutiquier({ action: "mes-produits", token: session.token });
+    dessinerArticlesBoutiquier(resultat.produits);
+    statutBoutiquier(`${Array.isArray(resultat.produits) ? resultat.produits.length : 0} article(s) dans votre boutique.`, "#16a34a");
+  }catch(e){
+    statutBoutiquier("❌ " + (e?.message || "Chargement impossible."), "#dc2626");
+    if(String(e?.message || "").toLowerCase().includes("session")){
+      localStorage.removeItem(CLE_SESSION_BOUTIQUIER);
+      majBandeauBoutiquier();
+      fermerPanneauBoutiquier();
+      ouvrirAccesBoutiquier();
+    }
+  }
+}
+
+function fermerPanneauBoutiquier(){
+  const modale = document.getElementById("modaleBoutiquier");
+  if(modale) modale.style.display = "none";
+}
+
+function dessinerArticlesBoutiquier(liste){
+  const conteneur = document.getElementById("listeArticlesBoutiquier");
+  if(!conteneur) return;
+  if(!Array.isArray(liste) || liste.length === 0){
+    conteneur.innerHTML = "<p style='color:#666;text-align:center;'>Aucun article publié pour l'instant.</p>";
+    return;
+  }
+  conteneur.innerHTML = liste.map((p) => `
+    <div class="ligne-article-boutiquier" data-id="${Number(p.id)}" style="display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:10px;">
+      <img src="${echapperHtml(String(p.image_url || ""))}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#f1f5f9;" onerror="this.style.visibility='hidden'">
+      <div style="flex:1;min-width:0;">
+        <input type="text" class="champ champNomArticleBoutiquier" value="${echapperHtml(String(p.nom || ""))}" maxlength="160" style="width:100%;margin-bottom:6px;" placeholder="Nom de l'article">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="number" min="1000" step="1" class="champ champPrixArticleBoutiquier" value="${Number(p.prix) || ""}" style="width:130px;" placeholder="Prix">
+          <span style="font-size:12px;color:#64748b;">FCFA</span>
+          ${p.masque ? `<span style="font-size:11px;color:#b45309;">⏸️ En attente de validation (non visible au public)</span>` : ""}
+          <button type="button" onclick="enregistrerArticleBoutiquier(${Number(p.id)})" style="background:#16a34a;color:#ffffff;border:none;border-radius:8px;padding:7px 12px;font-weight:700;font-size:12px;cursor:pointer;">💾 Enregistrer</button>
+        </div>
+        <p id="statutArticleBoutiquier_${Number(p.id)}" style="font-size:11px;margin:6px 0 0;"></p>
+      </div>
+    </div>`).join("");
+}
+
+async function enregistrerArticleBoutiquier(id){
+  const session = sessionBoutiquier();
+  if(!session){ fermerPanneauBoutiquier(); ouvrirAccesBoutiquier(); return; }
+  const ligne = document.querySelector(`.ligne-article-boutiquier[data-id="${id}"]`);
+  if(!ligne) return;
+  const nom = ligne.querySelector(".champNomArticleBoutiquier")?.value?.trim() || "";
+  const prixBrut = ligne.querySelector(".champPrixArticleBoutiquier")?.value ?? "";
+  const statutLigne = document.getElementById(`statutArticleBoutiquier_${id}`);
+  const afficher = (message, couleur) => { if(statutLigne){ statutLigne.style.color = couleur || "#475569"; statutLigne.textContent = message; } };
+  if(!nom && !prixBrut){ afficher("⚠️ Modifiez au moins le nom ou le prix.", "#b45309"); return; }
+  afficher("⏳ Enregistrement…", "#475569");
+  try{
+    const corps = { action: "modifier-produit", token: session.token, id };
+    if(nom) corps.nom = nom;
+    if(prixBrut !== "") corps.prix = Number(prixBrut);
+    const resultat = await appelAccesBoutiquier(corps);
+    afficher(`✅ Enregistré${resultat.produit?.nom ? ` — « ${resultat.produit.nom} »` : ""} visible par les clients.`, "#16a34a");
+    // Le catalogue local (menu client) est rafraichi en arrière-plan.
+    try{ chargerProduits(); }catch(e){}
+  }catch(e){
+    afficher("❌ " + (e?.message || "Enregistrement impossible."), "#dc2626");
+    if(String(e?.message || "").toLowerCase().includes("session")){
+      localStorage.removeItem(CLE_SESSION_BOUTIQUIER);
+      majBandeauBoutiquier();
+      fermerPanneauBoutiquier();
+    }
+  }
+}
+
+function deconnexionBoutiquier(){
+  localStorage.removeItem(CLE_SESSION_BOUTIQUIER);
+  majBandeauBoutiquier();
+  fermerPanneauBoutiquier();
+  fermerAccesBoutiquier();
+}
+
 detecterAccesAdminSecret();
 
 // Bandeau admin + liste des boutiques bloquées dès l'ouverture du site.
 try{
   majBandeauAdmin();
+  majBandeauBoutiquier();
   rafraichirCacheBoutiquesBloquees();
 }catch(e){ console.warn("Initialisation bandeau/blocages impossible :", e); }
 </script>

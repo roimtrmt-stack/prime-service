@@ -138,6 +138,9 @@ assert.doesNotMatch(inscriptionPage, /generativelanguage|api\.groq|openrouter\.a
 assert.match(index, /envoyerSmsOrange/);
 assert.match(deployWorkflow, /functions deploy notifier-commande-manuellement/);
 assert.match(deployWorkflow, /functions deploy avertir-commission-samedi/);
+assert.match(deployWorkflow, /functions deploy acces-boutiquier/);
+assert.match(index, /bandeauModeBoutiquier/);
+assert.match(index, /ps_mode_boutiquier/);
 assert.match(index, /function afficherNotificationCommandeClient/);
 assert.match(index, /function afficherNotificationSystemeCommandeClient/);
 assert.match(index, /notification-commande-client/);

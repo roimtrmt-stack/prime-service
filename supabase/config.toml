@@ -3,6 +3,9 @@ project_id = "kfxalpvbtbvkncztjwzc"
 [functions.envoyer-commande]
 verify_jwt = false
 
+[functions.acces-boutiquier]
+verify_jwt = false
+
 [functions.envoyer-inscription]
 verify_jwt = true
 
