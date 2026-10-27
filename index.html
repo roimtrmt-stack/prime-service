@@ -5506,7 +5506,7 @@ async function envoyerRappelCommissionBoutiquier(cle, affiche, montantDue, telep
     const envoyes = typeof resultat.envoyes === "number" ? resultat.envoyes : 0;
     if(statut){ statut.style.color = "#16a34a"; statut.textContent = envoyes > 0
       ? `✅ Rappel envoyé à ${affiche} (notification reçue par son navigateur).`
-      : `⚠️ Notification NON délivrée à ${affiche}${resultat.echecs_detail && resultat.echecs_detail.length ? ` — ${resultat.echecs_detail.map(d => d.raison ? echapperHtml(String(d.raison)).slice(0, 120) : (d.statut ? "HTTP " + d.statut : "erreur inconnue")).join(" / ")}` : " — aucun navigateur connecté au numéro en base. Le boutiquier doit ouvrir le SMS lié à une commande et cliquer « Activer les relances du site ».`}`; }
+      : `⚠️ Notification NON délivrée à ${affiche}${resultat.echecs_detail && resultat.echecs_detail.length ? ` — ${resultat.echecs_detail.map(d => d.raison ? echapperHtml(String(d.raison)).slice(0, 120) : (d.statut ? "HTTP " + d.statut : "erreur inconnue")).join(" / ")}` : " — aucun navigateur connecté au numéro en base. Le boutiquier doit ouvrir le SMS lié à une commande et cliquer « Activer les relances du site »."}`; }
   } catch(e){
     console.error("Rappel commission impossible ", e);
     if(statut){ statut.style.color = "#dc2626"; statut.textContent = "❌ " + (e?.message || "Envoi impossible. Réessayez."); }
