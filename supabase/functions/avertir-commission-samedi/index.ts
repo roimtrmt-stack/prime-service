@@ -81,16 +81,15 @@ Deno.serve(async (req: Request) => {
       .limit(MAX_SUBSCRIPTIONS);
     if (lectureError) throw lectureError;
 
-    // Une même boutique peut avoir plusieurs navigateurs (2 téléphones...) ;
-    // on n'envoie qu'une notification par numéro de boutique. Le filtrage se
-    // fait en JS après normalisation des numéros (tolérant aux formats
-    // « +223… » / « 00223… » / « 94134408 » stockés dans la base).
-    const numerosVus = new Set<string>();
+    // Une même boutique peut avoir plusieurs navigateurs (2 téléphones...) :
+    // on essaie TOUS ses navigateurs, car un abonnement peut être mort (téléphone
+    // changé, cache vidé) même si un autre récent existe. Le filtrage se fait en
+    // JS après normalisation des numéros (tolérant aux formats « +223… » /
+    // « 00223… » / « 94134408 » stockés dans la base).
     const selection = (abonnements || []).filter((ligne) => {
       const numero = normaliserTelephone(ligne.telephone_boutique);
-      if (!numero || numerosVus.has(numero)) return false;
+      if (!numero) return false;
       if (cibleDemandee && numero !== cibleDemandee) return false;
-      numerosVus.add(numero);
       return true;
     });
 
@@ -106,16 +105,49 @@ Deno.serve(async (req: Request) => {
       data: { url: SITE_ORIGIN, image: NOTIFICATION_LOGO_URL },
     });
 
-    const resultats = await Promise.allSettled(
-      selection.map((ligne) => webpush.sendNotification(ligne.subscription, payload)),
-    );
-    const envoyes = resultats.filter((resultat) => resultat.status === "fulfilled").length;
-    const echecs = resultats.length - envoyes;
+    const essais = await Promise.all(selection.map(async (ligne) => {
+      try {
+        await webpush.sendNotification(ligne.subscription, payload);
+        return { ligne, ok: true as const, statut: null as number | null, raison: null as string | null };
+      } catch (erreur) {
+        const statut = (erreur as { statusCode?: number } | null)?.statusCode ?? null;
+        const raison = erreur instanceof Error ? erreur.message.slice(0, 180) : "exception push";
+        return { ligne, ok: false as const, statut, raison };
+      }
+    }));
+
+    // Un numéro de boutique est considéré livré dès qu'UN de ses navigateurs
+    // a reçu le push.
+    const livraisonParNumero = new Map<string, boolean>();
+    for (const essai of essais) {
+      const numero = normaliserTelephone(essai.ligne.telephone_boutique);
+      if (livraisonParNumero.get(numero) === true) continue;
+      livraisonParNumero.set(numero, essai.ok);
+    }
+
+    // Abonnements morts (410 Gone / 404) : on les purge pour que l'envoi
+    // suivant n'essaie plus les navigateurs définitivement disparus.
+    const abonnementsMorts = essais
+      .filter((essai) => !essai.ok && (essai.statut === 410 || essai.statut === 404))
+      .map((essai) => essai.ligne.id);
+    if (abonnementsMorts.length > 0) {
+      const { error: errorPurge } = await supabaseAdmin.from("abonnements_push").delete().in("id", abonnementsMorts);
+      if (errorPurge) console.error("[avertir-commission] purge abonnements morts impossible", errorPurge.message);
+    }
+
+    const envoyes = [...livraisonParNumero.values()].filter((livree) => livree).length;
+    const echecsDetail = essais
+      .filter((essai) => !essai.ok)
+      .slice(0, 10)
+      .map((essai) => ({ numero: normaliserTelephone(essai.ligne.telephone_boutique), statut: essai.statut, raison: essai.raison }));
     return jsonResponse(req, {
       success: true,
       envoyes,
-      echecs,
-      boutiquiers_selectionnes: selection.length,
+      echecs: essais.filter((essai) => !essai.ok).length,
+      boutiquiers_selectionnes: livraisonParNumero.size,
+      echecs_detail: echecsDetail,
+      abonnements_purges: abonnementsMorts.length,
+      total_abonnements: selection.length,
       fournisseur: "web-push-vapid",
     });
   } catch (error) {
