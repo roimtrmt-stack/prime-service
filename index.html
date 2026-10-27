@@ -1463,7 +1463,7 @@ window.addEventListener('orientationchange', function() {
   </div>
   <div class="header-right">
     <button id="btnRetour" class="btn-retour" style="display:none;">← Retour</button>
-    <button id="btnOptionsAdmin" class="btn-options" onclick="ouvrirEspaceAdmin()" title="Options vendeur" style="display:none;">⚙️</button>
+   
     <button class="btn-panier" onclick="afficherPanier()">
       🛒 Panier <span id="compteurPanier" class="badge">0</span>
     </button>
@@ -1739,9 +1739,6 @@ window.addEventListener('orientationchange', function() {
         <button class="item-menu-admin" onclick="ouvrirEnvoiNotification()">
           <span class="icone-item">📣</span> Envoyer une notification (clients &amp; boutiquiers) <span class="fleche">›</span>
         </button>
-        <button class="item-menu-admin" onclick="ouvrirRenvoiNotifBoutiquier()">
-          <span class="icone-item">🔁</span> Renvoyer une notif boutiquier (commande récente) <span class="fleche">›</span>
-        </button>
         <button class="item-menu-admin" onclick="ouvrirNotifCommissionSamedi()">
           <span class="icone-item">💰</span> Prise de commission samedi (boutiquiers uniquement) <span class="fleche">›</span>
         </button>
@@ -1804,18 +1801,14 @@ window.addEventListener('orientationchange', function() {
         au boutiquier concerné — plus besoin de tout chercher à la main.
       </p>
 
+            <label class="label" style="font-weight:700;">🔍 Rechercher une boutique par son nom</label>
+      <input type="text" id="rechercheCommissionBoutique" class="champ" placeholder="Ex : Boutique test" oninput="filtrerCommissionsBoutiquiers()">
+      <p id="compteurRechercheCommission" class="sous-titre-panneau" style="min-height:14px;"></p>
+
       <div id="listeCommissionsBoutiquiers" style="margin:14px 0;">
         <p style="color:#666;text-align:center;">⏳ Calcul des commissions dues...</p>
       </div>
       <p id="statutRappelCommission" class="statut-envoi"></p>
-
-      <hr style="border:none;border-top:1px solid var(--gris-bordure);margin:18px 0;">
-
-      <label class="label" style="font-weight:700;">Message global du samedi (tous les boutiquiers)</label>
-      <textarea id="messageNotifCommission" class="champ" rows="2" maxlength="200">La prise de commission se fera ce samedi. Merci de préparer la commission Prime Service à remettre.</textarea>
-      <p class="sous-titre-panneau">Ce message part en notification push à tous les boutiquiers qui ont autorisé les notifications. Les clients ne reçoivent rien.</p>
-      <button id="btnNotifCommission" class="btn-principal" style="margin-top:10px;" onclick="avertirCommissionSamedi()">💰 Avertir tous les boutiquiers</button>
-      <p id="statutNotifCommission" class="statut-envoi"></p>
 
       <button type="button" class="btn-retour-lien" onclick="retourAdminPrecedent()">Retour</button>
     </div>
@@ -1861,18 +1854,6 @@ window.addEventListener('orientationchange', function() {
       </div>
     </div>
 
-
-    <!-- ========== RENVOI MANUEL NOTIF BOUTIQUIER (commandes < 5h) ========== -->
-    <div id="renvoiNotifBoutiquier" class="panneau-admin" style="display:none;">
-      <h3 class="titre-panneau">🔔 Renvoyer une notif boutiquier</h3>
-      <p class="sous-titre-panneau">Commandes des 5 dernières heures uniquement. Passé ce délai, le renvoi n'est plus possible.</p>
-
-      <div id="listeRenvoiNotifBoutiquier" style="margin:14px 0;">
-        <p style="color:#666;text-align:center;">⏳ Chargement des commandes récentes...</p>
-      </div>
-
-      <button type="button" class="btn-retour-lien" onclick="fermerRenvoiNotifBoutiquier()">Fermer</button>
-    </div>
 
     <!-- ========== HISTORIQUE DES ACHATS ========== -->
     <div id="historiqueAchats" class="panneau-admin" style="display:none;">
@@ -4033,8 +4014,6 @@ async function verifierSessionAdmin(){
   if(session){
     const email = (session.user.email || "").toLowerCase();
     if(email === CONFIG.EMAIL_ADMIN_AUTORISE.toLowerCase()){
-      const btn = document.getElementById("btnOptionsAdmin");
-      if(btn && !(typeof estModeBoutiqueVerrouille === 'function' && estModeBoutiqueVerrouille())) btn.style.display = "inline-block";
       localStorage.setItem("ps_admin_actif", "1");
       afficherEtatConnexion(true, session.user.email);
       majBandeauAdmin();
@@ -4105,8 +4084,6 @@ if(supabaseClient){
 }
 
 async function deconnexionAdmin(){
-  const btn = document.getElementById("btnOptionsAdmin");
-  if(btn) btn.style.display = "none";
   await supabaseClient.auth.signOut();
   afficherEtatConnexion(false);
 }
@@ -4569,7 +4546,7 @@ function fermerGestionArticles(){
    commande n'est plus possible (le serveur refuse les articles masqués).
    ===================================================================== */
 function cleBoutiqueCanonique(nom){
-  return String(nom || "").trim().toLocaleLowerCase("fr-FR").replace(/s+/g, " ");
+  return String(nom || "").trim().toLocaleLowerCase("fr-FR").replace(/\s+/g, " ");
 }
 
 function boutiquesBloqueesEnCache(){
@@ -5300,7 +5277,6 @@ const PANNEAUX_ADMIN = [
   "notifCommissionSamedi",
   "gestionCategories",
   "envoiNotification",
-  "renvoiNotifBoutiquier",
   "historiqueAchats",
   "formArticle"
 ];
@@ -5464,7 +5440,7 @@ async function dessinerCommissionsBoutiquiers(){
           const telJs = echapperPourOnclick(ligne.telephone);
           const couleur = doit > 0 ? "#b91c1c" : "#166534";
           return `
-          <div style="border:1px solid var(--gris-bordure);border-radius:12px;padding:10px 12px;background:#fff;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div data-nom="${echapperHtml(ligne.affiche)}" style="border:1px solid var(--gris-bordure);border-radius:12px;padding:10px 12px;background:#fff;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
             <div style="flex:1;min-width:0;">
               <div style="font-weight:600;font-size:14px;color:#1e293b;">🏪 ${echapperHtml(ligne.affiche)}</div>
               <div style="font-size:12px;color:#64748b;">${ligne.telephone ? `📞 ${echapperHtml(ligne.telephone)} · ` : ""}Commission à l'instant : <strong style="color:${couleur};">${doit.toLocaleString("fr-FR")} FCFA</strong></div>
@@ -5479,10 +5455,27 @@ async function dessinerCommissionsBoutiquiers(){
       ${nbARappeler > 1 ? `
       <button type="button" class="btn-principal" style="margin-top:12px;" onclick="envoyerTousLesRappelsCommission()">💸 Envoyer tous les rappels (${nbARappeler})</button>` : ""}
     `;
+    filtrerCommissionsBoutiquiers();
   } catch(e){
     console.error("Erreur commissions ", e);
     conteneur.innerHTML = `<p style="color:#dc2626;text-align:center;">⚠️ ${echapperHtml(e?.message || "Impossible de calculer les commissions.")}</p>`;
   }
+}
+
+function filtrerCommissionsBoutiquiers(){
+  const champ = document.getElementById("rechercheCommissionBoutique");
+  const conteneur = document.getElementById("listeCommissionsBoutiquiers");
+  if(!champ || !conteneur) return;
+  const normaliser = (texte) => String(texte || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+  const terme = normaliser(champ.value);
+  let visibles = 0;
+  conteneur.querySelectorAll("[data-nom]").forEach(ligne => {
+    const visible = !terme || normaliser(ligne.getAttribute("data-nom")).includes(terme);
+    ligne.style.display = visible ? "" : "none";
+    if(visible) visibles++;
+  });
+  const info = document.getElementById("compteurRechercheCommission");
+  if(info) info.textContent = terme ? (visibles > 0 ? visibles + " boutique" + (visibles > 1 ? "s" : "") + " trouvée" + (visibles > 1 ? "s" : "") + " avec ce nom." : "Aucune boutique trouvée avec ce nom.") : "";
 }
 
 function messageRappelCommission(affiche, montantDue){
@@ -5565,53 +5558,6 @@ async function envoyerTousLesRappelsCommission(){
   } catch(e){
     console.error("Envoi groupé impossible ", e);
     if(statut){ statut.style.color = "#dc2626"; statut.textContent = "❌ Envoi groupé impossible. Réessayez."; }
-  }
-}
-
-async function avertirCommissionSamedi(){
-  const statut = document.getElementById("statutNotifCommission");
-  const bouton = document.getElementById("btnNotifCommission");
-  const message = document.getElementById("messageNotifCommission").value.trim();
-
-  if(!message){
-    statut.style.color = "#dc2626";
-    statut.textContent = "⚠️ Écrivez un message avant d'envoyer.";
-    return;
-  }
-
-  if(bouton) bouton.disabled = true;
-  statut.style.color = "#666";
-  statut.textContent = "⏳ Envoi aux boutiquiers (boutiquiers uniquement)...";
-
-  try{
-    const tokenAdmin = await obtenirTokenAdmin();
-    const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/avertir-commission-samedi`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${tokenAdmin}`,
-      },
-      body: JSON.stringify({ message }),
-    });
-
-    const resultat = await reponse.json().catch(() => ({}));
-    if(!reponse.ok) throw new Error(resultat.error || "Échec de l'envoi (" + reponse.status + ")");
-
-    const nbEnvoyes = typeof resultat.envoyes === "number" ? resultat.envoyes : null;
-    let texte = "Notification traitée";
-    if(nbEnvoyes === 0){
-      texte = "0 boutiquier abonné aux notifications";
-    } else if(nbEnvoyes !== null){
-      texte = `${nbEnvoyes} boutiquier${nbEnvoyes > 1 ? "s" : ""}$ notifié${nbEnvoyes > 1 ? "s" : ""}`;
-    }
-    statut.style.color = "#16a34a";
-    statut.textContent = `✅ ${texte}${resultat.echecs ? ` (${resultat.echecs} échec${resultat.echecs > 1 ? "s" : ""})` : ""}.`;
-  } catch(erreur){
-    console.error("Erreur notification commission samedi :", erreur);
-    statut.style.color = "#dc2626";
-    statut.textContent = "❌ " + (erreur.message || "Envoi impossible pour le moment. Réessayez.");
-  } finally {
-    if(bouton) bouton.disabled = false;
   }
 }
 
@@ -6035,7 +5981,6 @@ function ouvrirEspaceAdminDepuisPause(){
   ouvrirEspaceAdmin();
 }
 
-let commandeSelectionneeNotif = null;
 
 async function ouvrirHistoriqueAchats(){
   afficherPanneauAdmin("historiqueAchats");
@@ -6229,179 +6174,6 @@ async function chargerHistoriqueAchats(){
   }
 }
 
-const DUREE_LIMITE_RENVOI_NOTIF_MS = 5 * 60 * 60 * 1000; // 5 heures
-
-async function ouvrirRenvoiNotifBoutiquier(){
-  afficherPanneauAdmin("renvoiNotifBoutiquier");
-  await chargerCommandesRecentesPourRenvoi();
-}
-
-function fermerRenvoiNotifBoutiquier(){
-  retourAdminPrecedent();
-}
-
-async function chargerCommandesRecentesPourRenvoi(){
-  const conteneur = document.getElementById("listeRenvoiNotifBoutiquier");
-  if(!conteneur) return;
-
-  if(!supabaseClient){
-    conteneur.innerHTML = `<p style="color:#666;text-align:center;">⚠️ Connexion à la base de données impossible.</p>`;
-    return;
-  }
-
-  conteneur.innerHTML = `<p style="color:#666;text-align:center;">⏳ Chargement des commandes récentes...</p>`;
-
-  try{
-    const seuil = new Date(Date.now() - DUREE_LIMITE_RENVOI_NOTIF_MS).toISOString();
-    const { data: commandes, error } = await supabaseClient
-      .from("commandes")
-      .select("*")
-      .gte("created_at", seuil)
-      .order("created_at", { ascending: false })
-      .limit(30);
-
-    if(error){
-      conteneur.innerHTML = `<p style="color:#dc2626;text-align:center;">⚠️ ${echapperHtml(error.message || "Impossible de charger les commandes")}</p>`;
-      return;
-    }
-
-    if(!commandes || commandes.length === 0){
-      conteneur.innerHTML = `<p style="color:#666;text-align:center;">Aucune commande des 5 dernières heures.</p>`;
-      return;
-    }
-
-    window.__commandesRenvoiNotif = commandes; // référencées par index depuis les boutons ci-dessous
-
-    conteneur.innerHTML = commandes.map((cmd, index) => {
-      const articles = Array.isArray(cmd.articles) ? cmd.articles : [];
-      const nb = articles.reduce((n, a) => n + Math.max(0, Math.min(99, Number(a?.quantite) || 1)), 0);
-      const date = echapperHtml(new Date(cmd.created_at).toLocaleString("fr-FR"));
-      const id = echapperHtml(cmd.id);
-      const nomClient = echapperHtml(cmd.nom_client || "—");
-      const boutiquesNoms = [...new Set(articles.map(a => String(a?.nom_boutique || "Boutique")))];
-      const restantMs = DUREE_LIMITE_RENVOI_NOTIF_MS - (Date.now() - new Date(cmd.created_at).getTime());
-      const restantMin = Math.max(0, Math.round(restantMs / 60000));
-      return `
-        <div style="border:1px solid var(--gris-bordure);border-radius:12px;padding:12px;margin-bottom:10px;">
-          <div style="font-weight:700;">Commande #${id} — ${date}</div>
-          <div style="font-size:13px;color:#666;margin:4px 0;">👤 ${nomClient} · 📦 ${nb} article(s)</div>
-          <div style="font-size:13px;color:#666;margin-bottom:8px;">🏪 ${echapperHtml(boutiquesNoms.join(", "))}</div>
-          <div style="font-size:12px;color:#f97316;margin-bottom:8px;">⏳ Renvoi possible encore ${restantMin} min</div>
-          <button class="btn-principal" style="margin:0;" onclick="preparerNotifBoutiquier(window.__commandesRenvoiNotif[${index}])">🔔 Renvoyer la notif à ce(s) boutiquier(s)</button>
-        </div>
-      `;
-    }).join("");
-  } catch(e){
-    console.error("Erreur chargement commandes récentes:", e);
-    conteneur.innerHTML = `<p style="color:#dc2626;text-align:center;">⚠️ Erreur de connexion à Supabase.</p>`;
-  }
-}
-
-function preparerNotifBoutiquier(commande){
-  commandeSelectionneeNotif = commande;
-  const articles = commande.articles || [];
-  const adresseBoutique = articles.map(a => a?.adresse).find(Boolean) || "Non renseignée";
-
-  let msg = `Nouvelle commande reçue !\n\n`;
-  msg += `👤 Client: ${commande.nom_client || "—"}\n`;
-  msg += `📞 Téléphone: ${commande.telephone_client || "—"}\n`;
-  msg += `📍 Adresse boutique: ${adresseBoutique}\n`;
-  msg += `📍 Quartier de livraison: ${commande.quartier_client || "Non renseigné"}\n`;
-  const carteClient = construireLienGoogleMaps(commande.lat_client, commande.lng_client);
-  if(carteClient) msg += `🗺️ Carte Google Maps de livraison: ${carteClient}\n`;
-  msg += `🧭 Précision de livraison: ${commande.precision_livraison || "Aucune précision fournie"}\n\n`;
-  msg += `📦 Articles:\n`;
-
-  articles.forEach(a => {
-    msg += `- ${a.nom} x${a.quantite || 1}\n`;
-    if(a.image_url) msg += `  Photo: ${a.image_url}\n`;
-  });
-
-  msg += `\n💰 Total: ${Number(commande.total || 0).toLocaleString("fr-FR")} FCFA\n`;
-  msg += `💳 Paiement: Orange Money\n`;
-
-  if(commande.lat_client && commande.lng_client){
-    msg += `\n🗺️ Carte client: https://www.google.com/maps?q=${commande.lat_client},${commande.lng_client}`;
-  }
-
-  document.getElementById("messageNotifBoutiquier").value = msg;
-  document.getElementById("modaleNotifBoutiquier").style.display = "flex";
-  document.getElementById("statutNotifBoutiquier").textContent = "";
-}
-
-async function envoyerNotifBoutiquierPushDirect(message, telephones, tokenAdmin){
-  // Repli push natif VAPID via clever-processor : utilisé seulement si
-  // la création de la file de relances serveur échoue.
-  return fetch(`${CONFIG.SUPABASE_URL}/functions/v1/clever-processor`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${tokenAdmin}`,
-    },
-    body: JSON.stringify({
-      titre: "Nouvelle commande Prime Service 🚀",
-      message: message,
-      telephones_cibles: telephones,
-      url: window.location.origin + window.location.pathname,
-    }),
-  });
-}
-
-async function envoyerNotifBoutiquier(){
-  const statut = document.getElementById("statutNotifBoutiquier");
-  const message = document.getElementById("messageNotifBoutiquier").value.trim();
-
-  if(!message || !commandeSelectionneeNotif){
-    statut.style.color = "#dc2626";
-    statut.textContent = "⚠️ Message vide ou commande non sélectionnée.";
-    return;
-  }
-
-  statut.style.color = "#666";
-  statut.textContent = "Programmation des relances push...";
-
-  try{
-    const articles = commandeSelectionneeNotif.articles || [];
-    const telephones = [...new Set(articles.map(a => a.telephone_boutique).filter(Boolean))];
-
-    if(telephones.length === 0){
-      statut.style.color = "#dc2626";
-      statut.textContent = "⚠️ Aucun numéro de boutique trouvé.";
-      return;
-    }
-
-    const tokenAdmin = await obtenirTokenAdmin();
-    const reponseFile = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/notifier-commande-manuellement`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${tokenAdmin}`,
-      },
-      body: JSON.stringify({ commande_id: commandeSelectionneeNotif.id }),
-    });
-
-    if(!reponseFile.ok){
-      // Repli vers l’envoi push direct VAPID via clever-processor.
-      const reponseDirecte = await envoyerNotifBoutiquierPushDirect(message, telephones, tokenAdmin);
-      if(!reponseDirecte.ok) throw new Error("Échec de la file et du push direct");
-      throw new Error("Relances indisponibles ; push direct envoyé");
-    }
-
-    const resultatFile = await reponseFile.json().catch(() => ({}));
-    statut.style.color = "#16a34a";
-    statut.textContent = `✅ ${resultatFile.queued || telephones.length} notification${(resultatFile.queued || telephones.length) > 1 ? "s" : ""} programmée${(resultatFile.queued || telephones.length) > 1 ? "s" : ""} : push immédiat, rappels à 3/6/9 min et accusé rouge.`;
-    setTimeout(() => {
-      document.getElementById("modaleNotifBoutiquier").style.display = "none";
-    }, 2500);
-  } catch(e){
-    console.warn("Notification manuelle :", e);
-    statut.style.color = "#dc2626";
-    statut.textContent = e instanceof Error && e.message.includes("push direct")
-      ? "⚠️ Push direct envoyé, mais les relances automatiques n’ont pas pu être programmées."
-      : "❌ Envoi impossible. Vérifiez la connexion.";
-  }
-}
-
 verifierEtatPause();
 
 /* =====================================================================
@@ -6561,8 +6333,6 @@ function detecterAccesAdminSecret() {
       timerClicsAdmin = setTimeout(() => { clicsLogoAdmin = 0; }, 1800);
       if(clicsLogoAdmin >= 4) {
         clicsLogoAdmin = 0;
-        const btn = document.getElementById('btnOptionsAdmin');
-        if(btn) btn.style.display = 'inline-block';
         ouvrirEspaceAdmin();
       }
     });
@@ -6571,8 +6341,6 @@ function detecterAccesAdminSecret() {
   // Accès direct par URL ?admin=1 ou #admin
   const p = new URLSearchParams(window.location.search);
   if((p.has('admin') || window.location.hash === '#admin') && !(typeof estModeBoutiqueVerrouille === 'function' && estModeBoutiqueVerrouille())) {
-    const btn = document.getElementById('btnOptionsAdmin');
-    if(btn) btn.style.display = 'inline-block';
     setTimeout(() => { ouvrirEspaceAdmin(); }, 200);
   }
 }

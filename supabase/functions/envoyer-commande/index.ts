@@ -718,7 +718,7 @@ Deno.serve(async (req: Request) => {
     // on la charge intégralement puis on compare en JS en ignorant la casse
     // et les espaces, comme le navigateur.
     const nomsCommande = [...new Set((products as Product[])
-      .map((produit) => String(produit.nom_boutique || "").trim().toLocaleLowerCase("fr-FR"))
+      .map((produit) => String(produit.nom_boutique || "").trim().toLocaleLowerCase("fr-FR").replace(/\s+/g, " "))
       .filter(Boolean))];
     if (nomsCommande.length > 0) {
       const { data: lignesBloquees, error: erreurBlocage } = await supabaseAdmin
@@ -729,7 +729,7 @@ Deno.serve(async (req: Request) => {
         console.error("[blocage] lecture des boutiques bloquées impossible", erreurBlocage.message);
       } else {
         const bloquees = new Set((lignesBloquees || []).map((ligne) =>
-          String(ligne.nom_boutique || "").trim().toLocaleLowerCase("fr-FR")));
+          String(ligne.nom_boutique || "").trim().toLocaleLowerCase("fr-FR").replace(/\s+/g, " ")));
         const nomsInterdits = nomsCommande.filter((nom) => bloquees.has(nom));
         if (nomsInterdits.length > 0) {
           return jsonResponse(req, { error: "Boutique actuellement indisponible — contactez Prime Service." }, 409);
