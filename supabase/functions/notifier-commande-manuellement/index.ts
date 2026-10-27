@@ -5,6 +5,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const ADMIN_EMAIL = (Deno.env.get("ADMIN_EMAIL") || "roimtrmt@gmail.com").toLowerCase();
+const FENETRE_RENVOI_MS = 5 * 60 * 60 * 1000; // renvoi impossible au-delà de 5 heures après la commande
 const SITE_ORIGIN = "https://roimtrmt-stack.github.io/prime-service";
 const ALLOWED_ORIGINS = new Set([
   "https://roimtrmt-stack.github.io",
@@ -98,11 +99,30 @@ Deno.serve(async (req: Request) => {
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data: command, error: commandError } = await supabaseAdmin
       .from("commandes")
-      .select("id, nom_client, telephone_client, quartier_client, precision_livraison, lat_client, lng_client, articles")
+      .select("id, nom_client, telephone_client, quartier_client, precision_livraison, lat_client, lng_client, articles, created_at")
       .eq("id", commandeId)
       .limit(1)
       .maybeSingle();
     if (commandError || !command) return jsonResponse(req, { error: "Commande introuvable" }, 404);
+
+    // Garde-fou 1 : passé 5 heures après la commande, le renvoi est définitivement
+    // impossible (les relances automatiques couvrent déjà la première heure ;
+    // au-delà, une notification silencieuse ne sert plus à rien).
+    const creeeLe = new Date((command as { created_at?: string }).created_at || "").getTime();
+    if (!Number.isFinite(creeeLe) || Date.now() - creeeLe >= FENETRE_RENVOI_MS) {
+      return jsonResponse(req, { error: "⏰ Délai de 5 heures dépassé : la notification ne peut plus être renvoyée" }, 403);
+    }
+
+    // Garde-fou 2 : le boutiquier a déjà vu la commande ? Aucun renvoi utile.
+    const { data: dejaVues } = await supabaseAdmin
+      .from("notifications_boutiquiers")
+      .select("id")
+      .eq("commande_id", commandeId)
+      .eq("statut", "accusee")
+      .limit(1);
+    if (dejaVues && dejaVues.length > 0) {
+      return jsonResponse(req, { error: "Le boutiquier a déjà vu la commande : pas de renvoi" }, 409);
+    }
 
     const grouped = new Map<string, {
       phone: string;

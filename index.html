@@ -6053,6 +6053,30 @@ async function ouvrirHistoriqueAchats(){
 
   await chargerHistoriqueAchats();
 }
+/* Renvoie la notification d'une commande au boutiquier (fenêtre de 5h,
+   refusée par le serveur si la commande n'est plus récente ou si le
+   boutiquier a déjà confirmé l'avoir vue). */
+async function renvoyerNotificationCommande(cmdId){
+  if(!confirm("Renvoyer la notification de cette commande au boutiquier ?\n\nSes notification sera remplacée par une nouvelle file de relances (jusqu'à 4 tentatives en ~9 minutes).")) return;
+  try{
+    const tokenAdmin = await obtenirTokenAdmin();
+    const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/notifier-commande-manuellement`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${tokenAdmin}`,
+      },
+      body: JSON.stringify({ commande_id: String(cmdId) }),
+    });
+    const resultat = await reponse.json().catch(() => ({}));
+    if(!reponse.ok) throw new Error(resultat.error || `Échec (HTTP ${reponse.status})`);
+    alert(`✅ Relance lancée — notification(s) re-filée(s) pour ${resultat.queued} boutique(s).`);
+  } catch(e){
+    console.error("Renvoi notification impossible :", e);
+    alert("❌ " + (e?.message || "Renvoi impossible."));
+  }
+}
+
 async function supprimerCommande(id){
   if(!confirm("Voulez-vous vraiment supprimer cette commande ?")) return;
   
@@ -6151,6 +6175,21 @@ async function chargerHistoriqueAchats(){
       return;
     }
 
+    // Statut de notification par commande : si le boutiquier a déjà vu la
+    // commande (statut « accusée »), le renvoi n'est plus utile (et le
+    // serveur le refuserait de toute façon). Un échec de lecture ne bloque
+    // jamais l'affichage : seuls les statuts connus cachent le bouton.
+    const statutsParCommande = {};
+    try{
+      const { data: notifications } = await supabaseClient
+        .from("notifications_boutiquiers")
+        .select("commande_id, statut")
+        .in("commande_id", commandes.map(cmd => cmd.id));
+      (notifications || []).forEach(notif => {
+        if(notif?.commande_id) statutsParCommande[notif.commande_id] = notif.statut || "";
+      });
+    }catch(e){ console.warn("Statuts de notification indisponibles :", e); }
+
       conteneur.innerHTML = `
         <p style="margin:0 0 10px;color:#666;font-size:13px;">${commandes.length} commande(s) — les plus récentes en premier.</p>
       ` + commandes.map(cmd => {
@@ -6191,6 +6230,14 @@ async function chargerHistoriqueAchats(){
             <div class="cmd-bloc"><span class="cmd-bloc-titre">📦 ${nb} article(s)</span>
               <ul class="cmd-articles-liste">${lignesArticles}</ul>
             </div>` : "";
+      // Renvoi de la notification : UNIQUEMENT dans les 5 heures suivant la
+      // commande, et seulement si le boutiquier ne l'a pas encore vue.
+      // Passé 5 heures : plus de bouton (et le serveur refuse aussi).
+      const ageCmd = Date.now() - dateCmd.getTime();
+      const dejaValeurAcceptee = String(statutsParCommande[cmd.id] || "") === "accusee";
+      const boutonRenvoi = (!dejaValeurAcceptee && ageCmd < 5 * 60 * 60 * 1000)
+        ? `<button type="button" class="btn-relance-cmd" onclick="renvoyerNotificationCommande(${idJs})" title="Renvoyer la notification de commande au boutiquier" style="background:#2563eb;color:#ffffff;border:none;border-radius:10px;padding:8px 14px;font-weight:600;font-size:12px;cursor:pointer;">♻️ Renvoyer la notif</button>`
+        : (!dejaValeurAcceptee ? `<span style="font-size:11px;color:#94a3b8;">⏰ Fenêtre de 5h dépassée</span>` : `<span style="font-size:11px;color:#16a34a;">✅ Vu par la boutique</span>`);
       return `
         <div class="cmd-carte">
           <div class="cmd-entete">
@@ -6212,6 +6259,7 @@ async function chargerHistoriqueAchats(){
             ${blocBoutiques}
           </div>
           <div class="cmd-pied">
+            ${boutonRenvoi}
             <button class="btn-supprimer-gestion" onclick="supprimerCommande(${idJs})" title="Supprimer cette commande">
               🗑️ Supprimer
             </button>
