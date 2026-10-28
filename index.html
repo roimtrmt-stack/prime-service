@@ -1708,7 +1708,7 @@ window.addEventListener('orientationchange', function() {
       <input type="text" id="nomClient" class="champ" placeholder="Ex : Awa Traoré" required>
 
       <label class="label">Votre numéro (Orange / Wave / autre)</label>
-      <input type="tel" id="telClient" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" title="Entrez un vrai numéro de téléphone (8 à 15 chiffres)" required>
+      <input type="tel" id="telClient" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" maxlength="15" title="Entrez un vrai numéro de téléphone (8 à 13 chiffres)" required>
 
       <label class="label" for="quartierClient">Votre quartier (obligatoire)</label>
       <input type="text" id="quartierClient" class="champ" placeholder="Ex : Hamdallaye ACI 2000" maxlength="160" autocomplete="address-level3" required>
@@ -1950,10 +1950,10 @@ window.addEventListener('orientationchange', function() {
       <input type="text" id="nomBoutiqueAdmin" class="champ" placeholder="Ex : Boutique Kadi Mode" required>
 
       <label class="label">Numéro de contact pour cet article</label>
-      <input type="tel" id="telephoneArticleAdmin" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" required>
+      <input type="tel" id="telephoneArticleAdmin" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" maxlength="15" title="Entrez un vrai numéro de téléphone (8 à 13 chiffres)" required>
 
       <label class="label">Prix de base boutique (FCFA, hors commission)</label>
-      <input type="number" id="prixArticleAdmin" class="champ" placeholder="Ex : 65000" min="1000" step="1" oninput="actualiserPrixFinalAdmin()" required>
+      <input type="number" id="prixArticleAdmin" class="champ" placeholder="Ex : 65000" min="1000" max="50000000" step="1" oninput="actualiserPrixFinalAdmin()" required>
       <p id="prixFinalApercuAdmin" style="margin:-8px 0 12px;color:#166534;font-weight:700;">Prix affiché au client : — FCFA</p>
 
       <label class="label">Commission Prime Service — calculée automatiquement selon le prix de base (8 %, arrondie au multiple de 100, minimum 300 FCFA)</label>
@@ -2029,6 +2029,15 @@ const CONFIG = {
   COMMISSION_MIN_FCFA: 300,
   TAUX_COMMISSION_PCT: 8,
 };
+
+/* Plafond réaliste d'un article : au-delà, c'est une faute de frappe ou un
+   test, pas un vrai prix de boutique. Identique à la page d'inscription. */
+const PRIX_MAX_ARTICLES = 50000000;
+
+function numeroTelephoneRealiste(valeur){
+  const chiffres = String(valeur || "").replace(/\D/g, "");
+  return chiffres.length >= 8 && chiffres.length <= 13;
+}
 
 // Calcul de la commission par paliers — même règle que côté serveur
 // (supabase/functions/envoyer-commande). À modifier simultanément des deux côtés.
@@ -3483,9 +3492,9 @@ async function envoyerCommande(event){
     document.getElementById("lngClient").value = "";
   }
 
-  if(!/^[0-9+ ]{8,15}$/.test(tel)){
+  if(!numeroTelephoneRealiste(tel)){
     statutEnvoi.style.color = "#dc2626";
-    statutEnvoi.textContent = "⚠️ Entrez un vrai numéro de téléphone.";
+    statutEnvoi.textContent = "⚠️ Entrez un vrai numéro de téléphone (8 à 13 chiffres, ex : 76 12 34 56).";
     return false;
   }
   if(!quartier){
@@ -4502,15 +4511,20 @@ async function publierArticle(event){
     return false;
   }
 
-  if(!/^[0-9+ ]{8,15}$/.test(telephone)){
+  if(!numeroTelephoneRealiste(telephone)){
     statutPublication.style.color = "#dc2626";
-    statutPublication.textContent = "⚠️ Entrez un vrai numéro de téléphone (chiffres uniquement).";
+    statutPublication.textContent = "⚠️ Entrez un vrai numéro de téléphone (8 à 13 chiffres).";
     return false;
   }
 
   if(!Number.isFinite(prixBase) || prixBase < 1000){
     statutPublication.style.color = "#dc2626";
     statutPublication.textContent = "⚠️ Indiquez un prix de base d’au moins 1000 FCFA.";
+    return false;
+  }
+  if(prixBase > PRIX_MAX_ARTICLES){
+    statutPublication.style.color = "#dc2626";
+    statutPublication.textContent = `⚠️ Prix trop grand : entrez un prix réaliste jusqu'à ${PRIX_MAX_ARTICLES.toLocaleString("fr-FR")} FCFA.`;
     return false;
   }
 

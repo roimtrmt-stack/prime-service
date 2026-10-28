@@ -230,7 +230,7 @@ assert.match(inscriptionPage, /genererNomArticleGratuit/);
 assert.match(inscriptionPage, /nettoyerNomTechnique/);
 assert.match(inscriptionPage, /capture/);
 assert.match(inscriptionPage, /screenshot/);
-assert.match(inscriptionPage, /Montre \$\{aspects\.couleur\}/);
+assert.match(inscriptionPage, /Montre \$\{cadrageAspects\.couleur\}/);
 assert.match(inscriptionPage, /sous_categorie_id: "bijoux"/);
 assert.match(inscriptionPage, /classerArticleLocal/);
 assert.doesNotMatch(inscriptionPage, /normaliserNomBoutiquePourComparaison/);

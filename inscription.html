@@ -1013,7 +1013,7 @@ button, a, input, select, textarea, .carte-produit, .btn-ajouter, .btn-action, .
         <input type="text" id="nomBoutiqueSoumissionnaire" class="champ" placeholder="Ex : Boutique Awa" required>
 
         <label class="label">Votre numéro de téléphone</label>
-        <input type="tel" id="telephoneSoumissionnaire" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" title="Entrez un vrai numéro de téléphone" required>
+        <input type="tel" id="telephoneSoumissionnaire" class="champ" placeholder="Ex : 76 12 34 56" pattern="[0-9+ ]{8,15}" inputmode="numeric" maxlength="15" title="Entrez un vrai numéro de téléphone (8 à 13 chiffres)" required>
 
         <label class="label">Adresse de votre boutique (obligatoire)</label>
         <input type="text" id="adresseInscription" class="champ" placeholder="Ex : Badalabougou, près du marché" maxlength="240" required>
@@ -1396,8 +1396,7 @@ function redessinerPhotos(){
       <label class="label" style="margin-top:8px;">Nom de l'article ${index + 1} (facultatif)</label>
       <input type="text" class="champ nom-photo" data-photo-id="${p.id}" placeholder="Ex : Chemise manche longue, Robe bazin...">
 
-      <label class="label" style="margin-top:8px;">Prix (FCFA) — minimum 1000 FCFA</label>
-      <input type="number" class="champ prix-photo" data-photo-id="${p.id}" placeholder="Ex : 5000" min="1000" step="1" required>
+      <label class="label" style="margin-top:8px;">Prix (FCFA) — minimum 1000 FCFA</label>          <input type="number" class="champ prix-photo" data-photo-id="${p.id}" placeholder="Ex : 5000" min="1000" max="50000000" step="1" required>
     </div>
   `).join("");
 
@@ -1498,9 +1497,9 @@ function recupererPositionInscription(){
 // --- 4. AGENT DE NOMMAGE STYLÉ (automatique, sans coût ni clé API) ---
 function nettoyerNomTechnique(source) {
   return String(source || "")
-    .replace(/\.(jpg|jpeg|png|webp)$/i, "")
+    .replace(/\.(jpe?g|png|webp|jfif|avif|heic|heif|gif|bmp|svg|tiff?)$/i, "")
     .replace(/capture\s*(?:d['’]?\s*écran)?|screenshot|screen\s*shot|copie|copy/gi, " ")
-    .replace(/\b(photo|image|article|produit|nouveau|new|img|dsc|whatsapp)\b/gi, " ")
+    .replace(/\b(gemini|generated|fondo|pexels|unsplash|download|output|photo|image|article|produit|nouveau|new|img|dsc|whatsapp)\b/gi, " ")
     .replace(/[0-9a-f]{8,}/gi, " ")
     .replace(/\b(?:19|20)\d{2}(?:[\s_-]+\d{1,2}){0,2}\b/g, " ")
     .replace(/\b\d{6,}\b/g, " ")
@@ -1536,6 +1535,15 @@ function styliserNomArticle(source, fallback = "Article") {
 function nomIAEstGenerique(value) {
   const nom = String(value || "").trim();
   return !nom || /nouvel article|boutique prime|capture|screenshot|screen\s*shot|copie|^photo$|^image$|^[0-9a-f-]{12,}$/i.test(nom) || /^\d{8,}/.test(nom);
+}
+
+/* Plafond réaliste d'un article : au-delà, c'est une faute de frappe ou un
+   test, pas un vrai prix de boutique. */
+const PRIX_MAX_ARTICLES = 50000000;
+
+function numeroTelephoneRealiste(valeur){
+  const chiffres = String(valeur || "").replace(/\D/g, "");
+  return chiffres.length >= 8 && chiffres.length <= 13;
 }
 
 // Analyse visuelle locale et gratuite : aucun envoi de la photo à un service payant.
@@ -1607,14 +1615,32 @@ function analyserAspectsPhotoGratuite(fichier) {
   });
 }
 
+/* Nom se rapportant au rayon choisi par le boutiquier (sans l'emoji). */
+function nomRayonArticle(categorieId, sousCategorieId) {
+  const categorie = CATEGORIES_DISPONIBLES.find(c => c.id === categorieId);
+  const rayon = categorie?.sousCategories.find(s => s.id === sousCategorieId)?.nom || "";
+  return String(rayon).replace(/^[^\p{L}\p{N}]+/u, "").trim();
+}
+
 function genererNomArticleGratuit(articleData, aspects) {
+  const cadrageAspects = aspects || { couleur: "Nuance élégante", cadrage: "Ligne équilibrée" };
   const source = nettoyerNomTechnique(articleData.nomArticle || articleData.nomFichier || "");
   const normalisee = source.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr-FR");
   if (/\b(montre|watch)\b/.test(normalisee)) {
-    return `Montre ${aspects.couleur}`.slice(0, 100);
+    return `Montre ${cadrageAspects.couleur}`.slice(0, 60);
   }
-  const base = !nomIAEstGenerique(source) ? source : "Article";
-  return styliserNomArticle(`${base} ${aspects.couleur} ${aspects.cadrage}`, "Article Prime Service");
+  const mots = source.split(/\s+/).filter(Boolean);
+  // Le nom de fichier ne sert que s'il ressemble à un vrai nom d'article :
+  // quelques mots lisibles et pas trop long. Sinon (phrase entière, texte
+  // technique, mot unique sans sens) on le jette et on nomme l'article
+  // d'après son rayon et son apparence — c'est plus cohérent et réaliste.
+  const nomFichierUtilisable = mots.length >= 2 && mots.length <= 4 && source.length <= 28;
+  if (nomFichierUtilisable && !nomIAEstGenerique(source)) {
+    const nomPropre = mots.slice(0, 4).join(" ");
+    return styliserNomArticle(`${nomPropre} ${cadrageAspects.couleur}`, "Article Prime Service").slice(0, 60);
+  }
+  const rayon = nomRayonArticle(articleData.categorie_id, articleData.sous_categorie_id) || "Article";
+  return styliserNomArticle(`${rayon} ${cadrageAspects.couleur}`, "Article Prime Service").slice(0, 60);
 }
 
 // --- 5. CLASSEMENT LOCAL DE SECOURS (sans service externe) ---
@@ -1812,6 +1838,16 @@ async function envoyerSoumission(event){
     return false;
   }
 
+  // Numéro réaliste : 8 à 13 chiffres une fois les espaces ignorés. Un
+  // enchaînement de chiffres plus long (23-27 chiffres) n'a jamais existé
+  // comme numéro réel : il est refusé à la place d'un message d'erreur
+  // obscur côté serveur.
+  if(!numeroTelephoneRealiste(telephone)){
+    statut.style.color = "#dc2626";
+    statut.textContent = "⚠️ Entrez un vrai numéro de téléphone (8 à 13 chiffres, ex : 76 12 34 56).";
+    return false;
+  }
+
   // Conditions obligatoires : toujours cochées et verrouillées. L'autorisation de
   // notification est demandée ici, pendant le clic réel d'envoi — les navigateurs
   // n'acceptent cette demande que depuis un geste de l'utilisateur. Un échec de
@@ -1823,7 +1859,9 @@ async function envoyerSoumission(event){
     const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);
     const champPrix = document.querySelector(`.prix-photo[data-photo-id="${photo.id}"]`);
     
-    if(!champPrix.value || Number(champPrix.value) < 1000) { statut.textContent = `⚠️ Prix minimum 1000 FCFA pour l'article #${photo.id}.`; return false; }
+    const prixArticle = Number(champPrix.value);
+    if(!champPrix.value || prixArticle < 1000) { statut.textContent = `⚠️ Prix minimum 1000 FCFA pour l'article #${photo.id}.`; return false; }
+    if(prixArticle > PRIX_MAX_ARTICLES) { statut.textContent = `⚠️ Prix trop grand pour l'article #${photo.id} : entrez un prix réaliste jusqu'à ${PRIX_MAX_ARTICLES.toLocaleString("fr-FR")} FCFA.`; return false; }
   }
 
   bouton.disabled = true;

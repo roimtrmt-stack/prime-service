@@ -6,6 +6,9 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "
 const STORAGE_ORIGIN = "https://kfxalpvbtbvkncztjwzc.supabase.co";
 const MAX_BODY_BYTES = 300_000;
 const MAX_PANIER_ITEMS = 30;
+// Plafond réaliste d'un article : au-delà, c'est une faute de frappe, pas un
+// prix de boutique (identique aux plafonds demandés côté navigateur).
+const PRIX_MAX_ARTICLE = 50_000_000;
 const MAX_IMAGE_BYTES = 8_000_000;
 const MAX_TEXT = 2_000;
 const ALLOWED_ORIGINS = new Set([
@@ -748,6 +751,9 @@ Deno.serve(async (req: Request) => {
       const price = numberOrNull(product?.prix);
       if (!product || product.masque || price === null) {
         return jsonResponse(req, { error: "Article indisponible" }, 409);
+      }
+      if (price > PRIX_MAX_ARTICLE) {
+        return jsonResponse(req, { error: "Prix d'article invalide — contactez Prime Service." }, 409);
       }
       // Recalcul de la commission par paliers à partir du prix de base :
       // base = prix stocké − commission stockée, puis commission recalculée.
