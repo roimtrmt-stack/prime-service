@@ -268,7 +268,12 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 /* ===================== GRILLE PRODUITS (CATALOGUE) ===================== */
 .grille-produits{
   display:grid;
-  grid-template-columns:repeat(5, 1fr);
+  /* minmax(0,1fr) au lieu de 1fr : un 1fr simple ne peut pas descendre
+     sous la largeur de son contenu — un titre avec un mot très long
+     (ex : « 177y4p177y4p177y ») gonflait sa colonne et rendait les
+     cartes de la misma ligne inégales. minmax(0,1fr) garantit des
+     colonnes parfaitement égales sur tous les appareils. */
+  grid-template-columns:repeat(5, minmax(0,1fr));
   gap:22px; /* espacement demandé entre les articles */
   align-items:stretch; /* chaque carte occupe TOUTE la hauteur de sa ligne : les boutons restent alignés entre eux même si les titres ont des longueurs différentes */
 }
@@ -463,6 +468,10 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   margin:4px 0;
   font-size:14px;
   min-height:36px;
+  /* Les mots très longs (liens, codes générés par IA) passent à la ligne
+     au lieu d'élargir leur colonne. */
+  overflow-wrap:anywhere;
+  word-break:break-word;
 }
 .carte-produit .prix{
   font-weight:700;
@@ -1293,7 +1302,7 @@ body.merci-client-verrouillee .btn-options{
    personnes âgées). Les tailles de texte reviennent à une taille normale
    au lieu d'être réduites pour "faire rentrer" 5 colonnes partout. */
 @media (max-width: 900px){
-  .grille-produits{ grid-template-columns:repeat(3, 1fr); gap:16px; }
+  .grille-produits{ grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px; }
 }
 @media (max-width: 600px){
   .grille-boutiques{ grid-template-columns:repeat(2, 1fr); gap:14px; }
@@ -1313,7 +1322,7 @@ body.merci-client-verrouillee .btn-options{
   .carte-categorie .icone{ font-size:24px; }
   .carte-categorie h3, .carte-boutique h3{ font-size:14px; }
   .carte-categorie p, .carte-boutique p{ font-size:12px; }
-  .grille-produits{ grid-template-columns:repeat(3, 1fr); gap:12px; }
+  .grille-produits{ grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; }
   .carte-produit{ padding:10px; }
   .carte-produit .icone-produit{ font-size:34px; margin-bottom:8px; }
   .carte-produit h4{ font-size:13px; min-height:32px; margin:4px 0; }
@@ -1324,13 +1333,13 @@ body.merci-client-verrouillee .btn-options{
   .hero h1{ font-size:23px; }
 }
 @media (max-width: 360px){
-  .grille-produits{ grid-template-columns:repeat(2, 1fr); gap:10px; }
+  .grille-produits{ grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; }
 }
 
 /* ===================== MODE PAYSAGE : 5 ARTICLES (CORRIGÉ) ===================== */
 @media (orientation: landscape) {
   .grille-produits {
-    grid-template-columns: repeat(5, 1fr) !important;
+    grid-template-columns: repeat(5, minmax(0,1fr)) !important;
     gap: 12px;
   }
   .carte-produit {
