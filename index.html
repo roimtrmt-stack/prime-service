@@ -1484,9 +1484,7 @@ window.addEventListener('orientationchange', function() {
 
 <!-- ===================== BANDEAU « MODE BOUTIQUIER » ===================== -->
 <!-- Visible UNIQUEMENT sur l'appareil de publication d'une boutique qui a
-     publié PLUS de 5 articles (le serveur enregistre le numéro de la
-     boutique à ce moment-là), ou quand l'admin ouvre son espace boutique.
-     La session reste sur l'appareil — impossible à partager. -->
+  La session reste sur l'appareil — impossible à partager. -->
 <div id="bandeauModeBoutiquier" style="display:none;position:sticky;top:0;z-index:57;background:#14532d;color:#ffffff;padding:8px 14px;box-shadow:0 2px 10px rgba(15,23,42,0.25);">
   <div style="max-width:1000px;margin:0 auto;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:13px;">
     <span style="font-weight:700;">🛍️ Mode boutiquier — <span id="bandeauBoutiquierNom"></span></span>
@@ -1507,7 +1505,7 @@ window.addEventListener('orientationchange', function() {
 <!-- Cette modale n'a AUCUN point d'entrée public : quand le bandeau mode
      boutiquier est absent, aucun client ne peut l'ouvrir par lui-même.
      Elle ne sert qu'au cas ou une boutique déjà éligible se reconnecte
-     (nom + numéro de publication) ou si l'admin l'ouvre. -->
+     (nom + numéro de publication). -->
 <div id="modaleAccesBoutiquier" class="modale" style="display:none;">
   <div class="modale-contenu">
     <h3 style="margin-top:0;">🔒 Accès boutique privé</h3>
@@ -1535,17 +1533,9 @@ window.addEventListener('orientationchange', function() {
   </div>
 </div>
 
-<div id="modaleAdminBoutiquier" class="modale" style="display:none;">
-  <div class="modale-contenu" style="max-width:460px;width:95%;text-align:left;max-height:80vh;overflow:auto;">
-    <h3 style="margin-top:0;">🛍️ Espace boutique d'une boutique</h3>
-    <p style="font-size:12px;color:#475569;">Choisissez une boutique ci-dessous, ou tapez son nom exact.</p>
-    <div id="listeAdminChoixBoutique" style="margin-bottom:10px;"></div>
-    <input type="text" id="champAdminNomBoutique" class="champ" placeholder="…ou tapez le nom exact de la boutique" style="width:100%;">
-    <button type="button" class="btn-vert" onclick="ouvrirPanneauAdminDepuisSaisie()" style="width:100%;margin-top:10px;">Ouvrir</button>
-    <button type="button" class="btn-retour-lien" onclick="fermerModaleAdminBoutiquier()" style="margin-top:8px;">Annuler</button>
-  </div>
-</div>
-
+<!-- L'ancienne entrée admin « Espace boutique d'une boutique » a été retirée
+     de l'espace vendeur : le mode boutiquier ne s'ouvre que sur l'appareil de
+     publication quand la boutique dépasse 5 articles. -->
 <main id="main">
 
   <!-- ===================== ACCUEIL ===================== -->
@@ -1624,7 +1614,7 @@ window.addEventListener('orientationchange', function() {
       </div>
 
       <!-- Lien d'activation rapide si le navigateur a vidé le cache -->
-      <div id="lienActiverBoutiquier" style="margin-top:10px;">
+      <div id="lienActiverBoutiquier" style="display:none;margin-top:10px;">
         <a href="javascript:void(0)" onclick="activerManuellementBoutiquier()" style="font-size:12px;color:#2563eb;text-decoration:underline;">Vous avez déjà publié des articles ? Cliquez ici</a>
       </div>
 
@@ -1801,9 +1791,6 @@ window.addEventListener('orientationchange', function() {
         </button>
         <button class="item-menu-admin" onclick="ouvrirNotifCommissionSamedi()">
           <span class="icone-item">💰</span> Prise de commission samedi (boutiquiers uniquement) <span class="fleche">›</span>
-        </button>
-        <button class="item-menu-admin" onclick="ouvrirAdminEspaceBoutiquier()">
-          <span class="icone-item">🛍️</span> Espace boutique d'une boutique (admin) <span class="fleche">›</span>
         </button>
 
         <button type="button" class="btn-retour-lien" onclick="fermerBlocNotifications()">Fermer</button>
@@ -2565,23 +2552,59 @@ function copierLienClientDepuisAccueil(){
 }
 
 
+/* Vérification du bloc de partage sur l'accueil, CONFRONTÉE AU SERVEUR :
+   une boutique dont tous les articles ont été supprimés côté serveur ne
+   doit plus montrer NI les boutons de partage NI le lien de reconnexion
+   (image de récupération). La republication recrée les articles et fait
+   tout réapparaître automatiquement (les clés locales sont réenregistrées
+   par la publication). */
 async function verifierEspaceBoutiquierSurAccueil(){
   const bloc = document.getElementById("blocBoutonPartageBoutiquier");
   const lienManuel = document.getElementById("lienActiverBoutiquier");
-  const nomBoutique = localStorage.getItem("ps_boutique_nom");
+  const nomBoutique = (localStorage.getItem("ps_boutique_nom") || "").trim();
   const aPublie = localStorage.getItem("ps_a_publie");
-  if(!bloc || !(aPublie === "true" || nomBoutique)){
+  if(!bloc || (!nomBoutique && aPublie !== "true")){
+    // Aucun souvenir de publication sur cet appareil : tout caché.
+    if(bloc) bloc.style.display = "none";
+    if(lienManuel) lienManuel.style.display = "none";
     majAvertissementBoutiqueBloquee(null);
     return;
   }
-  bloc.style.display = "block";
-  if(lienManuel) lienManuel.style.display = "none";
   const titre = document.getElementById("labelTitreBoutiquier");
   if(titre && nomBoutique) titre.textContent = "Votre Boutique — " + nomBoutique;
-  // Un boutiquier bloqué (commission impayée) voit ici un avertissement clair,
-  // à la place des boutons de partage : il ne peut plus vendre avant réautorisation.
-  const idBoutique = cleBoutiqueCanonique(nomBoutique);
-  const bloque = await boutiqueTemporairementBloquee(idBoutique);
+  // Hors connexion : on garde l'état affiché (cohérent avec le catalogue hors ligne).
+  if(!navigator.onLine) return;
+  // Comptage réel des articles de la boutique dans le catalogue serveur.
+  let articles = -1;
+  try{
+    const { data, error } = await supabaseClient.from("produits").select("nom_boutique").limit(1000);
+    if(error) throw error;
+    const cible = nomBoutique ? cleBoutiqueCanonique(nomBoutique) : "";
+    articles = cible
+      ? (data || []).filter((p) => cleBoutiqueCanonique(p?.nom_boutique) === cible).length
+      : 0;
+  }catch(e){
+    // Requête impossible : on ne présume rien, on garde l'état local.
+    return;
+  }
+  if(articles <= 0){
+    // Boutique entièrement supprimée côté serveur : plus rien à montrer sur
+    // cet appareil. Les clés locales sont nettoyées ; elle réapparaîtront
+    // automatiquement à la prochaine republication.
+    localStorage.removeItem("ps_a_publie");
+    localStorage.removeItem("ps_boutique_nom");
+    localStorage.removeItem("ps_boutique_telephone");
+    try{ localStorage.removeItem(CLE_SESSION_BOUTIQUIER); }catch(e){}
+    majBandeauBoutiquier();
+    bloc.style.display = "none";
+    if(lienManuel) lienManuel.style.display = "none";
+    majAvertissementBoutiqueBloquee(null);
+    return;
+  }
+  // Boutique vivante : bloc de partage visible, avertissement si bloquée.
+  bloc.style.display = "block";
+  if(lienManuel) lienManuel.style.display = "none";
+  const bloque = await boutiqueTemporairementBloquee(cleBoutiqueCanonique(nomBoutique));
   majAvertissementBoutiqueBloquee(bloque ? nomBoutique : null);
 }
 
@@ -2630,7 +2653,7 @@ function activerManuellementBoutiquier(){
   if(nom && nom.trim()){
     localStorage.setItem("ps_a_publie", "true");
     localStorage.setItem("ps_boutique_nom", nom.trim());
-    verifierEspaceBoutiquierSurAccueil();
+    void verifierEspaceBoutiquierSurAccueil();
   }
 }
 
@@ -6603,8 +6626,6 @@ async function ouvrirPanneauBoutiquier(){
   modale.style.display = "flex";
   document.getElementById("boutiquierNomAffiche").textContent = session.nom_affiche;
   document.getElementById("boutiquierTelMaskee").textContent = session.telephone_masque;
-  document.getElementById("titrePanneauBoutiquier").textContent = "🛍️ Mes articles — " + session.nom_affiche;
-  panneauAdminBoutiquierActif = null;
   document.getElementById("listeArticlesBoutiquier").innerHTML = "<p style='color:#666;text-align:center;'>⏳ Chargement…</p>";
   statutBoutiquier("");
   try{
@@ -6622,67 +6643,6 @@ async function ouvrirPanneauBoutiquier(){
       ouvrirAccesBoutiquier();
     }
   }
-}
-
-/* ---------- Panneau ouvert par l'ADMIN (depuis l'espace vendeur) ---------- */
-let panneauAdminBoutiquierActif = null;
-
-async function ouvrirAdminEspaceBoutiquier(){
-  try{
-    if(typeof fermerBlocNotifications === "function") fermerBlocNotifications();
-    const tokenAdmin = await obtenirTokenAdmin();
-    const resultat = await appelAccesBoutiquier({ action: "admin-panneau" }, { adminToken: tokenAdmin });
-    const liste = Array.isArray(resultat.boutiques) ? resultat.boutiques : [];
-    const conteneur = document.getElementById("listeAdminChoixBoutique");
-    if(conteneur){
-      conteneur.innerHTML = liste.length
-        ? liste.map((b) => `
-            <button type="button" onclick="ouvrirPanneauAdminBoutiquier('${echapperPourOnclick(b.nom_affiche)}')"
-              style="display:flex;gap:10px;align-items:center;justify-content:space-between;width:100%;text-align:left;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;font-size:13px;">
-              <span style="font-weight:600;">🏪 ${echapperHtml(b.nom_affiche)}</span>
-              <span style="font-size:12px;color:#64748b;">${b.count} article(s)${Number(b.count) > 5 ? " · mode actif" : " · " + Math.max(0, 6 - b.count) + " restant(s)"}</span>
-            </button>`).join("")
-        : "<p style='color:#666;text-align:center;'>Aucune boutique dans le catalogue.</p>";
-    }
-    document.getElementById("modaleAdminBoutiquier").style.display = "flex";
-  }catch(e){
-    afficherMessageEspaceAdmin("❌ " + (e?.message || "Impossible d'ouvrir l'espace boutique."), "#dc2626");
-  }
-}
-
-function fermerModaleAdminBoutiquier(){
-  const modale = document.getElementById("modaleAdminBoutiquier");
-  if(modale) modale.style.display = "none";
-}
-
-async function ouvrirPanneauAdminBoutiquier(nomBoutique){
-  fermerModaleAdminBoutiquier();
-  const modale = document.getElementById("modaleBoutiquier");
-  if(!modale) return;
-  modale.style.display = "flex";
-  document.getElementById("boutiquierNomAffiche").textContent = nomBoutique;
-  document.getElementById("titrePanneauBoutiquier").textContent = "🛍️ Espace boutique — " + nomBoutique;
-  document.getElementById("boutiquierTelMaskee").textContent = "⏳";
-  panneauAdminBoutiquierActif = nomBoutique;
-  document.getElementById("listeArticlesBoutiquier").innerHTML = "<p style='color:#666;text-align:center;'>⏳ Chargement…</p>";
-  statutBoutiquier("");
-  try{
-    const tokenAdmin = await obtenirTokenAdmin();
-    const resultat = await appelAccesBoutiquier({ action: "admin-panneau", nom_boutique: nomBoutique }, { adminToken: tokenAdmin });
-    panneauAdminBoutiquierActif = nomBoutique;
-    document.getElementById("boutiquierTelMaskee").textContent = resultat.telephone_masque || "—";
-    dessinerArticlesBoutiquier(resultat.produits);
-    statutBoutiquier(`${Array.isArray(resultat.produits) ? resultat.produits.length : 0} article(s) de la boutique.`, "#16a34a");
-  }catch(e){
-    panneauAdminBoutiquierActif = null;
-    statutBoutiquier("❌ " + (e?.message || "Chargement impossible."), "#dc2626");
-  }
-}
-
-function ouvrirPanneauAdminDepuisSaisie(){
-  const nom = (document.getElementById("champAdminNomBoutique")?.value || "").trim();
-  if(!nom){ alert("⚠️ Entrez le nom exact de la boutique."); return; }
-  ouvrirPanneauAdminBoutiquier(nom);
 }
 
 function fermerPanneauBoutiquier(){
@@ -6714,22 +6674,9 @@ function dessinerArticlesBoutiquier(liste){
 }
 
 async function enregistrerArticleBoutiquier(id){
-  let corps = null;
-  if(panneauAdminBoutiquierActif){
-    // Panneau ouvert par l'admin : modification directe avec sonjeton admin.
-    let tokenAdmin = "";
-    try{ tokenAdmin = await obtenirTokenAdmin(); }catch(e){}
-    corps = { action: "admin-modifier", id };
-    try{
-      corps.__options = { adminToken: tokenAdmin };
-    }catch(e){}
-    corps.__admin = true;
-  } else {
-    const session = sessionBoutiquier();
-    if(!session){ fermerPanneauBoutiquier(); ouvrirAccesBoutiquier(); return; }
-    corps = { action: "modifier-produit", nom_boutique: session.nom_affiche, telephone: session.telephone, id };
-    corps.__admin = false;
-  }
+  const session = sessionBoutiquier();
+  if(!session){ fermerPanneauBoutiquier(); ouvrirAccesBoutiquier(); return; }
+  const corps = { action: "modifier-produit", nom_boutique: session.nom_affiche, telephone: session.telephone, id };
   const ligne = document.querySelector(`.ligne-article-boutiquier[data-id="${id}"]`);
   if(!ligne) return;
   const nom = ligne.querySelector(".champNomArticleBoutiquier")?.value?.trim() || "";
@@ -6741,11 +6688,7 @@ async function enregistrerArticleBoutiquier(id){
   try{
     if(nom) corps.nom = nom;
     if(prixBrut !== "") corps.prix = Number(prixBrut);
-    const corpsPropre = { ...corps };
-    delete corpsPropre.__options;
-    delete corpsPropre.__admin;
-    const options = corps.__options || {};
-    const resultat = await appelAccesBoutiquier(corpsPropre, options);
+    const resultat = await appelAccesBoutiquier(corps);
     afficher(`✅ Enregistré${resultat.produit?.nom ? ` — « ${resultat.produit.nom} »` : ""} visible par les clients.`, "#16a34a");
     // Le catalogue local (menu client) est rafraichi en arrière-plan.
     try{ chargerProduits(); }catch(e){}
@@ -6756,13 +6699,12 @@ async function enregistrerArticleBoutiquier(id){
 
 function deconnexionBoutiquier(){
   localStorage.removeItem(CLE_SESSION_BOUTIQUIER);
-  panneauAdminBoutiquierActif = null;
   majBandeauBoutiquier();
   fermerPanneauBoutiquier();
   fermerAccesBoutiquier();
 }
 
-/* Mode boutique : l'admin peut aussi ouvrir/magier depuis l'espace vendeur. */
+/* Mode boutique : le serveur reste la source de vérité. */
 detecterAccesAdminSecret();
 
 // Bandeau admin + liste des boutiques bloquées dès l'ouverture du site.
