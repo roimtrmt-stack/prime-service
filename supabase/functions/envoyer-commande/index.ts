@@ -585,11 +585,15 @@ async function notifyInBackground(input: {
       color: 0x2563eb,
     }));
 
-    const ownerWebhook = Deno.env.get("DISCORD_WEBHOOK_URL");
+    /* Interrupteur Discord (commandes) : « false » = l'envoi Discord est
+       DÉSACTIVÉ, mais tout le code reste en place. Le jour où l'option sert
+       à nouveau, il suffit de remettre « true » ici et de redéployer. */
+    const DISCORD_COMMANDES_ACTIF = false;
+    const ownerWebhook = DISCORD_COMMANDES_ACTIF ? Deno.env.get("DISCORD_WEBHOOK_URL") : undefined;
     let ownerResult: DeliveryResult = {
       target: "owner-discord",
       delivered: false,
-      reason: "DISCORD_WEBHOOK_URL absent",
+      reason: DISCORD_COMMANDES_ACTIF ? "DISCORD_WEBHOOK_URL absent" : "désactivé (DISCORD_COMMANDES_ACTIF = false)",
     };
     if (ownerWebhook) {
       try {
