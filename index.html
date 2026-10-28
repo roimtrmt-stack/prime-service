@@ -1824,6 +1824,7 @@ window.addEventListener('orientationchange', function() {
       <div style="margin:12px 0 14px;display:flex;gap:10px;flex-wrap:wrap;">
         <button type="button" onclick="ouvrirGestionBlocages()" style="padding:10px 16px;background:#7f1d1d;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;">🚫 Bloquer / Débloquer des boutiquiers</button>
         <button type="button" onclick="ouvrirGestionCategories()" style="padding:10px 16px;background:#111827;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;">🙈 Masquer des catégories</button>
+        <button type="button" onclick="ouvrirSuppressionBoutique()" style="padding:10px 16px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-weight:600;cursor:pointer;font-size:13px;">🗑️ Supprimer une boutique entière</button>
       </div>
       <div style="margin-top:14px;"></div>
       <div id="listeGestionArticles" class="liste-gestion"><!-- injecté par JS --></div>
@@ -4781,6 +4782,80 @@ async function debloquerBoutiquier(cle){
   } catch(e){
     console.error("Déblocage impossible :", e);
     alert("Impossible de réautoriser cette boutique : " + (e?.message || e));
+  }
+}
+
+/* =====================================================================
+   SUPPRESSION TOTALE D'UNE BOUTIQUE (admin, double confirmation)
+   Efface TOUS ses articles du serveur + son éventuel blocage ; la purge de
+   acces_boutiquiers est automatique (trigger serveur). On ne supprime
+   jamais sur une égalité brute du nom : les ids réels sont relus côté
+   serveur puis filtrés avec la clé canonique (insensible aux espaces/casse).
+   ===================================================================== */
+function ouvrirSuppressionBoutique(){
+  const boutiques = new Map(); // cle canonique -> { affiche, total }
+  Object.values(produitsParCle).flat().filter(Boolean).forEach(p => {
+    const cle = cleBoutiqueCanonique(p?.nom_boutique) || "boutique sans nom";
+    const ligne = boutiques.get(cle) || { affiche: String(p.nom_boutique || "").trim() || "Boutique sans nom", total: 0 };
+    ligne.total += 1;
+    boutiques.set(cle, ligne);
+  });
+  if(boutiques.size === 0){ alert("Aucune boutique dans le catalogue."); return; }
+  const liste = Array.from(boutiques.entries())
+    .sort((a, b) => a[1].affiche.localeCompare(b[1].affiche))
+    .map(([, l]) => `• ${l.affiche} (${l.total} article${l.total > 1 ? "s" : ""})`)
+    .join("\n");
+  const saisie = prompt(
+    `⚠️ SUPPRESSION D'UNE BOUTIQUE ENTIÈRE (irréversible)\n\nBoutiques actuellement en ligne :\n${liste}\n\nTapez le NOM EXACT de la boutique à effacer :`
+  );
+  if(saisie === null) return;
+  const nomDemande = saisie.trim();
+  if(!nomDemande){ alert("Aucun nom saisi : suppression annulée."); return; }
+  const cle = cleBoutiqueCanonique(nomDemande);
+  const cible = boutiques.get(cle);
+  if(!cible){
+    alert(`Aucune boutique ne s'appelle « ${nomDemande} » dans le catalogue actuel. Vérifiez l'orthographe exacte contre la liste proposée.`);
+    return;
+  }
+  if(!confirm(`⚠️ SUPPRIMER DÉFINITIVEMENT « ${cible.affiche} » ET SES ${cible.total} ARTICLE(S) ?\n\nLes clients ne pourront plus rien commander ni voir chez ce boutiquier.`)) return;
+  const verif = prompt(`Confirmation finale : retapez exactement « ${cible.affiche} ».`);
+  if(verif === null || verif.trim() !== cible.affiche){
+    alert("Le nom confirmé est différent : suppression annulée.");
+    return;
+  }
+  supprimerBoutiqueEntiere(cle, cible.affiche);
+}
+
+async function supprimerBoutiqueEntiere(cle, affiche){
+  try{
+    // 1) Ids réels côté serveur (source de vérité), filtrés canoniquement.
+    const { data, error: erreurLecture } = await supabaseClient.from("produits").select("id, nom_boutique").limit(1000);
+    if(erreurLecture) throw erreurLecture;
+    const ids = (data || [])
+      .filter(p => (cleBoutiqueCanonique(p?.nom_boutique) || "boutique sans nom") === cle)
+      .map(p => Number(p.id));
+    if(ids.length === 0){ alert(`Aucun article trouvé côté serveur pour « ${affiche} ».`); return; }
+    // 2) Suppression en paquets (le filtre in(id…) est limité en longueur d'URL).
+    for(let debut = 0; debut < ids.length; debut += 50){
+      const { error: erreurDelete } = await supabaseClient.from("produits").delete().in("id", ids.slice(debut, debut + 50));
+      if(erreurDelete) throw erreurDelete;
+    }
+    // 3) Nettoyage du blocage éventuel (la boutique n'existe plus).
+    try{ await supabaseClient.from("boutiques_bloquees").delete().eq("nom_boutique", cle); }catch(e){}
+    // 4) Retrait de la mémoire locale puis rechargement du catalogue
+    //    (le bloc partage et le mode boutiquier disparaissent automatiquement).
+    Object.keys(produitsParCle).forEach(k => {
+      produitsParCle[k] = (produitsParCle[k] || []).filter(p => (cleBoutiqueCanonique(p?.nom_boutique) || "boutique sans nom") !== cle);
+    });
+    boutiqueActiveGestion = null;
+    await rafraichirCacheBoutiquesBloquees();
+    await chargerProduits();
+    dessinerGestionArticles();
+    construireCategories();
+    alert(`🗑️ Boutique « ${affiche} » supprimée : ${ids.length} article(s) effacés du serveur.`);
+  } catch(e){
+    console.error("Suppression boutique impossible :", e);
+    alert("Impossible de supprimer cette boutique : " + (e?.message || e));
   }
 }
 
