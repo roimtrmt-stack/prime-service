@@ -801,6 +801,40 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   height:100px;
   object-fit:cover;
   border-radius:8px;
+  cursor:zoom-in;
+  display:block;
+  background:#f3f4f6;
+}
+
+/* Zoom plein écran au clic sur la photo d'un article */
+.vue-pleine-ecran-photo{
+  position:fixed;
+  inset:0;
+  background:rgba(10,10,10,.92);
+  z-index:1200;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+}
+.vue-pleine-ecran-photo img{
+  max-width:100%;
+  max-height:100%;
+  border-radius:10px;
+  box-shadow:0 10px 40px rgba(0,0,0,.5);
+}
+.vue-pleine-ecran-photo .fermer-visionneuse{
+  position:absolute;
+  top:18px;
+  right:18px;
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  border:none;
+  background:rgba(255,255,255,.15);
+  color:#fff;
+  font-size:20px;
+  cursor:pointer;
 }
 .btn-retirer-photo{
   position:absolute;
@@ -1350,7 +1384,7 @@ function redessinerPhotos(){
   const cartesPhotos = photosAjoutees.map((p, index) => `
     <div class="carte-photo-inscription">
       <button type="button" class="btn-retirer-photo" onclick="retirerPhoto(${p.id})">✕</button>
-      <img src="${p.apercuUrl}" class="apercu-photo-inscription">
+      <img src="${p.apercuUrl}" class="apercu-photo-inscription" alt="Photo de l'article" title="Cliquez pour voir l'image en grand">
       <label class="label" style="margin-top:8px;font-weight:700;">📁 Catalogue / Rayon</label>
       <select class="champ categorie-photo" data-photo-id="${p.id}" onchange="changerCategoriePhoto(${p.id}, this.value)" required>
         ${optionsCategoriesHTML(p.categorie_id || "mode")}
@@ -1389,6 +1423,38 @@ function retirerPhoto(id){
   photosAjoutees = photosAjoutees.filter(p => p.id !== id);
   redessinerPhotos();
 }
+
+/* =====================================================================
+   ZOOM PLEIN ÉCRAN AU CLIC SUR LA PHOTO D'UN ARTICLE
+   (permet de la regarder en entier avant d'envoyer)
+   ===================================================================== */
+function fermerApercuPhotoPleinEcran(){
+  const vue = document.getElementById("apercuPhotoPleinEcran");
+  if(vue) vue.remove();
+}
+
+function agrandirApercuPhoto(url){
+  if(!url) return;
+  fermerApercuPhotoPleinEcran();
+  const vue = document.createElement("div");
+  vue.id = "apercuPhotoPleinEcran";
+  vue.className = "vue-pleine-ecran-photo";
+  vue.innerHTML = `
+    <button type="button" class="fermer-visionneuse" aria-label="Fermer">✕</button>
+    <img src="" alt="Photo de l'article en grand">
+  `;
+  vue.querySelector("img").src = url;
+  vue.addEventListener("click", fermerApercuPhotoPleinEcran);
+  document.body.appendChild(vue);
+}
+
+/* Délégation : marche pour toutes les photos, même redessinées après coup.
+   Attention à ne pas intercepter le bouton de suppression ni le champ fichier. */
+document.getElementById("grillePhotos").addEventListener("click", (event) => {
+  if(event.target.closest(".btn-retirer-photo")) return;
+  const img = event.target.closest("img.apercu-photo-inscription");
+  if(img && img.src) agrandirApercuPhoto(img.src);
+});
 
 // --- 3. GÉOLOCALISATION ---
 function positionGPSValide(lat, lng){

@@ -306,6 +306,20 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   display:block;
 }
 
+/* Anciennes applications web (WebView sans support de ratio CSS) :
+   « aspect-ratio » est ignoré et chaque image reprenait sa taille
+   naturelle, d'où des articles de longueurs différentes. Ce repli
+   construit le carré par un padding — les images restent toutes
+   identiques et bien alignées, quel que soit le téléphone. */
+@supports not (aspect-ratio: 1 / 1){
+  .carte-produit .zone-image{ position:relative; height:0; padding-bottom:100%; }
+  .carte-produit .zone-image img{ position:absolute; inset:0; width:100%; height:100%; }
+  .carte-produit .zone-image .icone-produit{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+}
+
 .visionneuse-image{
   display:none;
   position:fixed;
