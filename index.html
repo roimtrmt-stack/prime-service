@@ -270,7 +270,7 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   display:grid;
   grid-template-columns:repeat(5, 1fr);
   gap:22px; /* espacement demandé entre les articles */
-  align-items:start; /* empêche les cartes de s'étirer pour égaler la plus haute de leur ligne */
+  align-items:stretch; /* chaque carte occupe TOUTE la hauteur de sa ligne : les boutons restent alignés entre eux même si les titres ont des longueurs différentes */
 }
 
 .carte-produit{
@@ -481,6 +481,13 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   width:100%;
 }
 .btn-ajouter:hover{ background:var(--bleu-hover); }
+
+/* Dans une carte produit, le bouton est toujours collé en bas de la carte
+   (l'espace libre se place au-dessus) : sur une ligne du catalogue, tous
+   les boutons « Ajouter au panier » sont donc parfaitement alignés,
+   quel que soit le nombre de lignes du titre (1, 2 ou 3 lignes). */
+.carte-produit .btn-ajouter{ margin-top:auto; }
+.carte-produit .prix{ margin-bottom:12px; }
 
 /* ===================== PANIER ===================== */
 .liste-panier{ display:flex; flex-direction:column; gap:12px; }
