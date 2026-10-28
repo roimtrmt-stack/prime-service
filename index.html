@@ -298,6 +298,10 @@ main{ max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
 .carte-produit .zone-image{
   width:100%;
   aspect-ratio:1/1;
+  /* Sans ceci, quand une carte est étirée ou compressée par la grille
+     (téléphone, paysage...), l'image se rétrécit et perd son carré : les
+     articles n'étaient plus égaux. L'image ne doit jamais se comprimer. */
+  flex-shrink:0;
   border-radius:10px;
   overflow:hidden;
   margin-bottom:10px;
