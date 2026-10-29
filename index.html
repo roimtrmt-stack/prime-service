@@ -2329,6 +2329,14 @@ if("serviceWorker" in navigator){
       if(!nouveauServiceWorker) return;
       nouveauServiceWorker.addEventListener("statechange", () => {
         if(nouveauServiceWorker.state === "installed" && navigator.serviceWorker.controller){
+          // VOLET CRITIQUE : on active TOUT DE SUITE la version installée
+          // (skipWaiting). Avant, la nouvelle version restait « en attente »
+          // jusqu'à ce que l'utilisateur ferme TOUTES ses fenêtres : sur un
+          // téléphone où le site est installé (PWA), il pouvait voir pendant
+          // des jours une ancienne mise en page (boutons du catalogue mal
+          // alignés...) même après les déploiements. Avec skipWaiting, ça se
+          // met à jour à la première ouverture + rechargement automatique.
+          nouveauServiceWorker.postMessage({ type: "SKIP_WAITING" });
           afficherBandeauMiseAJour(enregistrement);
         }
       });

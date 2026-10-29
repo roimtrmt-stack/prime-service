@@ -588,10 +588,10 @@ async function notifyInBackground(input: {
       color: 0x2563eb,
     }));
 
-    /* Interrupteur Discord (commandes) : « false » = l'envoi Discord est
-       DÉSACTIVÉ, mais tout le code reste en place. Le jour où l'option sert
-       à nouveau, il suffit de remettre « true » ici et de redéployer. */
-    const DISCORD_COMMANDES_ACTIF = false;
+    /* Interrupteur Discord (commandes) : « true » = l'envoi Discord au
+       propriétaire est ACTIVÉ (envoyer-commande → DISCORD_WEBHOOK_URL). Pour
+       le couper à nouveau, remettre « false » ici et redéployer. */
+    const DISCORD_COMMANDES_ACTIF = true;
     const ownerWebhook = DISCORD_COMMANDES_ACTIF ? Deno.env.get("DISCORD_WEBHOOK_URL") : undefined;
     let ownerResult: DeliveryResult = {
       target: "owner-discord",
