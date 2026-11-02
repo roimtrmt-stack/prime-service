@@ -2070,12 +2070,32 @@ async function activerNotifCommandeInscription(){
   const estIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const estStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
   if(estIOS && !estStandalone){
-    if(indicateur) indicateur.textContent = "ℹ️ iPhone : installez l'app (Partager → « Sur l'écran d'accueil ») pour recevoir les notifications — le premier SMS de commande activera tout.";
+    if(indicateur){
+      indicateur.style.textAlign = "left";
+      const guide = [
+        ["📤", "Appuie sur le bouton « Partager »", "Le carré avec une flèche ↑ tout en bas de l'écran Safari."],
+        ["➕", "Appuie sur « Sur l'écran d'accueil »", "Fais glisser la liste vers le bas jusqu'à voir cette ligne."],
+        ["✅", "Appuie sur « Ajouter » (en haut à droite)", "Prime Service apparaît sur ton écran d'accueil, comme une vraie application."],
+      ];
+      indicateur.innerHTML = `
+        <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:12px;padding:10px 12px;margin-top:6px;">
+          <div style="font-weight:700;color:#1d4ed8;font-size:14px;">📱 iPhone : installe l'appli en 3 étapes simples</div>
+          ${guide.map((etape, index) => `
+          <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 0 0;">
+            <div style="flex:none;width:26px;height:26px;border-radius:50%;background:#1d4ed8;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:13px;">${index + 1}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:700;font-size:13.5px;color:#111827;">${etape[0]} ${etape[1]}</div>
+              <div style="font-size:12.5px;color:#4b5563;">${etape[2]}</div>
+            </div>
+          </div>`).join("")}
+          <div style="font-size:12px;color:#6b7280;margin-top:6px;">Après l'installation, la première notification de commande finira d'activer les relances sur ce téléphone.</div>
+        </div>`;
+    }
     return true;
   }
 
   if(!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)){
-    if(indicateur) indicateur.textContent = "Notifications non supportées sur ce navigateur : le SMS de commande restera le seul moyen d'activer plus tard.";
+    if(indicateur) indicateur.textContent = "📵 Ce navigateur ne supporte pas les notifications. Sur Android : ouvre le site avec Google Chrome (gratuit dans le Play Store). Sinon, le SMS de commande activera tout.";
     return true;
   }
 
