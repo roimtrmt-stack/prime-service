@@ -1,5 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import nodemailer from "npm:nodemailer@^9";
 // Copie locale volontaire : le bundler côté serveur (CLI récente) ne résout
 // pas les imports hors du dossier de la fonction, ce qui faisait échouer le
 // déploiement. Voir tests/validate-shared-sms.mjs (copies identiques).
@@ -392,9 +391,6 @@ async function lireEmailBoutique(phone: string): Promise<string | null> {
   }
 }
 
-const GMAIL_SMTP_USER = text(Deno.env.get("GMAIL_USER"), 160);
-const GMAIL_SMTP_PASSWORD = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
-
 async function envoyerEmailCommandeSiConfigure(
   shop: Shop,
   commande: { commandId: string; nom: string; tel: string; quartier: string; precision: string | null; total: number },
@@ -405,14 +401,11 @@ async function envoyerEmailCommandeSiConfigure(
   if (!destinataire) return null;
   const brevoKey = text(Deno.env.get("BREVO_API_KEY"), 240);
   const resendKey = text(Deno.env.get("RESEND_API_KEY"), 240);
-  // Gmail SMTP est le transport prioritaire s'il est configuré (gratuit, envoi
-  // depuis la vraie adresse : excellent pour la boîte de réception). Brevo puis
-  // Resend servent de repli : un seul secret posé suffit, et retirer l'un ne
-  // casse jamais les autres.
-  const gmailPret = Boolean(GMAIL_SMTP_USER && GMAIL_SMTP_PASSWORD);
+  // Resend est le fournisseur principal ; Brevo reste un repli si sa clé est
+  // posée plus tard. Un seul secret suffit, retirer l'un ne casse pas l'autre.
   const brevoPret = Boolean(brevoKey && EMAIL_EXPEDITEUR);
-  if (!gmailPret && !brevoPret && !resendKey) {
-    return { target: destinataire, delivered: false, reason: "GMAIL_USER/GMAIL_APP_PASSWORD, BREVO_API_KEY/EMAIL_FROM ou RESEND_API_KEY absent" };
+  if (!brevoPret && !resendKey) {
+    return { target: destinataire, delivered: false, reason: "RESEND_API_KEY (ou BREVO_API_KEY/EMAIL_FROM) absent" };
   }
 
   const lignes = shop.items.map((item) => {
@@ -446,52 +439,9 @@ async function envoyerEmailCommandeSiConfigure(
   ].join("\n");
 
   const sujet = `Prime Service - commande ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`;
-  // Gmail prioritaire s'il est configuré, sinon Brevo, sinon Resend.
-  if (gmailPret) return await envoyerEmailGmail(destinataire, sujet, html, texteSimple);
-  if (brevoPret) return await envoyerEmailBrevo(brevoKey, destinataire, sujet, html, texteSimple);
-  return await envoyerEmailResend(resendKey, destinataire, sujet, html, texteSimple);
-}
-
-/* Gmail SMTP : port 465 en TLS implicite. Les Edge Functions Supabase bloquent
-   les ports 25 et 587, mais 465 fonctionne — c'est le seul chemin SMTP possible.
-   Le mot de passe est un « mot de passe d'application » Google (16 caractères),
-   jamais le mot de passe du compte. Limite Gmail gratuite : ~100 messages/24 h. */
-async function envoyerEmailGmail(
-  destinataire: string,
-  sujet: string,
-  html: string,
-  texteSimple: string,
-): Promise<DeliveryResult> {
-  if (!GMAIL_SMTP_USER || !GMAIL_SMTP_PASSWORD) {
-    return { target: destinataire, delivered: false, reason: "GMAIL_USER ou GMAIL_APP_PASSWORD absent" };
-  }
-  try {
-    const transport = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: { user: GMAIL_SMTP_USER, pass: GMAIL_SMTP_PASSWORD },
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 20_000,
-    });
-    await new Promise<void>((resolve, reject) => {
-      transport.sendMail({
-        from: `Prime Service <${GMAIL_SMTP_USER}>`,
-        to: destinataire,
-        subject: sujet,
-        text: texteSimple,
-        html,
-      }, (error: unknown) => (error ? reject(error) : resolve()));
-    });
-    return { target: destinataire, delivered: true, reason: "email accepté par Gmail SMTP" };
-  } catch (error) {
-    return {
-      target: destinataire,
-      delivered: false,
-      reason: error instanceof Error ? error.message.slice(0, 160) : "erreur SMTP Gmail",
-    };
-  }
+  // Resend prioritaire, Brevo en repli.
+  if (resendKey) return await envoyerEmailResend(resendKey, destinataire, sujet, html, texteSimple);
+  return await envoyerEmailBrevo(brevoKey, destinataire, sujet, html, texteSimple);
 }
 
 async function envoyerEmailResend(
