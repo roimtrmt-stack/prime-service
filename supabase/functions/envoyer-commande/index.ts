@@ -351,8 +351,12 @@ function groupByShop(items: CanonicalItem[]): Shop[] {
    cas la commande lui est aussi envoyée par e-mail, via l'API Brevo (offre
    gratuite) : la clé reste un secret serveur, jamais dans le navigateur.
    ===================================================================== */
-const EMAIL_EXPEDITEUR = text(Deno.env.get("BREVO_SENDER_EMAIL"), 160);
+const EMAIL_EXPEDITEUR = text(Deno.env.get("EMAIL_FROM"), 160) || text(Deno.env.get("BREVO_SENDER_EMAIL"), 160);
 const EMAIL_NOM_EXPEDITEUR = text(Deno.env.get("BREVO_SENDER_NAME"), 120) || "Prime Service";
+// Resend : expéditeur par défaut de test, qui ne peut écrire qu'à l'adresse du
+// compte Resend tant qu'aucun nom de domaine n'y est vérifié. Dès qu'un domaine
+// est validé, mettre RESEND_FROM="Prime Service <alertes@mon-domaine.ml>".
+const EMAIL_RESEND_EXPEDITEUR = text(Deno.env.get("RESEND_FROM"), 200) || "Prime Service <onboarding@resend.dev>";
 
 function emailValide(valeur: unknown): boolean {
   return typeof valeur === "string" && /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(valeur.trim());
@@ -392,9 +396,10 @@ async function envoyerEmailCommandeSiConfigure(
   if (!shop.phone) return null;
   const destinataire = await lireEmailBoutique(shop.phone);
   if (!destinataire) return null;
-  const apiKey = Deno.env.get("BREVO_API_KEY");
-  if (!apiKey || !EMAIL_EXPEDITEUR) {
-    return { target: destinataire, delivered: false, reason: "BREVO_API_KEY ou BREVO_SENDER_EMAIL absent" };
+  const resendKey = text(Deno.env.get("RESEND_API_KEY"), 240);
+  const brevoKey = text(Deno.env.get("BREVO_API_KEY"), 240);
+  if (!resendKey && (!brevoKey || !EMAIL_EXPEDITEUR)) {
+    return { target: destinataire, delivered: false, reason: "aucun fournisseur e-mail configuré" };
   }
 
   const lignes = shop.items.map((item) => {
@@ -427,6 +432,68 @@ async function envoyerEmailCommandeSiConfigure(
     `${SITE_ORIGIN}/`,
   ].join("\n");
 
+  const sujet = `Prime Service - commande ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`;
+  // Resend prioritaire s'il est configuré, sinon Brevo : un seul secret à poser
+  // suffit, et retirer l'un ne casse jamais l'autre.
+  if (resendKey) return await envoyerEmailResend(resendKey, destinataire, sujet, html, texteSimple);
+  return await envoyerEmailBrevo(brevoKey, destinataire, sujet, html, texteSimple);
+}
+
+async function envoyerEmailResend(
+  apiKey: string,
+  destinataire: string,
+  sujet: string,
+  html: string,
+  texteSimple: string,
+): Promise<DeliveryResult> {
+  try {
+    const response = await fetchWithTimeout("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: EMAIL_RESEND_EXPEDITEUR,
+        to: [destinataire],
+        subject: sujet,
+        html,
+        text: texteSimple,
+      }),
+    }, 12_000);
+    let detail = "";
+    if (!response.ok) {
+      try {
+        const corps = await response.json();
+        detail = text(corps?.message || corps?.name, 160);
+      } catch {
+        // Réponse non JSON : le code HTTP suffit pour le diagnostic.
+      }
+    }
+    return {
+      target: destinataire,
+      delivered: response.ok,
+      reason: response.ok ? "email accepté par Resend" : `Resend HTTP ${response.status}${detail ? ` - ${detail}` : ""}`,
+    };
+  } catch (error) {
+    return {
+      target: destinataire,
+      delivered: false,
+      reason: error instanceof Error ? error.message.slice(0, 160) : "erreur email",
+    };
+  }
+}
+
+async function envoyerEmailBrevo(
+  apiKey: string,
+  destinataire: string,
+  sujet: string,
+  html: string,
+  texteSimple: string,
+): Promise<DeliveryResult> {
+  if (!apiKey || !EMAIL_EXPEDITEUR) {
+    return { target: destinataire, delivered: false, reason: "BREVO_API_KEY ou EMAIL_FROM absent" };
+  }
   try {
     const response = await fetchWithTimeout("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
@@ -434,7 +501,7 @@ async function envoyerEmailCommandeSiConfigure(
       body: JSON.stringify({
         sender: { email: EMAIL_EXPEDITEUR, name: EMAIL_NOM_EXPEDITEUR },
         to: [{ email: destinataire }],
-        subject: `Prime Service - commande ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+        subject: sujet,
         htmlContent: html,
         textContent: texteSimple,
       }),
