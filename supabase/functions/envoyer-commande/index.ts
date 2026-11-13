@@ -396,10 +396,13 @@ async function envoyerEmailCommandeSiConfigure(
   if (!shop.phone) return null;
   const destinataire = await lireEmailBoutique(shop.phone);
   if (!destinataire) return null;
-  const resendKey = text(Deno.env.get("RESEND_API_KEY"), 240);
   const brevoKey = text(Deno.env.get("BREVO_API_KEY"), 240);
-  if (!resendKey && (!brevoKey || !EMAIL_EXPEDITEUR)) {
-    return { target: destinataire, delivered: false, reason: "aucun fournisseur e-mail configuré" };
+  const resendKey = text(Deno.env.get("RESEND_API_KEY"), 240);
+  // Brevo est le fournisseur principal (il vérifie une simple adresse expéditrice,
+  // sans nom de domaine). Resend ne sert que de repli si Brevo n'est pas configuré.
+  const brevoPret = Boolean(brevoKey && EMAIL_EXPEDITEUR);
+  if (!brevoPret && !resendKey) {
+    return { target: destinataire, delivered: false, reason: "BREVO_API_KEY/EMAIL_FROM ou RESEND_API_KEY absent" };
   }
 
   const lignes = shop.items.map((item) => {
@@ -435,8 +438,8 @@ async function envoyerEmailCommandeSiConfigure(
   const sujet = `Prime Service - commande ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`;
   // Resend prioritaire s'il est configuré, sinon Brevo : un seul secret à poser
   // suffit, et retirer l'un ne casse jamais l'autre.
-  if (resendKey) return await envoyerEmailResend(resendKey, destinataire, sujet, html, texteSimple);
-  return await envoyerEmailBrevo(brevoKey, destinataire, sujet, html, texteSimple);
+  if (brevoPret) return await envoyerEmailBrevo(brevoKey, destinataire, sujet, html, texteSimple);
+  return await envoyerEmailResend(resendKey, destinataire, sujet, html, texteSimple);
 }
 
 async function envoyerEmailResend(
