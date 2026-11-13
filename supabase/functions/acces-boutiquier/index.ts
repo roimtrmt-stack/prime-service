@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { normalizeMaliPhone } from "../_shared/orange-sms.ts";
+import { normalizeMaliPhone } from "./orange-sms.ts";
 
 /* =====================================================================
    ACCÈS « MODE BOUTIQUIER » — espace privé du boutiquier concerné.

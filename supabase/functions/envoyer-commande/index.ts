@@ -1,6 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import nodemailer from "npm:nodemailer@^9";
-import { orangeSmsEnabled, sendOrangeSms } from "../_shared/orange-sms.ts";
+// Copie locale volontaire : le bundler côté serveur (CLI récente) ne résout
+// pas les imports hors du dossier de la fonction, ce qui faisait échouer le
+// déploiement. Voir tests/validate-shared-sms.mjs (copies identiques).
+import { orangeSmsEnabled, sendOrangeSms } from "./orange-sms.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
