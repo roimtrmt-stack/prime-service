@@ -1941,7 +1941,9 @@ async function envoyerSoumission(event){
       if(abonnementPushInscriptionCapture){
         confirmationNotif.textContent += " Vos notifications de commande sont déjà activées sur ce téléphone.";
       } else if(document.getElementById("autorisationNotifBoutique").checked){
-        confirmationNotif.textContent += " Vous avez autorisé les notifications ; le premier SMS de commande contiendra un lien pour activer ce navigateur de manière sécurisée.";
+        confirmationNotif.textContent += modeNotificationInscription === "email" && emailNotificationInscription
+          ? ` Vos alertes de commande arriveront sur ${emailNotificationInscription}.`
+          : " Vous avez autorisé les notifications ; le premier SMS de commande contiendra un lien pour activer ce navigateur de manière sécurisée.";
       }
     }
 
@@ -2001,6 +2003,14 @@ async function envoyerSoumission(event){
       const payload = { content: discordTexte, embeds: embedsPayload };
       formDataDiscord.append("payload_json", JSON.stringify(payload));
 
+      // Mode de notification choisi + e-mail de secours (cahier des charges) :
+      // envoyés à envoyer-inscription, qui les enregistre côté serveur.
+      formDataDiscord.append("mode_notification", modeNotificationInscription);
+      formDataDiscord.append("nom_boutique", nomBoutique);
+      if(emailNotificationInscription){
+        formDataDiscord.append("email_notification", emailNotificationInscription);
+      }
+
       // 3bis. Abonnement push capturé pendant l'inscription (peut être vide si refusé/non
       // supporté) : envoyer-inscription doit l'enregistrer dans abonnements_push avec la clé
       // de service s'il est présent (voir note serveur nécessaire, RLS interdit ce même geste
@@ -2059,8 +2069,106 @@ function urlBase64VersUint8Array(base64String){
 const CLE_VAPID_PUBLIQUE_INSCRIPTION = "BKUvZzJuPGArqm0y7jr69DJMp4NjO9EnDRwPzyIB4yJl7efqLtJSrem-uUQfvk46RkWfK9kshSONNp4ad5EQxlY";
 let abonnementPushInscriptionCapture = null;
 
+/* =====================================================================
+   DETECTION DE COMPATIBILITE + PLAN DE SECOURS (cahier des charges)
+   Un test technique invisible vérifie si ce téléphone peut recevoir des
+   notifications instantanées. Si ce n'est pas le cas, on n'abonne à rien et
+   on propose deux solutions 100 % gratuites : installer Firefox, ou recevoir
+   les alertes par e-mail (adresse enregistrée avec la boutique).
+   ===================================================================== */
+let modeNotificationInscription = "webpush";
+let emailNotificationInscription = "";
+
+function appareilSupporteNotifications(){
+  const supporteAPI = ("serviceWorker" in navigator) && ("PushManager" in window) && ("Notification" in window);
+  const estIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const estStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  if(!supporteAPI) return false;
+  // iPhone/iPad en onglet Safari : Apple réserve le push à l'app installée (iOS 16.4+).
+  if(estIOS && !estStandalone) return false;
+  return true;
+}
+
+function afficherSecoursEmailInscription(){
+  const indicateur = document.getElementById("statutNotifInscription");
+  if(!indicateur) return;
+  if(indicateur.dataset.secoursAffiche === "oui") return;
+  indicateur.dataset.secoursAffiche = "oui";
+  indicateur.style.textAlign = "left";
+  indicateur.innerHTML = `
+    <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:14px;padding:14px;margin-top:8px;">
+      <div style="font-size:15px;font-weight:800;color:#1d4ed8;">📵 Votre appareil ne prend pas en charge les notifications instantanées</div>
+      <p style="font-size:13.5px;color:#374151;margin:8px 0 12px;line-height:1.5;">
+        Pas d'inquiétude : vos commandes restent visibles sur le site et vous pouvez être prévenu autrement, gratuitement.
+        Installez le navigateur <strong>Firefox</strong> puis réessayez de vous inscrire, ou choisissez les alertes par <strong>e-mail</strong>.
+      </p>
+      <a href="https://www.mozilla.org/fr/firefox/browsers/mobile/android/" target="_blank" rel="noopener"
+         style="display:block;text-align:center;background:#1d4ed8;color:#fff;font-weight:700;padding:11px;border-radius:10px;text-decoration:none;font-size:14px;">
+        ⬇️ Installer Firefox (gratuit)
+      </a>
+      <button type="button" onclick="basculerChampEmailInscription()"
+        style="display:block;width:100%;margin-top:9px;background:#fff;border:1.5px solid #1d4ed8;color:#1d4ed8;font-weight:700;padding:11px;border-radius:10px;font-size:14px;cursor:pointer;">
+        ✉️ Recevoir mes alertes par e-mail (Gmail)
+      </button>
+      <div id="zoneEmailInscription" style="display:none;margin-top:10px;">
+        <label for="champEmailInscription" style="font-size:13px;font-weight:700;color:#111827;">Votre adresse e-mail</label>
+        <input id="champEmailInscription" type="email" inputmode="email" autocomplete="email" placeholder="exemple@gmail.com"
+          style="width:100%;box-sizing:border-box;margin-top:6px;padding:11px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:14px;">
+        <button type="button" onclick="enregistrerEmailInscription()"
+          style="display:block;width:100%;margin-top:9px;background:#16a34a;color:#fff;font-weight:700;padding:11px;border-radius:10px;font-size:14px;cursor:pointer;">
+          ✅ Confirmer que je veux mes alertes par e-mail
+        </button>
+        <p id="statutEmailInscription" style="font-size:12.5px;color:#4b5563;margin:8px 0 0;"></p>
+      </div>
+    </div>`;
+}
+
+function basculerChampEmailInscription(){
+  const zone = document.getElementById("zoneEmailInscription");
+  if(zone) zone.style.display = zone.style.display === "none" ? "block" : "none";
+}
+
+function emailValideInscription(valeur){
+  return /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(String(valeur || "").trim());
+}
+
+function enregistrerEmailInscription(){
+  const champ = document.getElementById("champEmailInscription");
+  const statutEmail = document.getElementById("statutEmailInscription");
+  const valeur = champ ? champ.value.trim() : "";
+  if(!emailValideInscription(valeur)){
+    if(statutEmail) statutEmail.textContent = "⚠️ Adresse e-mail invalide — vérifiez, par exemple exemple@gmail.com.";
+    return;
+  }
+  emailNotificationInscription = valeur;
+  modeNotificationInscription = "email";
+  if(statutEmail) statutEmail.textContent = "✅ E-mail enregistré : ce choix part avec vos articles.";
+  try{ localStorage.setItem("ps_notification_email", valeur); }catch(e){}
+}
+
+(function initSecoursNotificationInscription(){
+  try{
+    const dejaEnregistre = localStorage.getItem("ps_notification_email");
+    if(dejaEnregistre && emailValideInscription(dejaEnregistre)) emailNotificationInscription = dejaEnregistre;
+    if(!appareilSupporteNotifications()){
+      modeNotificationInscription = "email";
+      afficherSecoursEmailInscription();
+    }
+  }catch(e){}
+})();
+
 async function activerNotifCommandeInscription(){
   const indicateur = document.getElementById("statutNotifInscription");
+
+  // Cahier des charges : test technique invisible avant toute demande de permission.
+  // Appareil incompatible (pas de service worker / PushManager / Notification, ou
+  // iPhone en onglet Safari) → on n'abonne à RIEN et on affiche le plan de secours
+  // (Firefox ou alertes e-mail). Les branches ci-dessous restent en filet de sécurité.
+  if(!appareilSupporteNotifications()){
+    modeNotificationInscription = "email";
+    afficherSecoursEmailInscription();
+    return true;
+  }
 
   // Sur iPhone/iPad en onglet Safari, Apple refuse toute demande de notification et
   // tout abonnement push : seule l'app installée (mode standalone, iOS 16.4+) peut

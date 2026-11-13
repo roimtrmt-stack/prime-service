@@ -60,6 +60,40 @@ function validPushSubscription(value: unknown): value is Record<string, unknown>
     !!keys && typeof keys === "object" && !Array.isArray(keys);
 }
 
+function emailValide(valeur: unknown): boolean {
+  return typeof valeur === "string" && /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(valeur.trim());
+}
+
+/* Enregistre le mode de notification du boutiquier (webpush ou email) et son
+   adresse e-mail de secours. La table preferences_notification n'a aucune
+   politique RLS publique : seul ce traitement serveur (rôle service) écrit.
+   Volontairement NON bloquant : l'inscription et Discord ne dépendent pas de ça. */
+async function enregistrerPreferenceNotification(
+  telephone: string,
+  nomBoutique: string,
+  mode: string,
+  email: string,
+): Promise<void> {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return;
+    const digits = telephone.replace(/\D/g, "").replace(/^223/, "").slice(-8);
+    if (digits.length !== 8) return;
+    const modeNotification = mode === "email" ? "email" : "webpush";
+    const emailNotification = emailValide(email) ? email.trim().toLowerCase().slice(0, 160) : null;
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { error } = await supabase.from("preferences_notification").upsert({
+      telephone_boutique: digits,
+      nom_boutique: nomBoutique.trim().slice(0, 120) || null,
+      mode_notification: modeNotification,
+      email_notification: emailNotification,
+      maj_le: new Date().toISOString(),
+    }, { onConflict: "telephone_boutique" });
+    if (error) console.warn("Préférence notification non enregistrée :", error.message.slice(0, 200));
+  } catch (error) {
+    console.warn("Préférence notification non enregistrée :", error instanceof Error ? error.message.slice(0, 200) : "inconnu");
+  }
+}
+
 // Rattache l'abonnement push capturé à l'inscription au numéro de la boutique.
 // Écrit uniquement via le rôle service (la RLS interdit ce geste au navigateur).
 // Volontairement NON bloquant : le moindre problème (config absente, abonnement
@@ -124,6 +158,9 @@ Deno.serve(async (req: Request) => {
     // est présent, on le rattache au numéro de la boutique sans jamais bloquer.
     const pushSubscriptionBrute = formData.get("push_subscription");
     const telephoneBoutique = text(formData.get("telephone_boutique"), 24);
+    const modeNotificationBoutique = text(formData.get("mode_notification"), 20);
+    const emailNotificationBoutique = text(formData.get("email_notification"), 160);
+    const nomBoutiqueInscription = text(formData.get("nom_boutique"), 120);
     let pushSubscription: Record<string, unknown> | null = null;
     if (typeof pushSubscriptionBrute === "string" && pushSubscriptionBrute.length <= 4_000) {
       try {
@@ -167,6 +204,17 @@ Deno.serve(async (req: Request) => {
     // Après le succès Discord : on attend le rattachement push (déjà en cours,
     // non bloquant et borné par les garde-fous internes de lierAbonnementPush).
     await lierPush;
+
+    // Préférence de notification (webpush ou e-mail) enregistrée pour ce numéro :
+    // elle pilote l'envoi des commandes dans envoyer-commande.
+    if (telephoneBoutique) {
+      await enregistrerPreferenceNotification(
+        telephoneBoutique,
+        nomBoutiqueInscription,
+        modeNotificationBoutique,
+        emailNotificationBoutique,
+      );
+    }
 
     return jsonResponse(req, { success: true, recipient: "owner" });
   } catch (error) {

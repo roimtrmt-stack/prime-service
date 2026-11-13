@@ -344,6 +344,115 @@ function groupByShop(items: CanonicalItem[]): Shop[] {
   return [...shops.values()].slice(0, 30);
 }
 
+/* =====================================================================
+   ALERTES PAR E-MAIL (plan de secours, cahier des charges)
+   Un boutiquier dont le téléphone ne peut pas recevoir de notifications push
+   choisit l'e-mail à l'inscription (table preferences_notification). Dans ce
+   cas la commande lui est aussi envoyée par e-mail, via l'API Brevo (offre
+   gratuite) : la clé reste un secret serveur, jamais dans le navigateur.
+   ===================================================================== */
+const EMAIL_EXPEDITEUR = text(Deno.env.get("BREVO_SENDER_EMAIL"), 160);
+const EMAIL_NOM_EXPEDITEUR = text(Deno.env.get("BREVO_SENDER_NAME"), 120) || "Prime Service";
+
+function emailValide(valeur: unknown): boolean {
+  return typeof valeur === "string" && /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(valeur.trim());
+}
+
+function echapperHtmlEmail(valeur: unknown): string {
+  return String(valeur ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+async function lireEmailBoutique(phone: string): Promise<string | null> {
+  try {
+    const digits = maliPhoneDigits(phone);
+    if (digits.length !== 8) return null;
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data } = await supabaseAdmin
+      .from("preferences_notification")
+      .select("mode_notification, email_notification")
+      .eq("telephone_boutique", digits)
+      .maybeSingle();
+    if (!data || data.mode_notification !== "email") return null;
+    return emailValide(data.email_notification) ? String(data.email_notification).trim() : null;
+  } catch (error) {
+    console.error("[email boutiquier] lecture impossible", error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+async function envoyerEmailCommandeSiConfigure(
+  shop: Shop,
+  commande: { commandId: string; nom: string; tel: string; quartier: string; precision: string | null; total: number },
+  mapUrl: string,
+): Promise<DeliveryResult | null> {
+  if (!shop.phone) return null;
+  const destinataire = await lireEmailBoutique(shop.phone);
+  if (!destinataire) return null;
+  const apiKey = Deno.env.get("BREVO_API_KEY");
+  if (!apiKey || !EMAIL_EXPEDITEUR) {
+    return { target: destinataire, delivered: false, reason: "BREVO_API_KEY ou BREVO_SENDER_EMAIL absent" };
+  }
+
+  const lignes = shop.items.map((item) => {
+    const montant = Math.round(item.prix * item.quantite).toLocaleString("fr-FR");
+    const image = item.image_url
+      ? `<br><img src="${echapperHtmlEmail(item.image_url)}" alt="" style="max-width:220px;border-radius:10px;margin-top:6px;">`
+      : "";
+    return `<li style="margin-bottom:10px;"><strong>${echapperHtmlEmail(item.nom)}</strong> x${item.quantite} — ${montant} FCFA${image}</li>`;
+  }).join("");
+
+  const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:18px;color:#111827;">
+  <h2 style="color:#1d4ed8;margin:0 0 6px;">Nouvelle commande Prime Service</h2>
+  <p style="margin:0 0 14px;color:#4b5563;">Commande n° ${echapperHtmlEmail(commande.commandId)} — boutique ${echapperHtmlEmail(shop.name)}</p>
+  <h3 style="margin:14px 0 8px;">Articles à préparer</h3>
+  <ul style="padding-left:18px;margin:0 0 14px;">${lignes}</ul>
+  <p style="margin:0 0 6px;"><strong>Montant à recevoir du client :</strong> ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA</p>
+  <p style="margin:0 0 6px;"><strong>Client :</strong> ${echapperHtmlEmail(commande.nom)} — ${echapperHtmlEmail(commande.tel)}</p>
+  <p style="margin:0 0 6px;"><strong>Quartier de livraison :</strong> ${echapperHtmlEmail(commande.quartier)}</p>
+  <p style="margin:0 0 14px;"><strong>Précision :</strong> ${echapperHtmlEmail(commande.precision || "aucune")}</p>
+  ${mapUrl ? `<p style="margin:0 0 14px;"><a href="${echapperHtmlEmail(mapUrl)}" style="color:#1d4ed8;">Voir la position du client</a></p>` : ""}
+  <p style="margin:0;"><a href="${SITE_ORIGIN}/" style="display:inline-block;background:#1d4ed8;color:#fff;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:bold;">Ouvrir Prime Service</a></p>
+</div>`;
+
+  const texteSimple = [
+    `Nouvelle commande Prime Service — boutique ${shop.name}`,
+    ...shop.items.map((item) => `- ${item.nom} x${item.quantite}`),
+    `Montant à recevoir du client : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+    `Client : ${commande.nom} — ${commande.tel}`,
+    `Quartier : ${commande.quartier}`,
+    `${SITE_ORIGIN}/`,
+  ].join("\n");
+
+  try {
+    const response = await fetchWithTimeout("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "api-key": apiKey, "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({
+        sender: { email: EMAIL_EXPEDITEUR, name: EMAIL_NOM_EXPEDITEUR },
+        to: [{ email: destinataire }],
+        subject: `Prime Service - commande ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
+        htmlContent: html,
+        textContent: texteSimple,
+      }),
+    }, 12_000);
+    return {
+      target: destinataire,
+      delivered: response.ok,
+      reason: response.ok ? "email accepté par Brevo" : `Brevo HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      target: destinataire,
+      delivered: false,
+      reason: error instanceof Error ? error.message.slice(0, 160) : "erreur email",
+    };
+  }
+}
+
 async function queueBoutiqueNotifications(
   commandId: string,
   shops: Shop[],
@@ -646,7 +755,16 @@ async function notifyInBackground(input: {
         activationUrl,
       );
       const sms = await sendBoutiqueSms(shop.phone, boutiqueText, orangeMessage);
-      return { target: shop.name, sms };
+      // Mode « email » choisi par ce boutiquier : la commande part aussi par e-mail.
+      const email = await envoyerEmailCommandeSiConfigure(shop, {
+        commandId: input.commandId,
+        nom: input.nom,
+        tel: input.tel,
+        quartier: input.quartier,
+        precision: input.precision,
+        total: input.total,
+      }, mapUrl);
+      return { target: shop.name, sms, email };
     }));
   } catch (error) {
     console.error("Erreur notifications commande", input.commandId, error);
