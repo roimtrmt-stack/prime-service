@@ -1,8 +1,154 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// Copie locale volontaire : le bundler côté serveur (CLI récente) ne résout
-// pas les imports hors du dossier de la fonction, ce qui faisait échouer le
-// déploiement. Voir tests/validate-shared-sms.mjs (copies identiques).
-import { orangeSmsEnabled, sendOrangeSms } from "./orange-sms.ts";
+import nodemailer from "npm:nodemailer@^9";
+/* ---------------------------------------------------------------------------
+   Module SMS Orange embarqué (copie de _shared/orange-sms.ts, identifiants
+   préfixés pour éviter les collisions). Il est collé ici plutôt qu'importé :
+   le workflow de déploiement ne résout pas les modules séparés, ce qui faisait
+   échouer « Déployer envoyer-commande » et bloquait la fonction en version 80.
+   --------------------------------------------------------------------------- */
+export type OrangeSmsResult = {
+  target: string;
+  delivered: boolean;
+  reason: string;
+  status?: number;
+};
+
+const ORANGE_TOKEN_URL = "https://api.orange.com/oauth/v3/token";
+const ORANGE_MESSAGING_BASE_URL = "https://api.orange.com/smsmessaging/v1";
+const ORANGE_MAX_SMS_LENGTH = 160;
+const ORANGE_MAX_RECIPIENTS_PER_CALL = 100;
+const ORANGE_MALI_PREFIX = "+223";
+
+let orangeTokenCache: { accessToken: string; expiresAt: number } | null = null;
+
+function orangeText(value: unknown, max: number): string {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+function orangeClipSms(value: string): string {
+  return value.length <= ORANGE_MAX_SMS_LENGTH ? value : `${value.slice(0, ORANGE_MAX_SMS_LENGTH - 1)}…`;
+}
+
+function orangeNormalizeMaliPhone(value: unknown): string | null {
+  const raw = orangeText(value, 80);
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 8) return `${ORANGE_MALI_PREFIX}${digits}`;
+  if (digits.length === 11 && digits.startsWith("223")) return `+${digits}`;
+  return null;
+}
+
+function orangeSenderAddress(value: unknown): string | null {
+  const raw = orangeText(value, 120);
+  if (/^tel:\+\d{8,15}$/.test(raw)) return raw;
+  const phone = orangeNormalizeMaliPhone(raw);
+  return phone ? `tel:${phone}` : null;
+}
+
+async function orangeFetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = 10_000,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function orangeAccessToken(): Promise<string> {
+  const clientId = orangeText(Deno.env.get("ORANGE_CLIENT_ID"), 300);
+  const clientSecret = orangeText(Deno.env.get("ORANGE_CLIENT_SECRET"), 500);
+  if (!clientId || !clientSecret) throw new Error("ORANGE_CLIENT_ID ou ORANGE_CLIENT_SECRET absent");
+
+  if (orangeTokenCache && orangeTokenCache.expiresAt > Date.now() + 60_000) return orangeTokenCache.accessToken;
+
+  const credentials = btoa(`${clientId}:${clientSecret}`);
+  const response = await orangeFetchWithTimeout(ORANGE_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Basic ${credentials}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Accept": "application/json",
+    },
+    body: "grant_type=client_credentials",
+  });
+  if (!response.ok) throw new Error(`Orange OAuth HTTP ${response.status}`);
+
+  const body = await response.json().catch(() => ({}));
+  const accessToken = orangeText(body?.access_token, 4_000);
+  if (!accessToken) throw new Error("Orange OAuth access_token absent");
+  const expiresIn = Math.max(120, Number(body?.expires_in) || 3600);
+  orangeTokenCache = {
+    accessToken,
+    expiresAt: Date.now() + Math.max(60, expiresIn - 60) * 1_000,
+  };
+  return accessToken;
+}
+
+export function orangeSmsEnabled(): boolean {
+  const enabled = orangeText(Deno.env.get("ORANGE_SMS_ENABLED"), 20).toLowerCase() === "true";
+  const provider = orangeText(Deno.env.get("SMS_PROVIDER"), 20).toLowerCase();
+  return enabled || provider === "orange" || provider === "both";
+}
+
+export async function sendOrangeSms(recipient: string, message: string): Promise<OrangeSmsResult> {
+  const phone = orangeNormalizeMaliPhone(recipient);
+  if (!phone) return { target: recipient, delivered: false, reason: "numéro malien invalide" };
+  const senderAddress = orangeSenderAddress(Deno.env.get("ORANGE_SENDER_ADDRESS"));
+  if (!senderAddress) {
+    return { target: phone, delivered: false, reason: "ORANGE_SENDER_ADDRESS absent ou invalide" };
+  }
+
+  try {
+    const accessToken = await orangeAccessToken();
+    const endpoint = `${ORANGE_MESSAGING_BASE_URL}/outbound/${encodeURIComponent(senderAddress)}/requests`;
+    const response = await orangeFetchWithTimeout(endpoint, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: JSON.stringify({
+        outboundSMSMessageRequest: {
+          address: `tel:${phone}`,
+          senderAddress,
+          outboundSMSTextMessage: { message: orangeClipSms(message) },
+        },
+      }),
+    });
+    return {
+      target: phone,
+      delivered: response.status === 201,
+      reason: response.status === 201 ? "Orange SMS accepté" : `Orange HTTP ${response.status}`,
+      status: response.status,
+    };
+  } catch (error) {
+    return {
+      target: phone,
+      delivered: false,
+      reason: error instanceof Error ? error.message.slice(0, 180) : "exception Orange SMS",
+    };
+  }
+}
+
+export async function sendOrangeSmsBatch(
+  recipients: string[],
+  message: string,
+): Promise<OrangeSmsResult[]> {
+  const uniqueRecipients = [...new Set(recipients.map(orangeNormalizeMaliPhone).filter((value): value is string => Boolean(value)))]
+    .slice(0, ORANGE_MAX_RECIPIENTS_PER_CALL);
+  const results: OrangeSmsResult[] = [];
+  for (const recipient of uniqueRecipients) {
+    if (results.length > 0) await new Promise((resolve) => setTimeout(resolve, 210));
+    results.push(await sendOrangeSms(recipient, message));
+  }
+  return results;
+}
+/* --- fin du module SMS embarqué --- */
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -401,11 +547,14 @@ async function envoyerEmailCommandeSiConfigure(
   if (!destinataire) return null;
   const brevoKey = text(Deno.env.get("BREVO_API_KEY"), 240);
   const resendKey = text(Deno.env.get("RESEND_API_KEY"), 240);
-  // Resend est le fournisseur principal ; Brevo reste un repli si sa clé est
-  // posée plus tard. Un seul secret suffit, retirer l'un ne casse pas l'autre.
+  // Gmail SMTP d'abord : les identifiants sont déjà posés dans Supabase et
+  // l'envoi part de la vraie adresse. Resend puis Brevo servent de repli.
+  const gmailUser = text(Deno.env.get("GMAIL_USER"), 160);
+  const gmailPass = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
+  const gmailPret = Boolean(gmailUser && gmailPass);
   const brevoPret = Boolean(brevoKey && EMAIL_EXPEDITEUR);
-  if (!brevoPret && !resendKey) {
-    return { target: destinataire, delivered: false, reason: "RESEND_API_KEY (ou BREVO_API_KEY/EMAIL_FROM) absent" };
+  if (!gmailPret && !brevoPret && !resendKey) {
+    return { target: destinataire, delivered: false, reason: "GMAIL_USER/GMAIL_APP_PASSWORD, RESEND_API_KEY ou BREVO_API_KEY/EMAIL_FROM absent" };
   }
 
   const lignes = shop.items.map((item) => {
@@ -439,9 +588,53 @@ async function envoyerEmailCommandeSiConfigure(
   ].join("\n");
 
   const sujet = `Prime Service - commande ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`;
-  // Resend prioritaire, Brevo en repli.
+  // Gmail prioritaire, puis Resend, puis Brevo.
+  if (gmailPret) return await envoyerEmailGmail(gmailUser, gmailPass, destinataire, sujet, html, texteSimple);
   if (resendKey) return await envoyerEmailResend(resendKey, destinataire, sujet, html, texteSimple);
   return await envoyerEmailBrevo(brevoKey, destinataire, sujet, html, texteSimple);
+}
+
+/* Gmail SMTP : port 465 en TLS implicite (les Edge Functions bloquent 25 et 587).
+   Le mot de passe est un « mot de passe d'application » Google. Limite gratuite
+   d'environ 100 messages par 24 h. */
+async function envoyerEmailGmail(
+  utilisateur: string,
+  motDePasse: string,
+  destinataire: string,
+  sujet: string,
+  html: string,
+  texteSimple: string,
+): Promise<DeliveryResult> {
+  if (!utilisateur || !motDePasse) {
+    return { target: destinataire, delivered: false, reason: "GMAIL_USER ou GMAIL_APP_PASSWORD absent" };
+  }
+  try {
+    const transport = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: { user: utilisateur, pass: motDePasse },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
+    });
+    await new Promise<void>((resolve, reject) => {
+      transport.sendMail({
+        from: `Prime Service <${utilisateur}>`,
+        to: destinataire,
+        subject: sujet,
+        text: texteSimple,
+        html,
+      }, (error: unknown) => (error ? reject(error) : resolve()));
+    });
+    return { target: destinataire, delivered: true, reason: "email accepté par Gmail SMTP" };
+  } catch (error) {
+    return {
+      target: destinataire,
+      delivered: false,
+      reason: error instanceof Error ? error.message.slice(0, 160) : "erreur SMTP Gmail",
+    };
+  }
 }
 
 async function envoyerEmailResend(
