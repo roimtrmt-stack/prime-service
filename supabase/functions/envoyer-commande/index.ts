@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import nodemailer from "npm:nodemailer@^9";
+import { emailValide, envoyerEmailCommande, type ResultatEmail } from "./email-commande.ts";
 /* ---------------------------------------------------------------------------
    Module SMS Orange embarqué (copie de _shared/orange-sms.ts, identifiants
    préfixés pour éviter les collisions). Il est collé ici plutôt qu'importé :
@@ -500,26 +500,10 @@ function groupByShop(items: CanonicalItem[]): Shop[] {
    cas la commande lui est aussi envoyée par e-mail, via l'API Brevo (offre
    gratuite) : la clé reste un secret serveur, jamais dans le navigateur.
    ===================================================================== */
-const EMAIL_EXPEDITEUR = text(Deno.env.get("EMAIL_FROM"), 160) || text(Deno.env.get("BREVO_SENDER_EMAIL"), 160);
-const EMAIL_NOM_EXPEDITEUR = text(Deno.env.get("BREVO_SENDER_NAME"), 120) || "Prime Service";
-// Resend : expéditeur par défaut de test, qui ne peut écrire qu'à l'adresse du
-// compte Resend tant qu'aucun nom de domaine n'y est vérifié. Dès qu'un domaine
-// est validé, mettre RESEND_FROM="Prime Service <alertes@mon-domaine.ml>".
-const EMAIL_RESEND_EXPEDITEUR = text(Deno.env.get("RESEND_FROM"), 200) || "Prime Service <onboarding@resend.dev>";
+/* E-mail de commande : gabarit et transports dans ./email-commande.ts
+   (copie identique du module _shared, testée par tests/validate-email-module.mjs). */
 
-function emailValide(valeur: unknown): boolean {
-  return typeof valeur === "string" && /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(valeur.trim());
-}
-
-function echapperHtmlEmail(valeur: unknown): string {
-  return String(valeur ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-async function lireEmailBoutique(phone: string): Promise<string | null> {
+async function lirePreferenceEmail(phone: string): Promise<{ mode: string; email: string | null } | null> {
   try {
     const digits = maliPhoneDigits(phone);
     if (digits.length !== 8) return null;
@@ -529,11 +513,33 @@ async function lireEmailBoutique(phone: string): Promise<string | null> {
       .select("mode_notification, email_notification")
       .eq("telephone_boutique", digits)
       .maybeSingle();
-    if (!data || data.mode_notification !== "email") return null;
-    return emailValide(data.email_notification) ? String(data.email_notification).trim() : null;
+    if (!data) return null;
+    return {
+      mode: String(data.mode_notification || "webpush"),
+      email: emailValide(data.email_notification) ? String(data.email_notification).trim() : null,
+    };
   } catch (error) {
     console.error("[email boutiquier] lecture impossible", error instanceof Error ? error.message : error);
     return null;
+  }
+}
+
+/* Un appareil de la boutique peut-il recevoir le push du site ? S'il n'y en a
+   aucun, l'e-mail part immédiatement : c'est le repli automatique pour les
+   téléphones sans Web Push (vieux iPhone, Android sans services Google). */
+async function boutiqueJoignableParPush(phone: string): Promise<boolean> {
+  try {
+    const digits = maliPhoneDigits(phone);
+    if (digits.length !== 8) return false;
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { count } = await supabaseAdmin
+      .from("abonnements_push")
+      .select("subscription", { count: "exact", head: true })
+      .eq("telephone_boutique", digits);
+    return (count ?? 0) > 0;
+  } catch (error) {
+    console.error("[push boutique] verification impossible", error instanceof Error ? error.message : error);
+    return false;
   }
 }
 
@@ -541,181 +547,37 @@ async function envoyerEmailCommandeSiConfigure(
   shop: Shop,
   commande: { commandId: string; nom: string; tel: string; quartier: string; precision: string | null; total: number },
   mapUrl: string,
-): Promise<DeliveryResult | null> {
+  options: { pushPossible: boolean },
+): Promise<ResultatEmail | null> {
   if (!shop.phone) return null;
-  const destinataire = await lireEmailBoutique(shop.phone);
+  const preference = await lirePreferenceEmail(shop.phone);
+  const destinataire = preference?.email ?? null;
   if (!destinataire) return null;
-  const brevoKey = text(Deno.env.get("BREVO_API_KEY"), 240);
-  const resendKey = text(Deno.env.get("RESEND_API_KEY"), 240);
-  // Gmail SMTP d'abord : les identifiants sont déjà posés dans Supabase et
-  // l'envoi part de la vraie adresse. Resend puis Brevo servent de repli.
-  const gmailUser = text(Deno.env.get("GMAIL_USER"), 160);
-  const gmailPass = Deno.env.get("GMAIL_APP_PASSWORD") ?? "";
-  const gmailPret = Boolean(gmailUser && gmailPass);
-  const brevoPret = Boolean(brevoKey && EMAIL_EXPEDITEUR);
-  if (!gmailPret && !brevoPret && !resendKey) {
-    return { target: destinataire, delivered: false, reason: "GMAIL_USER/GMAIL_APP_PASSWORD, RESEND_API_KEY ou BREVO_API_KEY/EMAIL_FROM absent" };
-  }
-
-  const lignes = shop.items.map((item) => {
-    const montant = Math.round(item.prix * item.quantite).toLocaleString("fr-FR");
-    const image = item.image_url
-      ? `<br><img src="${echapperHtmlEmail(item.image_url)}" alt="" style="max-width:220px;border-radius:10px;margin-top:6px;">`
-      : "";
-    return `<li style="margin-bottom:10px;"><strong>${echapperHtmlEmail(item.nom)}</strong> x${item.quantite} — ${montant} FCFA${image}</li>`;
-  }).join("");
-
-  const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:18px;color:#111827;">
-  <h2 style="color:#1d4ed8;margin:0 0 6px;">Nouvelle commande Prime Service</h2>
-  <p style="margin:0 0 14px;color:#4b5563;">Commande n° ${echapperHtmlEmail(commande.commandId)} — boutique ${echapperHtmlEmail(shop.name)}</p>
-  <h3 style="margin:14px 0 8px;">Articles à préparer</h3>
-  <ul style="padding-left:18px;margin:0 0 14px;">${lignes}</ul>
-  <p style="margin:0 0 6px;"><strong>Montant à recevoir du client :</strong> ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA</p>
-  <p style="margin:0 0 6px;"><strong>Client :</strong> ${echapperHtmlEmail(commande.nom)} — ${echapperHtmlEmail(commande.tel)}</p>
-  <p style="margin:0 0 6px;"><strong>Quartier de livraison :</strong> ${echapperHtmlEmail(commande.quartier)}</p>
-  <p style="margin:0 0 14px;"><strong>Précision :</strong> ${echapperHtmlEmail(commande.precision || "aucune")}</p>
-  ${mapUrl ? `<p style="margin:0 0 14px;"><a href="${echapperHtmlEmail(mapUrl)}" style="color:#1d4ed8;">Voir la position du client</a></p>` : ""}
-  <p style="margin:0;"><a href="${SITE_ORIGIN}/" style="display:inline-block;background:#1d4ed8;color:#fff;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:bold;">Ouvrir Prime Service</a></p>
-</div>`;
-
-  const texteSimple = [
-    `Nouvelle commande Prime Service — boutique ${shop.name}`,
-    ...shop.items.map((item) => `- ${item.nom} x${item.quantite}`),
-    `Montant à recevoir du client : ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
-    `Client : ${commande.nom} — ${commande.tel}`,
-    `Quartier : ${commande.quartier}`,
-    `${SITE_ORIGIN}/`,
-  ].join("\n");
-
-  const sujet = `Prime Service - commande ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`;
-  // Gmail prioritaire, puis Resend, puis Brevo.
-  if (gmailPret) return await envoyerEmailGmail(gmailUser, gmailPass, destinataire, sujet, html, texteSimple);
-  if (resendKey) return await envoyerEmailResend(resendKey, destinataire, sujet, html, texteSimple);
-  return await envoyerEmailBrevo(brevoKey, destinataire, sujet, html, texteSimple);
-}
-
-/* Gmail SMTP : port 465 en TLS implicite (les Edge Functions bloquent 25 et 587).
-   Le mot de passe est un « mot de passe d'application » Google. Limite gratuite
-   d'environ 100 messages par 24 h. */
-async function envoyerEmailGmail(
-  utilisateur: string,
-  motDePasse: string,
-  destinataire: string,
-  sujet: string,
-  html: string,
-  texteSimple: string,
-): Promise<DeliveryResult> {
-  if (!utilisateur || !motDePasse) {
-    return { target: destinataire, delivered: false, reason: "GMAIL_USER ou GMAIL_APP_PASSWORD absent" };
-  }
-  try {
-    const transport = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: { user: utilisateur, pass: motDePasse },
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 20_000,
-    });
-    await new Promise<void>((resolve, reject) => {
-      transport.sendMail({
-        from: `Prime Service <${utilisateur}>`,
-        to: destinataire,
-        subject: sujet,
-        text: texteSimple,
-        html,
-      }, (error: unknown) => (error ? reject(error) : resolve()));
-    });
-    return { target: destinataire, delivered: true, reason: "email accepté par Gmail SMTP" };
-  } catch (error) {
-    return {
-      target: destinataire,
-      delivered: false,
-      reason: error instanceof Error ? error.message.slice(0, 160) : "erreur SMTP Gmail",
-    };
-  }
-}
-
-async function envoyerEmailResend(
-  apiKey: string,
-  destinataire: string,
-  sujet: string,
-  html: string,
-  texteSimple: string,
-): Promise<DeliveryResult> {
-  try {
-    const response = await fetchWithTimeout("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: EMAIL_RESEND_EXPEDITEUR,
-        to: [destinataire],
-        subject: sujet,
-        html,
-        text: texteSimple,
-      }),
-    }, 12_000);
-    let detail = "";
-    if (!response.ok) {
-      try {
-        const corps = await response.json();
-        detail = text(corps?.message || corps?.name, 160);
-      } catch {
-        // Réponse non JSON : le code HTTP suffit pour le diagnostic.
-      }
-    }
-    return {
-      target: destinataire,
-      delivered: response.ok,
-      reason: response.ok ? "email accepté par Resend" : `Resend HTTP ${response.status}${detail ? ` - ${detail}` : ""}`,
-    };
-  } catch (error) {
-    return {
-      target: destinataire,
-      delivered: false,
-      reason: error instanceof Error ? error.message.slice(0, 160) : "erreur email",
-    };
-  }
-}
-
-async function envoyerEmailBrevo(
-  apiKey: string,
-  destinataire: string,
-  sujet: string,
-  html: string,
-  texteSimple: string,
-): Promise<DeliveryResult> {
-  if (!apiKey || !EMAIL_EXPEDITEUR) {
-    return { target: destinataire, delivered: false, reason: "BREVO_API_KEY ou EMAIL_FROM absent" };
-  }
-  try {
-    const response = await fetchWithTimeout("https://api.brevo.com/v3/smtp/email", {
-      method: "POST",
-      headers: { "api-key": apiKey, "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({
-        sender: { email: EMAIL_EXPEDITEUR, name: EMAIL_NOM_EXPEDITEUR },
-        to: [{ email: destinataire }],
-        subject: sujet,
-        htmlContent: html,
-        textContent: texteSimple,
-      }),
-    }, 12_000);
-    return {
-      target: destinataire,
-      delivered: response.ok,
-      reason: response.ok ? "email accepté par Brevo" : `Brevo HTTP ${response.status}`,
-    };
-  } catch (error) {
-    return {
-      target: destinataire,
-      delivered: false,
-      reason: error instanceof Error ? error.message.slice(0, 160) : "erreur email",
-    };
-  }
+  const modeEmail = preference?.mode === "email";
+  // Mode « e-mail » choisi par le boutiquier, ou repli automatique parce
+  // qu'aucun appareil de la boutique ne peut recevoir le push.
+  if (!modeEmail && options.pushPossible) return null;
+  return await envoyerEmailCommande({
+    destinataire,
+    boutique: shop.name,
+    commandeId: commande.commandId,
+    articles: shop.items.map((item) => ({
+      id: Number.isFinite(Number(item.id)) ? Number(item.id) : null,
+      nom: item.nom,
+      prix: Number(item.prix) || 0,
+      quantite: Number(item.quantite) || 1,
+      image_url: item.image_url || null,
+    })),
+    montant: shop.amount,
+    client: commande.nom,
+    telephone: commande.tel,
+    quartier: commande.quartier,
+    precision: commande.precision,
+    mapUrl: mapUrl || null,
+    note: modeEmail
+      ? undefined
+      : "Aucun appareil de votre boutique ne peut recevoir les notifications du site : cette commande vous est envoyée automatiquement par e-mail.",
+  });
 }
 
 async function queueBoutiqueNotifications(
@@ -1019,6 +881,7 @@ async function notifyInBackground(input: {
         mapUrl,
         activationUrl,
       );
+      const pushPossible = await boutiqueJoignableParPush(shop.phone);
       const sms = await sendBoutiqueSms(shop.phone, boutiqueText, orangeMessage);
       // Mode « email » choisi par ce boutiquier : la commande part aussi par e-mail.
       const email = await envoyerEmailCommandeSiConfigure(shop, {
@@ -1028,7 +891,7 @@ async function notifyInBackground(input: {
         quartier: input.quartier,
         precision: input.precision,
         total: input.total,
-      }, mapUrl);
+      }, mapUrl, { pushPossible });
       return { target: shop.name, sms, email };
     }));
   } catch (error) {

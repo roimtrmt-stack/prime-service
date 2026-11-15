@@ -5,8 +5,8 @@
 import { readFile } from "node:fs/promises";
 
 const CANONIQUE = "supabase/functions/_shared/orange-sms.ts";
-// envoyer-commande n'est pas listée : son module SMS est embarqué dans index.ts
-// (fichier autonome exigé par le déploiement).
+// envoyer-commande n'a plus de copie SMS : son module SMS est embarqué dans
+// index.ts (fichier autonome). Seul l'e-mail vit dans un fichier séparé.
 const FONCTIONS = [
   "acces-boutiquier",
   "envoyer-sms-orange",
@@ -37,10 +37,12 @@ for (const fn of FONCTIONS) {
   }
 }
 
-// envoyer-commande doit rester un fichier unique, déployable seul.
+// envoyer-commande doit rester autonome, hors module d'e-mail explicite.
 const commande = await readFile("supabase/functions/envoyer-commande/index.ts", "utf8");
-if (/from\s+"\.\//.test(commande) || /from\s+'\.\//.test(commande)) {
-  console.error("IMPORT INTERDIT : envoyer-commande/index.ts doit rester autonome");
+const importsLocaux = [...commande.matchAll(/from\s+["'](\.\/[^"']+)["']/g)].map((m) => m[1]);
+const importInterdit = importsLocaux.find((chemin) => chemin !== "./email-commande.ts");
+if (importInterdit) {
+  console.error(`IMPORT INATTENDU : envoyer-commande/index.ts importe ${importInterdit}`);
   erreurs += 1;
 }
 if (!commande.includes("orangeNormalizeMaliPhone")) {

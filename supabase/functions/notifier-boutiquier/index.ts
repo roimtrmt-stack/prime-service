@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import webpush from "https://esm.sh/web-push@3.6.7";
+import { envoyerEmailCommande } from "./email-commande.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -124,6 +125,69 @@ async function escalateDiscord(notification: Record<string, unknown>, attempt: n
   if (!response.ok) throw new Error(`Discord HTTP ${response.status}`);
 }
 
+/* Repli automatique : quand aucun appareil de la boutique n'a reçu le push, la
+   commande part par e-mail (photos des articles incluses). */
+async function envoyerEmailDeSecours(
+  supabase: ReturnType<typeof createClient>,
+  notification: Record<string, unknown>,
+): Promise<{ envoye: boolean; raison: string } | null> {
+  const digits = String(notification.telephone_boutique || "").replace(/\D/g, "").slice(-8);
+  if (digits.length !== 8) return null;
+
+  const { data: preference } = await supabase
+    .from("preferences_notification")
+    .select("email_notification")
+    .eq("telephone_boutique", digits)
+    .maybeSingle();
+  const destinataire = String(preference?.email_notification || "").trim();
+  if (!destinataire) return null;
+
+  const { data: commande } = await supabase
+    .from("commandes")
+    .select("articles, total, nom_client, telephone_client, quartier_client, precision_livraison, lat_client, lng_client")
+    .eq("id", notification.commande_id)
+    .maybeSingle();
+
+  const lignes = (Array.isArray(commande?.articles) ? commande!.articles : []) as Array<Record<string, unknown>>;
+  const articles = lignes.map((article, index) => ({
+    id: Number.isFinite(Number(article?.id)) ? Number(article.id) : index,
+    nom: String(article?.nom || "Article"),
+    prix: Number(article?.prix) || 0,
+    quantite: Number(article?.quantite) || 1,
+    image_url: typeof article?.image_url === "string" ? article.image_url : null,
+  }));
+
+  const lat = Number(commande?.lat_client);
+  const lng = Number(commande?.lng_client);
+  const carte = Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0)
+    ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+    : null;
+
+  const resultat = await envoyerEmailCommande({
+    destinataire,
+    boutique: String(notification.nom_boutique || "Boutique"),
+    commandeId: String(notification.commande_id || ""),
+    articles: articles.length > 0 ? articles : [{
+      id: null,
+      nom: String(notification.message || "Commande Prime Service").slice(0, 200),
+      prix: Number(commande?.total) || 0,
+      quantite: 1,
+      image_url: null,
+    }],
+    montant: Number(commande?.total) || 0,
+    client: String(commande?.nom_client || ""),
+    telephone: String(commande?.telephone_client || ""),
+    quartier: String(commande?.quartier_client || ""),
+    precision: commande?.precision_livraison ? String(commande.precision_livraison) : null,
+    mapUrl: carte,
+    note: "Le site n'a pas pu joindre les appareils de votre boutique : voici la commande par e-mail.",
+  });
+
+  // Pas de trace console dans cette fonction (règle du projet) : le résultat
+  // est renvoyé à l'appelant et la colonne email_envoye_le sert de témoin.
+  return resultat ? { envoye: resultat.envoye, raison: resultat.raison } : null;
+}
+
 async function traiterNotification(
   supabase: ReturnType<typeof createClient>,
   notification: Record<string, unknown>,
@@ -143,7 +207,7 @@ async function traiterNotification(
     .eq("statut", "en_attente")
     .eq("tentative", currentAttempt)
     .is("acknowledged_at", null)
-    .select("id, ack_token, message, nom_boutique, telephone_boutique, commande_id, tentative, acknowledged_at, created_at")
+    .select("id, ack_token, message, nom_boutique, telephone_boutique, commande_id, tentative, acknowledged_at, created_at, email_envoye_le")
     .maybeSingle();
   if (claimError || !claimed) return { id, status: "already_claimed_or_acknowledged" };
 
@@ -173,6 +237,17 @@ async function traiterNotification(
       delivered += 1;
     } catch (error) {
       lastError = error instanceof Error ? error.message.slice(0, 240) : "échec push";
+    }
+  }
+
+  // Aucun appareil joint : envoi de secours par e-mail, une seule fois.
+  if (delivered === 0 && !notification.email_envoye_le) {
+    const secours = await envoyerEmailDeSecours(supabase, notification);
+    if (secours) {
+      await supabase
+        .from("notifications_boutiquiers")
+        .update({ email_envoye_le: new Date().toISOString() })
+        .eq("id", id);
     }
   }
 
