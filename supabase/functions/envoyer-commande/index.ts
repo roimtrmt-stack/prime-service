@@ -600,7 +600,9 @@ async function queueBoutiqueNotifications(
       nom_boutique: shop.name,
       telephone_boutique: maliPhoneDigits(shop.phone!),
       message: [
-        `Prime Service — commande #${commandId}`,
+        // Pas d'identifiant technique dans la notification : illisible et sans
+        // utilité pour le boutiquier (le lien d'acquittement porte le jeton).
+        "Prime Service — nouvelle commande",
         `Boutique : ${clip(shop.name, 100)}`,
         `Adresse boutique : ${clip(shop.adresse || "Non renseignée", 240)}`,
         "Articles à préparer :",

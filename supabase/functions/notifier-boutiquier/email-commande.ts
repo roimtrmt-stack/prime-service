@@ -138,7 +138,7 @@ function corpsHtml(commande: CommandeEmail, sourceImage: (article: ArticleEmail,
 
   return `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:18px;color:#111827;">
   <h2 style="color:#1d4ed8;margin:0 0 6px;">Nouvelle commande Prime Service</h2>
-  <p style="margin:0 0 14px;color:#4b5563;">Commande n° ${echapperHtml(commande.commandeId)} — boutique ${echapperHtml(commande.boutique)}</p>
+  <p style="margin:0 0 14px;color:#4b5563;">Commande Prime Service — boutique ${echapperHtml(commande.boutique)}</p>
   ${note}
   <h3 style="margin:14px 0 8px;">Articles à préparer</h3>
   <ul style="padding:0;margin:0 0 14px;">${lignes}</ul>
