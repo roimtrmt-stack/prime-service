@@ -116,57 +116,113 @@ export function lienAppelClient(telephone: unknown): string | null {
 }
 
 function corpsHtml(commande: CommandeEmail, sourceImage: (article: ArticleEmail, index: number) => string | null): string {
+  const appel = lienAppelClient(commande.telephone);
+  const nombre = commande.articles.length;
+
   const lignes = commande.articles.map((article, index) => {
-    const montant = Math.round(article.prix * article.quantite).toLocaleString("fr-FR");
     const src = sourceImage(article, index);
-    // La photo est affichée en grand, comme la vignette « image » de la
-    // notification Chrome, puis le prix et la quantité.
-    const photo = src
-      ? `<br><img src="${echapperHtml(src)}" alt="${echapperHtml(article.nom)}" style="max-width:100%;width:100%;height:auto;border-radius:12px;margin-top:8px;display:block;">`
-      : "";
-    return `<li style="margin-bottom:16px;list-style:none;">
-      <strong>${echapperHtml(article.nom)}</strong><br>
-      <span style="color:#4b5563;">Quantité ${article.quantite} — ${montant} FCFA</span>
-      ${photo}
-    </li>`;
+    const montant = Math.round(article.prix * article.quantite).toLocaleString("fr-FR");
+    const vignette = src
+      ? `<img src="${echapperHtml(src)}" alt="${echapperHtml(article.nom)}" width="88" style="width:88px;height:88px;object-fit:cover;border-radius:10px;display:block;border:1px solid #e5e7eb;">`
+      : `<div style="width:88px;height:88px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:11px;text-align:center;line-height:88px;">sans photo</div>`;
+    return `<tr>
+          <td width="88" valign="top" style="padding:14px 0;border-bottom:1px solid #eef2f7;">${vignette}</td>
+          <td valign="top" style="padding:14px 0 14px 14px;border-bottom:1px solid #eef2f7;">
+            <div style="font-size:15px;font-weight:bold;color:#111827;line-height:1.35;">${echapperHtml(article.nom)}</div>
+            <div style="font-size:13px;color:#6b7280;margin-top:5px;">Quantité : ${article.quantite}</div>
+            <div style="font-size:15px;font-weight:bold;color:#1d4ed8;margin-top:7px;">${montant} FCFA</div>
+          </td>
+        </tr>`;
   }).join("");
 
-  const appel = lienAppelClient(commande.telephone);
   const note = commande.note
-    ? `<p style="margin:0 0 14px;padding:10px 12px;background:#fff7ed;border-left:4px solid #f97316;color:#9a3412;font-size:14px;">${echapperHtml(commande.note)}</p>`
+    ? `<div style="background:#fff7ed;border-left:4px solid #f97316;border-radius:8px;padding:11px 13px;margin:0 0 16px;color:#9a3412;font-size:13.5px;line-height:1.5;">${echapperHtml(commande.note)}</div>`
     : "";
 
-  return `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:18px;color:#111827;">
-  <h2 style="color:#1d4ed8;margin:0 0 6px;">Nouvelle commande Prime Service</h2>
-  <p style="margin:0 0 14px;color:#4b5563;">Commande Prime Service — boutique ${echapperHtml(commande.boutique)}</p>
-  ${note}
-  <h3 style="margin:14px 0 8px;">Articles à préparer</h3>
-  <ul style="padding:0;margin:0 0 14px;">${lignes}</ul>
-  <p style="margin:0 0 6px;"><strong>Montant à recevoir du client :</strong> ${Math.round(commande.montant).toLocaleString("fr-FR")} FCFA</p>
-  <p style="margin:0 0 6px;"><strong>Client :</strong> ${echapperHtml(commande.client)} — ${echapperHtml(commande.telephone)}</p>
-  <p style="margin:0 0 6px;"><strong>Quartier de livraison :</strong> ${echapperHtml(commande.quartier)}</p>
-  <p style="margin:0 0 14px;"><strong>Précision :</strong> ${echapperHtml(commande.precision || "aucune")}</p>
-  ${commande.mapUrl ? `<p style="margin:0 0 14px;"><a href="${echapperHtml(commande.mapUrl)}" style="color:#1d4ed8;">Voir la position du client</a></p>` : ""}
-  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0;"><tr>
-    ${appel ? `<td style="padding-right:10px;"><a href="${echapperHtml(appel)}" style="display:inline-block;background:#16a34a;color:#fff;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:bold;">📞 Appeler le client</a></td>` : ""}
-    <td><a href="${SITE_PRIME_SERVICE}/" style="display:inline-block;background:#1d4ed8;color:#fff;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:bold;">Ouvrir Prime Service</a></td>
-  </tr></table>
+  const carteLigne = commande.mapUrl
+    ? `<tr><td style="padding:5px 0;font-size:14px;color:#374151;">🗺️ <a href="${echapperHtml(commande.mapUrl)}" style="color:#1d4ed8;text-decoration:none;font-weight:bold;">Voir la position du client</a></td></tr>`
+    : "";
+
+  return `<div style="background:#eef2f7;padding:20px 12px;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;">
+    <tr>
+      <td style="background:#1d4ed8;padding:18px 22px;">
+        <div style="color:#ffffff;font-size:12px;letter-spacing:2.5px;font-weight:bold;">PRIME SERVICE</div>
+        <div style="color:#dbeafe;font-size:13px;margin-top:5px;">Nouvelle commande à préparer</div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:20px 22px 8px;">
+        <div style="font-size:14px;color:#6b7280;">Boutique</div>
+        <div style="font-size:18px;font-weight:bold;color:#111827;margin-top:3px;">${echapperHtml(commande.boutique)}</div>
+        ${note}
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:14px 16px;margin:16px 0 4px;">
+          <div style="font-size:11px;letter-spacing:1.2px;font-weight:bold;color:#1e40af;">MONTANT À RECEVOIR DU CLIENT</div>
+          <div style="font-size:26px;font-weight:bold;color:#1d4ed8;margin-top:5px;">${Math.round(commande.montant).toLocaleString("fr-FR")} FCFA</div>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:14px 22px 0;">
+        <div style="font-size:13px;letter-spacing:1.2px;font-weight:bold;color:#6b7280;text-transform:uppercase;">Articles à préparer (${nombre})</div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;">${lignes}
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:18px 22px 0;">
+        <div style="font-size:13px;letter-spacing:1.2px;font-weight:bold;color:#6b7280;text-transform:uppercase;">Livraison</div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;">
+          <tr><td style="padding:5px 0;font-size:14px;color:#374151;">👤 <strong>${echapperHtml(commande.client)}</strong></td></tr>
+          <tr><td style="padding:5px 0;font-size:14px;color:#374151;">📞 ${appel ? `<a href="${echapperHtml(appel)}" style="color:#16a34a;text-decoration:none;font-weight:bold;">${echapperHtml(commande.telephone)}</a>` : echapperHtml(commande.telephone)}</td></tr>
+          <tr><td style="padding:5px 0;font-size:14px;color:#374151;">📍 ${echapperHtml(commande.quartier)}</td></tr>
+          <tr><td style="padding:5px 0;font-size:14px;color:#374151;">🏠 ${echapperHtml(commande.precision || "Aucune précision")}</td></tr>
+          ${carteLigne}
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:22px 22px 6px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
+          ${appel ? `<td style="padding-right:10px;"><a href="${echapperHtml(appel)}" style="display:block;text-align:center;background:#16a34a;color:#ffffff;padding:14px 18px;border-radius:10px;text-decoration:none;font-weight:bold;font-size:15px;">📞 Appeler le client</a></td>` : ""}
+          <td><a href="${SITE_PRIME_SERVICE}/" style="display:block;text-align:center;background:#1d4ed8;color:#ffffff;padding:14px 18px;border-radius:10px;text-decoration:none;font-weight:bold;font-size:15px;">Ouvrir Prime Service</a></td>
+        </tr></table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:14px 22px 22px;">
+        <div style="font-size:12px;color:#94a3b8;line-height:1.5;border-top:1px solid #eef2f7;padding-top:12px;">
+          Message automatique envoyé par Prime Service au moment de la commande.
+        </div>
+      </td>
+    </tr>
+  </table>
 </div>`;
 }
 
 function corpsTexte(commande: CommandeEmail): string {
   const appel = lienAppelClient(commande.telephone);
   return [
-    `Nouvelle commande Prime Service — boutique ${commande.boutique}`,
+    "PRIME SERVICE — nouvelle commande à préparer",
+    `Boutique : ${commande.boutique}`,
     commande.note ? `(${commande.note})` : "",
+    "",
+    "ARTICLES",
     ...commande.articles.map((article) => `- ${article.nom} x${article.quantite} — ${Math.round(article.prix * article.quantite).toLocaleString("fr-FR")} FCFA`),
-    `Montant à recevoir du client : ${Math.round(commande.montant).toLocaleString("fr-FR")} FCFA`,
-    `Client : ${commande.client} — ${commande.telephone}`,
+    "",
+    `MONTANT À RECEVOIR DU CLIENT : ${Math.round(commande.montant).toLocaleString("fr-FR")} FCFA`,
+    "",
+    "LIVRAISON",
+    `Client : ${commande.client}`,
+    `Téléphone : ${commande.telephone}`,
     appel ? `Appeler le client : ${appel}` : "",
     `Quartier : ${commande.quartier}`,
     commande.precision ? `Précision : ${commande.precision}` : "",
+    commande.mapUrl ? `Position : ${commande.mapUrl}` : "",
+    "",
     `${SITE_PRIME_SERVICE}/`,
-  ].filter(Boolean).join("\n");
+  ].filter((ligne) => ligne !== "" || true).join("
+");
 }
 
 function sujet(commande: CommandeEmail): string {

@@ -73,6 +73,7 @@ async function sendPush(
   token: string,
   boutique: string,
   expiresAt: string,
+  imageArticle: string | null = null,
 ): Promise<void> {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) throw new Error("Clés VAPID absentes");
   await webpush.sendNotification(
@@ -82,6 +83,8 @@ async function sendPush(
       body: attemptBody(message, attempt),
       icon: `${SITE_ORIGIN}/icon-192.png`,
       badge: `${SITE_ORIGIN}/icon-192.png`,
+      // Photo du premier article : grande image de la notification Chrome.
+      image: imageArticle || undefined,
       tag: `prime-service-${token}`,
       renotify: true,
       requireInteraction: attempt >= 2,
@@ -219,6 +222,21 @@ async function traiterNotification(
     .limit(20);
   subscriptions = (rows || []) as Array<{ subscription: Record<string, unknown> }>;
 
+  // Photo du premier article de la commande, pour l'image de la notification.
+  let imageCommande: string | null = null;
+  try {
+    const { data: commandeNotif } = await supabase
+      .from("commandes")
+      .select("articles")
+      .eq("id", notification.commande_id)
+      .maybeSingle();
+    const articlesCommande = Array.isArray(commandeNotif?.articles) ? commandeNotif!.articles : [];
+    const premier = articlesCommande.find((article: Record<string, unknown>) => typeof article?.image_url === "string");
+    if (premier) imageCommande = String(premier.image_url);
+  } catch {
+    imageCommande = null;
+  }
+
   let delivered = 0;
   let lastError = "";
   // Un échec n'est « définitif » que si l'abonnement est mort côté navigateur
@@ -237,6 +255,7 @@ async function traiterNotification(
           const createdAt = Date.parse(String(notification.created_at || ""));
           return new Date(Number.isFinite(createdAt) ? createdAt + 60 * 60 * 1000 : Date.now() + 60 * 60 * 1000).toISOString();
         })(),
+        imageCommande,
       );
       delivered += 1;
     } catch (error) {
