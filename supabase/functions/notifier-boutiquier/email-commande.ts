@@ -105,6 +105,16 @@ async function telechargerImage(url: string, cid: string): Promise<ImageIntegree
   }
 }
 
+/* Numéro du client au format international, pour un lien « appeler » qui
+   fonctionne depuis Gmail sur téléphone (Mali : +223 + 8 chiffres). */
+export function lienAppelClient(telephone: unknown): string | null {
+  const chiffres = texte(telephone, 40).replace(/\D/g, "");
+  if (chiffres.length === 8) return `tel:+223${chiffres}`;
+  if (chiffres.length === 11 && chiffres.startsWith("223")) return `tel:+${chiffres}`;
+  if (chiffres.length >= 9 && chiffres.length <= 15) return `tel:+${chiffres}`;
+  return null;
+}
+
 function corpsHtml(commande: CommandeEmail, sourceImage: (article: ArticleEmail, index: number) => string | null): string {
   const lignes = commande.articles.map((article, index) => {
     const montant = Math.round(article.prix * article.quantite).toLocaleString("fr-FR");
@@ -121,6 +131,7 @@ function corpsHtml(commande: CommandeEmail, sourceImage: (article: ArticleEmail,
     </li>`;
   }).join("");
 
+  const appel = lienAppelClient(commande.telephone);
   const note = commande.note
     ? `<p style="margin:0 0 14px;padding:10px 12px;background:#fff7ed;border-left:4px solid #f97316;color:#9a3412;font-size:14px;">${echapperHtml(commande.note)}</p>`
     : "";
@@ -136,17 +147,22 @@ function corpsHtml(commande: CommandeEmail, sourceImage: (article: ArticleEmail,
   <p style="margin:0 0 6px;"><strong>Quartier de livraison :</strong> ${echapperHtml(commande.quartier)}</p>
   <p style="margin:0 0 14px;"><strong>Précision :</strong> ${echapperHtml(commande.precision || "aucune")}</p>
   ${commande.mapUrl ? `<p style="margin:0 0 14px;"><a href="${echapperHtml(commande.mapUrl)}" style="color:#1d4ed8;">Voir la position du client</a></p>` : ""}
-  <p style="margin:0;"><a href="${SITE_PRIME_SERVICE}/" style="display:inline-block;background:#1d4ed8;color:#fff;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:bold;">Ouvrir Prime Service</a></p>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0;"><tr>
+    ${appel ? `<td style="padding-right:10px;"><a href="${echapperHtml(appel)}" style="display:inline-block;background:#16a34a;color:#fff;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:bold;">📞 Appeler le client</a></td>` : ""}
+    <td><a href="${SITE_PRIME_SERVICE}/" style="display:inline-block;background:#1d4ed8;color:#fff;padding:11px 18px;border-radius:10px;text-decoration:none;font-weight:bold;">Ouvrir Prime Service</a></td>
+  </tr></table>
 </div>`;
 }
 
 function corpsTexte(commande: CommandeEmail): string {
+  const appel = lienAppelClient(commande.telephone);
   return [
     `Nouvelle commande Prime Service — boutique ${commande.boutique}`,
     commande.note ? `(${commande.note})` : "",
     ...commande.articles.map((article) => `- ${article.nom} x${article.quantite} — ${Math.round(article.prix * article.quantite).toLocaleString("fr-FR")} FCFA`),
     `Montant à recevoir du client : ${Math.round(commande.montant).toLocaleString("fr-FR")} FCFA`,
     `Client : ${commande.client} — ${commande.telephone}`,
+    appel ? `Appeler le client : ${appel}` : "",
     `Quartier : ${commande.quartier}`,
     commande.precision ? `Précision : ${commande.precision}` : "",
     `${SITE_PRIME_SERVICE}/`,
