@@ -432,7 +432,8 @@ function orangeCommandMessage(
     .map((item) => `${clip(item.nom, 42)} x${item.quantite}`)
     .join(", ");
   const prefix = [
-    `Prime Service commande #${commandId.slice(-8)}`,
+    // Pas d'identifiant technique dans le SMS : illisible pour le boutiquier.
+    "Prime Service - nouvelle commande",
     `Articles: ${articleSummary}`,
     `À recevoir du client: ${Math.round(shop.amount).toLocaleString("fr-FR")} FCFA`,
     `Client: ${clip(clientName, 38)} ${clip(clientPhone, 18)}`,
@@ -864,7 +865,7 @@ async function notifyInBackground(input: {
         };
       }
       const boutiqueText = [
-        `Prime Service — nouvelle commande #${input.commandId}`,
+        "Prime Service — nouvelle commande",
         `Boutique : ${clip(shop.name, 100)}`,
         "Articles à préparer :",
         ...shop.items.map((item) => `• ${clip(item.nom, 100)} x${item.quantite}`),
