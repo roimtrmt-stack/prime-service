@@ -1854,6 +1854,26 @@ async function envoyerSoumission(event){
   // notification ne doit jamais empêcher la publication des articles.
   await activerNotifCommandeInscription();
 
+  // Repli e-mail obligatoire : si aucun abonnement push n'a pu être créé, le mode
+  // « email » est choisi mais l'adresse doit exister, sinon la boutique ne
+  // recevrait plus rien du tout. On récupère la saisie éventuelle, sinon on
+  // rouvre le panneau et on bloque l'envoi.
+  if(!abonnementPushInscriptionCapture && modeNotificationInscription === "email" && !emailValideInscription(emailNotificationInscription)){
+    const champEmail = document.getElementById("champEmailInscription");
+    const saisieEmail = champEmail ? champEmail.value.trim() : "";
+    if(emailValideInscription(saisieEmail)){
+      emailNotificationInscription = saisieEmail;
+    } else {
+      afficherSecoursEmailInscription();
+      const zoneEmail = document.getElementById("zoneEmailInscription");
+      if(zoneEmail) zoneEmail.style.display = "block";
+      statut.style.color = "#dc2626";
+      statut.textContent = "⚠️ Les notifications instantanées ne sont pas possibles sur cet appareil : saisissez votre adresse e-mail (ou installez Firefox) puis renvoyez.";
+      if(champEmail) champEmail.focus();
+      return false;
+    }
+  }
+
   // Vérification de tous les champs
   for(const photo of photosAjoutees) {
     const champNom = document.querySelector(`.nom-photo[data-photo-id="${photo.id}"]`);

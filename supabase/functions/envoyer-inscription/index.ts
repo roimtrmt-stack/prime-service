@@ -78,7 +78,9 @@ async function enregistrerPreferenceNotification(
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return;
     const digits = telephone.replace(/\D/g, "").replace(/^223/, "").slice(-8);
     if (digits.length !== 8) return;
-    const modeNotification = mode === "email" ? "email" : "webpush";
+    // Filet de sécurité : le mode « email » n'est retenu que si une adresse
+    // valide existe, sinon la boutique n'aurait aucun canal de notification.
+    const modeNotification = mode === "email" && emailValide(email) ? "email" : "webpush";
     const emailNotification = emailValide(email) ? email.trim().toLowerCase().slice(0, 160) : null;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { error } = await supabase.from("preferences_notification").upsert({
