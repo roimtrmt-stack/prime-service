@@ -221,6 +221,10 @@ async function traiterNotification(
 
   let delivered = 0;
   let lastError = "";
+  // Un échec n'est « définitif » que si l'abonnement est mort côté navigateur
+  // (404/410 : app désinstallée, Chrome réinitialisé). Une erreur réseau
+  // passagère ne doit pas déclencher d'e-mail.
+  let echecPermanent = subscriptions.length > 0;
   for (const row of subscriptions) {
     try {
       await sendPush(
@@ -237,11 +241,17 @@ async function traiterNotification(
       delivered += 1;
     } catch (error) {
       lastError = error instanceof Error ? error.message.slice(0, 240) : "échec push";
+      const statut = Number((error as { statusCode?: unknown })?.statusCode);
+      if (statut !== 404 && statut !== 410) echecPermanent = false;
     }
   }
 
-  // Aucun appareil joint : envoi de secours par e-mail, une seule fois.
-  if (delivered === 0 && !notification.email_envoye_le) {
+  // E-mail de secours uniquement quand le push est réellement impossible pour
+  // cette boutique : aucun appareil abonné, abonnements morts (404/410), ou
+  // dernière tentative sans succès. Une boutique qui reçoit ses notifications
+  // Chrome ne reçoit donc jamais de doublon par e-mail.
+  const secoursUtile = subscriptions.length === 0 || echecPermanent || attempt >= MAX_ATTEMPTS;
+  if (delivered === 0 && !notification.email_envoye_le && secoursUtile) {
     const secours = await envoyerEmailDeSecours(supabase, notification);
     if (secours) {
       await supabase
