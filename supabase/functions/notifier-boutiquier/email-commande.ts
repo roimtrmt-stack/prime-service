@@ -221,8 +221,7 @@ function corpsTexte(commande: CommandeEmail): string {
     commande.mapUrl ? `Position : ${commande.mapUrl}` : "",
     "",
     `${SITE_PRIME_SERVICE}/`,
-  ].filter((ligne) => ligne !== "" || true).join("
-");
+  ].join("\n");
 }
 
 function sujet(commande: CommandeEmail): string {
