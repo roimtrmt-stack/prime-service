@@ -15,7 +15,9 @@ import { normalizeMaliPhone } from "./orange-sms.ts";
    3. Si TOUS les articles d'une boutique sont supprimés, son enregistrement
       est aussi effacé côté serveur (trigger SQL purge-boutique-vide + garde
       défensive ici) et l'accès est refusé.
-   4. Les actions admin-* sont réservées au compte administrateur. Elles
+   4. supprimer-produit permet au boutiquier d'effacer SON article (la table
+      produits reste fermée en écriture publique).
+   5. Les actions admin-* sont réservées au compte administrateur. Elles
       permettent à l'admin d'ouvrir et de gérer l'espace boutique de
       n'importe quelle boutique depuis l'espace vendeur.
 
