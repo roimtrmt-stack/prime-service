@@ -1060,6 +1060,11 @@ button, a, input, select, textarea, .carte-produit, .btn-ajouter, .btn-action, .
       <h2>Demande envoyée !</h2>
       <p>Merci ! Prime Service va examiner vos articles et vous contactera si vos articles sont publiés sur le site.</p>
     </div>
+    <div id="bandeauModeBoutiquier" style="display:none;margin:16px auto 0;max-width:520px;background:#14532d;color:#ffffff;border-radius:14px;padding:16px;box-shadow:0 4px 16px rgba(15,23,42,0.18);text-align:left;">
+      <div style="font-weight:800;font-size:15px;margin-bottom:6px;">🛍️ Mode boutiquier activé</div>
+      <p style="margin:0 0 12px;font-size:13px;line-height:1.5;opacity:0.9;">Votre boutique a publié <strong>plus de 5 articles</strong>. Vous pouvez maintenant changer vos prix ou supprimer vos articles depuis une page dédiée.</p>
+      <a href="mes-articles.html" style="display:block;text-align:center;background:#16a34a;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px;border-radius:10px;">🛍️ Gérer mes articles</a>
+    </div>
   </section>
 
 </main>
@@ -1955,6 +1960,10 @@ async function envoyerSoumission(event){
     } catch(errLS) {
       console.warn("Stockage local boutiquier impossible :", errLS);
     }
+    // Dès que la boutique dépasse 5 articles publiés, le bandeau « Mode
+    // boutiquier » apparaît ici et ouvre la page dédiée « Mes articles ».
+    verifierModeBoutiquierApresPublication(nomBoutique, telephone);
+
     const confirmationNotif = document.querySelector("#vue-merci-inscription .carte-merci p");
     if(confirmationNotif){
       confirmationNotif.textContent = `✅ ${resultatsArticles.length}/${totalSoumis} article(s) ont bien été enregistré(s), chacun avec sa propre photo.`;
@@ -2359,6 +2368,33 @@ if(document.readyState === "loading"){
   document.addEventListener("DOMContentLoaded", initialiserPageInscription);
 } else {
   initialiserPageInscription();
+}
+
+/* Mode boutiquier : au-delà de 5 articles publiés, la boutique est reconnue
+   par le serveur et le bandeau de la page de remerciement s'affiche. Il ouvre
+   la page dédiée « Mes articles » (changer un prix, supprimer un article). */
+async function verifierModeBoutiquierApresPublication(nomBoutique, telephone){
+  try{
+    const reponse = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/acces-boutiquier`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "activer-si-eligible", nom_boutique: nomBoutique, telephone: telephone }),
+    });
+    const resultat = await reponse.json().catch(() => ({}));
+    if(!reponse.ok || !resultat || !resultat.eligible) return;
+    try{
+      localStorage.setItem("ps_mode_boutiquier", JSON.stringify({
+        nom_cle: String(nomBoutique || "").trim().toLocaleLowerCase("fr-FR").replace(/\s+/g, " "),
+        nom_affiche: resultat.nom_affiche,
+        telephone: telephone,
+        telephone_masque: resultat.telephone_masque,
+      }));
+    }catch(errLS){ /* stockage indisponible : la page demandera le nom + numéro */ }
+    const bandeau = document.getElementById("bandeauModeBoutiquier");
+    if(bandeau) bandeau.style.display = "block";
+  }catch(err){
+    /* hors connexion : le bandeau réapparaîtra sur la page d'accueil */
+  }
 }
 
 </script>

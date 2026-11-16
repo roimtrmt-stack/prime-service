@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Prime Service — Mes articles</title>
+<meta name="theme-color" content="#14532d">
+<style>
+  :root{
+    --vert:#16a34a; --vert-fonce:#14532d; --bleu:#2563eb; --rouge:#dc2626;
+    --texte:#0f172a; --gris:#475569; --bord:#e2e8f0; --fond:#f6f8fb;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{
+    margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    background:var(--fond);color:var(--texte);padding-bottom:32px;
+  }
+  header{
+    position:sticky;top:0;z-index:10;background:var(--vert-fonce);color:#fff;
+    padding:12px 16px;display:flex;align-items:center;gap:12px;
+    box-shadow:0 2px 10px rgba(15,23,42,.25);
+  }
+  header a{
+    color:#fff;text-decoration:none;font-size:22px;line-height:1;
+    width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+    border-radius:10px;background:rgba(255,255,255,.12);
+  }
+  header .titre{font-weight:800;font-size:16px;letter-spacing:.2px}
+  header .sous{font-size:12px;opacity:.85}
+  main{max-width:640px;margin:0 auto;padding:16px}
+  .carte{
+    background:#fff;border:1px solid var(--bord);border-radius:14px;
+    padding:14px;margin-bottom:14px;box-shadow:0 1px 2px rgba(15,23,42,.04);
+  }
+  .resume{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .resume .compteur{
+    background:#ecfdf5;color:var(--vert-fonce);border:1px solid #bbf7d0;
+    border-radius:12px;padding:8px 12px;font-weight:800;font-size:13px;
+  }
+  .resume .tel{font-size:13px;color:var(--gris)}
+  .note{font-size:12px;color:var(--gris);margin:10px 0 0;line-height:1.5}
+  .article{
+    display:flex;gap:12px;align-items:flex-start;background:#fff;
+    border:1px solid var(--bord);border-radius:14px;padding:12px;margin-bottom:10px;
+  }
+  .article img,.article .sans-photo{
+    width:64px;height:64px;flex:0 0 64px;border-radius:10px;object-fit:cover;
+    background:#f1f5f9;display:flex;align-items:center;justify-content:center;
+    font-size:24px;color:#94a3b8;
+  }
+  .article .infos{flex:1;min-width:0}
+  .article .nom{
+    font-weight:700;font-size:14px;margin:0 0 2px;overflow-wrap:anywhere;
+  }
+  .article .prix{font-weight:800;font-size:15px;color:var(--bleu);margin:0 0 8px}
+  .ligne-prix{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .ligne-prix input{
+    flex:1;min-width:0;padding:9px 10px;border:1px solid var(--bord);border-radius:10px;
+    font-size:15px;font-weight:700;color:var(--texte);background:#fff;
+  }
+  .boutons{display:flex;gap:8px;flex-wrap:wrap}
+  button{
+    font-family:inherit;font-size:13px;font-weight:700;border-radius:10px;
+    padding:9px 12px;border:1px solid transparent;cursor:pointer;
+  }
+  .btn-vert{background:var(--vert);color:#fff}
+  .btn-vert:disabled{opacity:.55}
+  .btn-rouge{background:#fef2f2;color:var(--rouge);border-color:#fecaca}
+  .btn-neutre{background:#f8fafc;color:var(--gris);border-color:var(--bord)}
+  .btn-lien{
+    display:inline-block;text-align:center;text-decoration:none;width:100%;
+    padding:11px;border-radius:12px;font-weight:700;font-size:14px;
+  }
+  .btn-lien.vert{background:var(--vert);color:#fff}
+  .btn-lien.neutre{background:#fff;color:var(--gris);border:1px solid var(--bord);margin-top:8px}
+  .champ{
+    width:100%;padding:12px;border:1px solid var(--bord);border-radius:12px;
+    font-size:15px;font-family:inherit;background:#fff;margin-bottom:10px;
+  }
+  label{display:block;font-size:12px;font-weight:700;color:var(--gris);margin:0 0 4px}
+  #statut{font-size:13px;min-height:18px;margin:10px 0 0}
+  .vide{text-align:center;color:var(--gris);font-size:14px;padding:24px 8px}
+  .masque{display:none !important}
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" aria-label="Retour à l'accueil">←</a>
+  <div>
+    <div class="titre">🛍️ Mes articles</div>
+    <div class="sous" id="enteteBoutique">Espace boutiquier</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Écran de déverrouillage : seulement si cet appareil n'a pas déjà sa session -->
+  <section id="ecranCle" class="carte masque">
+    <h2 style="margin:0 0 6px;font-size:16px;">🔒 Déverrouiller mon espace</h2>
+    <p class="note" style="margin:0 0 12px;">
+      Entrez le <strong>nom exact de votre boutique</strong> et le <strong>numéro utilisé pour publier</strong>
+      (plus de 5 articles requis).
+    </p>
+    <label for="champNom">Nom de la boutique</label>
+    <input id="champNom" class="champ" type="text" autocomplete="organization" placeholder="Ex : Apple. Screen">
+    <label for="champTel">Numéro de publication</label>
+    <input id="champTel" class="champ" type="tel" inputmode="tel" autocomplete="tel" placeholder="Ex : 76 12 34 56">
+    <button class="btn-vert" style="width:100%;padding:12px;font-size:15px;" onclick="deverrouiller()">🔓 Déverrouiller</button>
+    <p id="statutCle" style="font-size:13px;min-height:18px;margin:10px 0 0;"></p>
+  </section>
+
+  <!-- Liste des articles de la boutique -->
+  <section id="ecranArticles" class="masque">
+    <div class="carte">
+      <div class="resume">
+        <span class="compteur" id="compteurArticles">0 article</span>
+        <span class="tel">📞 <strong id="telMasque"></strong> 🔒</span>
+      </div>
+      <p class="note">
+        Modifiez le <strong>prix</strong> ou <strong>supprimez</strong> un article : les changements sont
+        visibles immédiatement pour les clients. Le numéro de la boutique est verrouillé.
+      </p>
+      <p id="statut" style="font-size:13px;min-height:18px;margin:10px 0 0;"></p>
+    </div>
+
+    <div id="listeArticles"></div>
+
+    <a class="btn-lien vert" href="inscription.html">📸 Publier un nouvel article</a>
+    <a class="btn-lien neutre" href="index.html">🏠 Retour au site</a>
+  </section>
+
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  var FONCTION_ACCES = "https://kfxalpvbtbvkncztjwzc.supabase.co/functions/v1/acces-boutiquier";
+  var CLE_SESSION_BOUTIQUIER = "ps_mode_boutiquier";
+  var PRIX_MINIMUM = 1000;
+
+  var session = lireSession();
+  var articles = [];
+
+  function lireSession(){
+    try{
+      var brut = localStorage.getItem(CLE_SESSION_BOUTIQUIER);
+      if(!brut) return null;
+      var objet = JSON.parse(brut);
+      if(!objet || !objet.nom_affiche || !objet.telephone) return null;
+      return objet;
+    }catch(e){ return null; }
+  }
+
+  function appel(corps){
+    return fetch(FONCTION_ACCES, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(corps)
+    }).then(function(reponse){
+      return reponse.json().catch(function(){ return {}; }).then(function(resultat){
+        if(!reponse.ok) throw new Error(resultat.error || ("Échec (HTTP " + reponse.status + ")"));
+        return resultat;
+      });
+    });
+  }
+
+  function fcfa(montant){
+    var nombre = Math.round(Number(montant) || 0);
+    return nombre.toLocaleString("fr-FR").replace(/\u202f|\u00a0/g, " ") + " FCFA";
+  }
+
+  function statut(message, couleur, cible){
+    var zone = document.getElementById(cible || "statut");
+    if(!zone) return;
+    zone.textContent = message || "";
+    zone.style.color = couleur || "#475569";
+  }
+
+  function afficherEcranCle(message, couleur){
+    document.getElementById("ecranCle").classList.remove("masque");
+    document.getElementById("ecranArticles").classList.add("masque");
+    if(message) statut(message, couleur, "statutCle");
+  }
+
+  function afficherEcranArticles(){
+    document.getElementById("ecranCle").classList.add("masque");
+    document.getElementById("ecranArticles").classList.remove("masque");
+  }
+
+  function deverrouiller(){
+    var nom = (document.getElementById("champNom").value || "").trim();
+    var tel = (document.getElementById("champTel").value || "").trim();
+    if(!nom || !tel){ statut("Renseignez le nom de la boutique et le numéro.", "#dc2626", "statutCle"); return; }
+    statut("⏳ Vérification…", "#475569", "statutCle");
+    appel({ action:"activer-si-eligible", nom_boutique: nom, telephone: tel })
+      .then(function(resultat){
+        if(!resultat.eligible){
+          statut("❌ " + (resultat.message || "Accès refusé."), "#dc2626", "statutCle");
+          return;
+        }
+        session = {
+          nom_cle: (nom || "").toLowerCase(),
+          nom_affiche: resultat.nom_affiche,
+          telephone: tel,
+          telephone_masque: resultat.telephone_masque
+        };
+        try{ localStorage.setItem(CLE_SESSION_BOUTIQUIER, JSON.stringify(session)); }catch(e){}
+        demarrer();
+      })
+      .catch(function(erreur){ statut("❌ " + erreur.message, "#dc2626", "statutCle"); });
+  }
+
+  function demarrer(){
+    if(!session){ afficherEcranCle(); return; }
+    afficherEcranArticles();
+    document.getElementById("enteteBoutique").textContent = session.nom_affiche;
+    document.getElementById("telMasque").textContent = session.telephone_masque || "—";
+    chargerArticles();
+  }
+
+  function chargerArticles(){
+    statut("⏳ Chargement de vos articles…");
+    document.getElementById("listeArticles").innerHTML =
+      '<div class="vide">⏳ Chargement…</div>';
+    appel({ action:"mes-produits", nom_boutique: session.nom_affiche, telephone: session.telephone })
+      .then(function(resultat){
+        articles = resultat.produits || [];
+        if(resultat.nom_affiche) document.getElementById("enteteBoutique").textContent = resultat.nom_affiche;
+        if(resultat.telephone_masque) document.getElementById("telMasque").textContent = resultat.telephone_masque;
+        dessiner();
+        statut("");
+      })
+      .catch(function(erreur){
+        document.getElementById("listeArticles").innerHTML = "";
+        statut("❌ " + erreur.message, "#dc2626");
+      });
+  }
+
+  function dessiner(){
+    var zone = document.getElementById("listeArticles");
+    document.getElementById("compteurArticles").textContent =
+      articles.length + (articles.length > 1 ? " articles" : " article");
+    if(!articles.length){
+      zone.innerHTML = '<div class="vide">Aucun article pour le moment.<br>Publiez-en depuis la page d\'inscription.</div>';
+      return;
+    }
+    zone.innerHTML = "";
+    articles.forEach(function(article){
+      var bloc = document.createElement("div");
+      bloc.className = "article";
+      bloc.setAttribute("data-id", String(article.id));
+
+      var visuel = article.image_url
+        ? '<img src="' + echapper(article.image_url) + '" alt="">'
+        : '<div class="sans-photo">🖼️</div>';
+
+      bloc.innerHTML =
+        visuel +
+        '<div class="infos">' +
+          '<p class="nom">' + echapper(article.nom) + '</p>' +
+          '<p class="prix">' + fcfa(article.prix) + '</p>' +
+          '<div class="ligne-prix">' +
+            '<input type="number" inputmode="numeric" min="' + PRIX_MINIMUM + '" step="1" ' +
+              'value="' + Number(article.prix) + '" aria-label="Nouveau prix">' +
+            '<button class="btn-vert" data-action="prix">💾 Enregistrer</button>' +
+          '</div>' +
+          '<div class="boutons">' +
+            '<button class="btn-rouge" data-action="supprimer">🗑️ Supprimer</button>' +
+          '</div>' +
+        '</div>';
+
+      zone.appendChild(bloc);
+    });
+  }
+
+  function echapper(valeur){
+    return String(valeur == null ? "" : valeur)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function articleDe(bloc){
+    var id = Number(bloc.getAttribute("data-id"));
+    for(var i = 0; i < articles.length; i++){
+      if(Number(articles[i].id) === id) return articles[i];
+    }
+    return null;
+  }
+
+  function enregistrerPrix(bloc, bouton){
+    var article = articleDe(bloc);
+    if(!article) return;
+    var champ = bloc.querySelector('input[type="number"]');
+    var prix = Math.round(Number(champ.value));
+    if(!isFinite(prix) || prix < PRIX_MINIMUM){
+      statut("❌ Prix minimum " + fcfa(PRIX_MINIMUM) + ".", "#dc2626");
+      return;
+    }
+    if(prix === Number(article.prix)){
+      statut("Ce prix est déjà celui affiché.", "#475569");
+      return;
+    }
+    bouton.disabled = true;
+    bouton.textContent = "⏳";
+    appel({
+      action:"modifier-produit",
+      nom_boutique: session.nom_affiche,
+      telephone: session.telephone,
+      id: article.id,
+      prix: prix
+    })
+      .then(function(resultat){
+        article.prix = (resultat.produit && resultat.produit.prix) || prix;
+        var ligne = bloc.querySelector(".prix");
+        if(ligne) ligne.textContent = fcfa(article.prix);
+        champ.value = article.prix;
+        statut("✅ Prix mis à jour : " + fcfa(article.prix) + ".", "#16a34a");
+      })
+      .catch(function(erreur){ statut("❌ " + erreur.message, "#dc2626"); })
+      .then(function(){
+        bouton.disabled = false;
+        bouton.textContent = "💾 Enregistrer";
+      });
+  }
+
+  function supprimer(bloc, bouton){
+    var article = articleDe(bloc);
+    if(!article) return;
+    if(!confirm("Supprimer définitivement « " + article.nom + " » ?\n\nCette action est irréversible.")) return;
+    bouton.disabled = true;
+    bouton.textContent = "⏳ Suppression…";
+    appel({
+      action:"supprimer-produit",
+      nom_boutique: session.nom_affiche,
+      telephone: session.telephone,
+      id: article.id
+    })
+      .then(function(){
+        articles = articles.filter(function(a){ return Number(a.id) !== Number(article.id); });
+        bloc.parentNode.removeChild(bloc);
+        if(!articles.length){
+          document.getElementById("listeArticles").innerHTML =
+            '<div class="vide">Aucun article pour le moment.<br>Publiez-en depuis la page d\'inscription.</div>';
+        }
+        document.getElementById("compteurArticles").textContent =
+          articles.length + (articles.length > 1 ? " articles" : " article");
+        statut("✅ « " + article.nom + " » supprimé.", "#16a34a");
+      })
+      .catch(function(erreur){
+        statut("❌ " + erreur.message, "#dc2626");
+        bouton.disabled = false;
+        bouton.textContent = "🗑️ Supprimer";
+      });
+  }
+
+  document.getElementById("listeArticles").addEventListener("click", function(evenement){
+    var bouton = evenement.target.closest("button[data-action]");
+    if(!bouton) return;
+    var bloc = bouton.closest(".article");
+    if(!bloc) return;
+    if(bouton.getAttribute("data-action") === "prix") enregistrerPrix(bloc, bouton);
+    else supprimer(bloc, bouton);
+  });
+
+  document.getElementById("champTel").addEventListener("keydown", function(evenement){
+    if(evenement.key === "Enter") deverrouiller();
+  });
+
+  window.deverrouiller = deverrouiller;
+  demarrer();
+})();
+</script>
+</body>
+</html>

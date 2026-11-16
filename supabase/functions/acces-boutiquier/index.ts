@@ -315,6 +315,36 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(req, { success: true, produit: misAJour });
     }
 
+    /* -------------------- 3bis. SUPPRIMER UN ARTICLE -------------------- */
+    // Le boutiquier n'a plus d'accès direct en écriture sur la table : la
+    // suppression passe par ici, après vérification du nom ET du numéro.
+    if (action === "supprimer-produit") {
+      const nomCle = canonBoutique(body.nom_boutique);
+      if (!nomCle) return jsonResponse(req, { error: "Nom de boutique manquant" }, 400);
+      const auth = await authentifierBoutique(supabaseAdmin, body);
+      if ("erreur" in auth) return jsonResponse(req, { error: auth.erreur[1] }, auth.erreur[0]);
+
+      const { data: tous, error: erreurLecture } = await supabaseAdmin
+        .from("produits")
+        .select("id, nom, nom_boutique")
+        .order("created_at", { ascending: false })
+        .limit(1_000);
+      if (erreurLecture) return jsonResponse(req, { error: "Catalogue indisponible" }, 500);
+      const produit = (tous || [])
+        .map((p) => p as unknown as Record<string, unknown>)
+        .find((p) => Number(p.id) === Number(body.id) && canonBoutique(p.nom_boutique) === auth.nomCle);
+      if (!produit) return jsonResponse(req, { error: "Article introuvable dans votre boutique" }, 404);
+
+      const { error: erreurSuppression } = await supabaseAdmin
+        .from("produits")
+        .delete()
+        .eq("id", Number(produit.id) as number);
+      if (erreurSuppression) {
+        return jsonResponse(req, { error: "Suppression impossible : " + erreurSuppression.message }, 500);
+      }
+      return jsonResponse(req, { success: true, id: Number(produit.id), nom: produit.nom });
+    }
+
     /* -------------------- 4. ADMIN : PANNEAU (liste d'une boutique) -------------------- */
     if (action === "admin-panneau") {
       const denied = await requireAdmin(req);
